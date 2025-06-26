@@ -116,10 +116,10 @@ def get_path_repo(name_repo):
     - The function uses the `__path__` attribute of the imported repository modules to determine the root directory.
     - The repository name should exactly match one of the recognized values ("cup1d" or "lace").
     """
-    if name_repo == "cup1d":
-        import cup1d
+    if name_repo == "cupix":
+        import cupix
 
-        path = os.path.dirname(cup1d.__path__[0])
+        path = os.path.dirname(cupix.__path__[0])
     elif name_repo == "lace":
         import lace
 
@@ -127,7 +127,7 @@ def get_path_repo(name_repo):
     else:
         raise ImportError(
             name_repo
-            + " is not a valid repository name. Expected values are 'cup1d' or 'lace'."
+            + " is not a valid repository name. Expected values are 'cupix' or 'lace'."
         )
 
     # if name_repo in path:

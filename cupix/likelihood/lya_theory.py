@@ -13,10 +13,10 @@ from cupix.likelihood.cosmologies import set_cosmo
 from cupix.utils.utils_sims import get_training_hc
 from cupix.utils.hull import Hull
 from cupix.utils.utils import is_number_string
-
+from cupix.window.window import window_theory
 
 def set_theory(
-    args, emulator, free_parameters=None, use_hull=True, fid_or_true="fid"
+    args, emulator, free_parameters=None, use_hull=True, fid_or_true="fid", k_unit='iAA'
 ):
     """Set theory"""
 
@@ -89,6 +89,8 @@ def set_theory(
         Gauss_priors=args.Gauss_priors,
     )
 
+    
+
     # set theory
     theory = Theory(
         emulator=emulator,
@@ -99,6 +101,7 @@ def set_theory(
         use_star_priors=args.use_star_priors,
         z_star=args.z_star,
         kp_kms=args.kp_kms,
+        k_unit = k_unit
     )
 
     return theory
@@ -120,6 +123,7 @@ class Theory(object):
         z_star=3.0,
         kp_kms=0.009,
         use_star_priors=None,
+        k_unit='iAA' # either iAA or ikms
     ):
         """Setup object to compute predictions for the 1D power spectrum.
         Inputs:
@@ -143,7 +147,7 @@ class Theory(object):
         self.kp_kms = kp_kms
         self.use_hull = use_hull
         self.use_star_priors = use_star_priors
-
+        self.k_unit = k_unit
         # setup emulator
         if emulator is None:
             raise ValueError("Emulator not specified")
@@ -223,6 +227,7 @@ class Theory(object):
             "cosmo"
         ].get_linP_Mpc_params(kp_Mpc=self.emu_kp_Mpc)
         self.fid_cosmo["M_kms_of_zs"] = self.fid_cosmo["cosmo"].get_M_kms_of_zs()
+        self.fid_cosmo["M_AA_of_zs"] = self.fid_cosmo["cosmo"].get_M_AA_of_zs()
         self.fid_cosmo["M_tdeg_of_zs"] = self.fid_cosmo["cosmo"].get_M_tdeg_of_zs()
         self.fid_cosmo["linP_params"] = self.fid_cosmo[
             "cosmo"
@@ -479,14 +484,17 @@ class Theory(object):
             linP_Mpc_params = self.get_linP_Mpc_params_from_fiducial(
                 zs, like_params
             )
-            M_kms_of_zs = []
+            M_kms_of_zs  = []
             M_tdeg_of_zs = []
+            M_AA_of_zs   = []
             for z in zs:
                 _ = np.argwhere(self.fid_cosmo["zs"] == z)[0, 0]
                 M_kms_of_zs.append(self.fid_cosmo["M_kms_of_zs"][_])
                 M_tdeg_of_zs.append(self.fid_cosmo["M_tdeg_of_zs"][_])
-            M_kms_of_zs = np.array(M_kms_of_zs)
+                M_AA_of_zs.append(self.fid_cosmo["M_AA_of_zs"][_])
+            M_kms_of_zs  = np.array(M_kms_of_zs)
             M_tdeg_of_zs = np.array(M_tdeg_of_zs)
+            M_AA_of_zs   = np.array(M_AA_of_zs)
             if return_blob:
                 blob = self.get_blob_fixed_background(like_params)
         else:
@@ -498,6 +506,7 @@ class Theory(object):
                 kp_Mpc=self.emu_kp_Mpc
             )
             M_kms_of_zs = camb_model.get_M_kms_of_zs()
+            M_AA_of_zs = camb_model.get_M_AA_of_zs()
             M_tdeg_of_zs = camb_model.get_M_tdeg_of_zs()
             if return_blob:
                 blob = self.get_blob(camb_model=camb_model)
@@ -544,10 +553,14 @@ class Theory(object):
                 )
 
         if return_M_of_z:
-            if return_blob:
-                return emu_call, M_kms_of_zs, M_tdeg_of_zs, blob
+            if self.k_unit == 'ikms':
+                    return_M_k_of_zs = M_kms_of_zs
             else:
-                return emu_call, M_kms_of_zs, M_tdeg_of_zs,
+                return_M_k_of_zs = M_AA_of_zs
+            if return_blob:
+                return emu_call, return_M_k_of_zs, M_tdeg_of_zs, blob
+            else:
+                return emu_call, return_M_k_of_zs, M_tdeg_of_zs,
         else:
             if return_blob:
                 return emu_call, blob
@@ -673,6 +686,7 @@ class Theory(object):
         zs,
         k_kms,
         theta_bin_deg,
+        window_function=None,
         like_params=[],
         return_covar=False,
         return_blob=True,
@@ -750,7 +764,172 @@ class Theory(object):
         # evaluate Px at many (N_theta_fine) theta values within the full theta range
         theta_fine = (np.linspace(theta_binin_Mpc[:, 0, 0], theta_binin_Mpc[:, -1, 1], N_theta_fine)).T
         px_Mpc_fine = self.emulator.emulate_px_Mpc(emu_call, kin_Mpc, theta_fine)
-        print("theta fine shape", theta_fine[:, :, np.newaxis].shape)
+        # print("theta fine shape", theta_fine[:, :, np.newaxis].shape)
+        # print("px_Mpc_fine shape", px_Mpc_fine.shape)
+        px_pred_Mpc_avg = np.zeros((Nz, Ntheta, Nk))
+        if weights is None:
+            weights = theta_fine
+        for iz in range(Nz):
+            for itheta, sepbin in enumerate(theta_binin_Mpc[iz]):
+                in_bin = (theta_fine[iz, :] >= sepbin[0]) & (theta_fine[iz, :] <= sepbin[1]) # boolean 1D array of shape N_theta_fine
+                # average over the results
+                weights_bin = weights[iz, :][in_bin]
+                # print("theta_min, theta_max for this bin is", sepbin[0], sepbin[1], "weights are", weights_bin)
+                # print("shape is", px_Mpc_fine[iz, in_bin, :].shape)
+                # print("Weights shape is", weights_bin.shape)
+                px_pred_Mpc_avg[iz, itheta, :] = np.average(px_Mpc_fine[iz, in_bin, :], axis=0, weights=weights_bin)
+                # # Reshape weights for broadcasting to match Px_Mpc
+                # weights = weights[:, :, np.newaxis]
+                # # Compute weighted sum and normalize
+                # weighted_sum = np.sum(px_Mpc_fine * weights, axis=1)
+                # normalization = np.sum(weights, axis=1)
+                # px_Mpc = weighted_sum / normalization
+                
+        # px_Mpc_bin = np.average(px_Mpc_fine, axis=1, weights=theta_fine[:, :, np.newaxis]) # make sure this averages over the correct axis (the one with many thetas)
+        # px_Mpc = np.asarray(px_Mpc).reshape((Nz, Ntheta, Nk))
+        # print("px Mpc shape", px_Mpc.shape)
+        # print("px_pred_Mpc_avg shape", px_pred_Mpc_avg.shape)
+        
+
+        # move from Mpc to kms
+        px_kms = np.zeros((Nz, Ntheta, Nk))
+        covars = []
+        for iz in range(Nz):
+            px_kms[Nz, :, :] = px_pred_Mpc_avg[iz, :, : len(k_kms[iz])] * M_kms_of_z[iz]
+            # if return_covar:
+            #     if cov_Mpc is None:
+            #         covars.append(None)
+            #     else:
+            #         covars.append(
+            #             cov_Mpc[iz][: len(k_kms[iz]), : len(k_kms[iz])]
+            #             * M_kms_of_z[iz] ** 2
+            #         )
+
+        
+        # # apply contaminants
+        # syst_total = self.model_syst.get_contamination(
+        #     zs, k_kms, like_params=like_params
+        # )
+        # cont_total = self.model_cont.get_contamination(
+        #     zs,
+        #     k_kms,
+        #     emu_call["mF"],
+        #     M_kms_of_z,
+        #     like_params=like_params,
+        # )
+        # print("cont_total", cont_total)
+        # if cont_total is None:
+        #     return None
+
+        # for iz, z in enumerate(zs):
+        #     cont_syst = cont_total[iz] * syst_total[iz]
+        #     px_kms[iz] *= cont_syst
+
+        # apply window
+        if window_function is not None:
+            for iz in range(Nz):
+                for itheta in range(Ntheta):
+                    if window_function[iz, itheta] is not None:
+                        px_kms[iz, itheta, :] = window_theory(window_function[iz, itheta], px_kms[iz, itheta, :])
+
+        # decide what to return, and return it
+        out = [px_kms] # np.asarray([px_kms])
+        if return_covar:
+            out.append(covars)
+        if return_blob:
+            out.append(blob)
+        if return_emu_params:
+            out.append(emu_call)
+
+        if len(out) == 1:
+            return out[0]
+        else:
+            return out
+
+    def get_px_AA(
+        self,
+        zs,
+        k_AA,
+        theta_bin_deg,
+        window_function=None,
+        like_params=[],
+        return_covar=False,
+        return_blob=True,
+        return_emu_params=False,
+        apply_hull=True,
+        hires=False,
+        N_theta_fine=1000,
+        weights=None
+    ):
+        """Emulate Px in velocity units, for all redshift bins,
+        as a function of input likelihood parameters.
+        theta_bin_deg is a list of theta bins.
+        It might also return a covariance from the emulator,
+        or a blob with extra information for the fitter."""
+
+        zs = np.atleast_1d(zs)
+
+        # figure out emulator calls
+        emu_call, M_AA_of_z, M_tdeg_of_z, blob = self.get_emulator_calls(
+            zs,
+            like_params=like_params,
+            return_M_of_z=True,
+            return_blob=True,
+        )
+
+        # print(emu_call)
+        # np.save("emu_call_fiducial.npy", emu_call)
+
+        # also apply priors on compressed parameters
+        # temporary hack
+        dict_trans = {
+            "Delta2_star": 0,
+            "n_star": 1,
+            "alpha_star": 2,
+        }
+        if self.star_priors is not None:
+            for key in self.star_priors:
+                _ = np.argwhere(
+                    (blob[dict_trans[key]] > self.star_priors[key][1])
+                    | (blob[dict_trans[key]] < self.star_priors[key][0])
+                )
+                if len(_) > 0:
+                    print("Returning none because star")
+                    return None
+
+
+
+        # compute input k, theta to emulator in Mpc
+        Nz = len(zs)
+        Nk = 0
+        Ntheta = 0
+        if Nz > 1:
+            for iz in range(Nz):
+                if len(k_AA[iz]) > Nk:
+                    Nk = len(k_AA[iz])
+                if len(theta_bin_deg[iz]) > Ntheta:
+                    Ntheta = len(theta_bin_deg[iz])
+        else:
+            if len(k_AA) == 1:
+                k_AA = k_AA[0]
+            if len(theta_bin_deg) == 1:
+                theta_bin_deg = theta_bin_deg[0]
+
+            Nk = len(k_AA)
+            k_AA = [k_AA]
+            Ntheta = len(theta_bin_deg)
+            theta_bin_deg = [theta_bin_deg]
+
+        kin_Mpc = np.zeros((Nz, Nk))
+        theta_binin_Mpc = np.zeros((Nz, Ntheta,2))
+        for iz in range(Nz):
+            kin_Mpc[iz, : len(k_AA[iz])] = k_AA[iz] * M_AA_of_z[iz]
+            theta_binin_Mpc[iz, : len(theta_bin_deg[iz]), :] = theta_bin_deg[iz] / M_tdeg_of_z[iz]
+      
+        # evaluate Px at many (N_theta_fine) theta values within the full theta range
+        theta_fine = (np.linspace(theta_binin_Mpc[:, 0, 0], theta_binin_Mpc[:, -1, 1], N_theta_fine)).T
+        px_Mpc_fine = self.emulator.emulate_px_Mpc(emu_call, kin_Mpc, theta_fine)
+        # print("theta fine shape", theta_fine[:, :, np.newaxis].shape)
         print("px_Mpc_fine shape", px_Mpc_fine.shape)
         px_pred_Mpc_avg = np.zeros((Nz, Ntheta, Nk))
         if weights is None:
@@ -760,9 +939,9 @@ class Theory(object):
                 in_bin = (theta_fine[iz, :] >= sepbin[0]) & (theta_fine[iz, :] <= sepbin[1]) # boolean 1D array of shape N_theta_fine
                 # average over the results
                 weights_bin = weights[iz, :][in_bin]
-                print("theta_min, theta_max for this bin is", sepbin[0], sepbin[1], "weights are", weights_bin)
-                print("shape is", px_Mpc_fine[iz, in_bin, :].shape)
-                print("Weights shape is", weights_bin.shape)
+                # print("theta_min, theta_max for this bin is", sepbin[0], sepbin[1], "weights are", weights_bin)
+                # print("shape is", px_Mpc_fine[iz, in_bin, :].shape)
+                # print("Weights shape is", weights_bin.shape)
                 px_pred_Mpc_avg[iz, itheta, :] = np.average(px_Mpc_fine[iz, in_bin, :], axis=0, weights=weights_bin)
                 # # Reshape weights for broadcasting to match Px_Mpc
                 # weights = weights[:, :, np.newaxis]
@@ -778,10 +957,10 @@ class Theory(object):
         
 
         # move from Mpc to kms
-        px_kms = []
+        px_kms = np.zeros((Nz, Ntheta, Nk))
         covars = []
         for iz in range(Nz):
-            px_kms.append(px_pred_Mpc_avg[iz, :, : len(k_kms[iz])] * M_kms_of_z[iz])
+            px_kms[iz, :, :] = px_pred_Mpc_avg[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
             # if return_covar:
             #     if cov_Mpc is None:
             #         covars.append(None)
@@ -790,6 +969,9 @@ class Theory(object):
             #             cov_Mpc[iz][: len(k_kms[iz]), : len(k_kms[iz])]
             #             * M_kms_of_z[iz] ** 2
             #         )
+        print("shape is", px_kms.shape)
+        # apply weights
+            
 
         # apply contaminants
         # syst_total = self.model_syst.get_contamination(
@@ -810,8 +992,15 @@ class Theory(object):
         #     cont_syst = cont_total[iz] * syst_total[iz]
         #     px_kms[iz] *= cont_syst
 
+        # apply window
+        if window_function is not None:
+            for iz in range(Nz):
+                for itheta in range(Ntheta):
+                    if window_function[iz, itheta] is not None:
+                        px_kms[iz, itheta, :] = window_theory(window_function[iz, itheta], px_kms[iz, itheta, :])
+        print("shape is", px_kms.shape)
         # decide what to return, and return it
-        out = [px_kms]
+        out = [px_kms] # np.asarray([px_kms])
         if return_covar:
             out.append(covars)
         if return_blob:
@@ -823,7 +1012,7 @@ class Theory(object):
             return out[0]
         else:
             return out
-
+        
     def get_parameters(self):
         """Return parameters in models, even if not free parameters"""
 

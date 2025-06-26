@@ -8,7 +8,7 @@ from scipy.linalg import block_diag
 
 import lace
 from lace.cosmo import camb_cosmo
-from cup1d.utils.utils import is_number_string
+from cupix.utils.utils import is_number_string
 
 
 def get_bin_coverage(xmin_o, xmax_o, xmin_n, xmax_n):
@@ -604,10 +604,11 @@ class Likelihood(object):
                 self.fid["fit"][pname2[par.name]] = blob[pname2[par.name]]
                 self.fid["linP"][pname2[par.name]] = blob[pname2[par.name]]
 
-    def get_p1d_kms(
+    def get_px_kms(
         self,
         zs=None,
         _k_kms=None,
+        theta_bin_deg=None,
         values=None,
         return_covar=False,
         return_blob=False,
@@ -621,6 +622,9 @@ class Likelihood(object):
 
         if zs is None:
             zs = self.data.z
+
+        if theta_bin_deg is None:
+            theta_bin_deg = self.data.theta_bin_deg
 
         if self.args["rebin_k"] != 1:
             k_kms = []
@@ -637,9 +641,11 @@ class Likelihood(object):
         else:
             like_params = []
 
-        results = self.theory.get_p1d_kms(
+
+        results = self.theory.get_px_kms(
             zs,
             k_kms,
+            theta_bin_deg=theta_bin_deg,
             like_params=like_params,
             return_covar=return_covar,
             return_blob=return_blob,

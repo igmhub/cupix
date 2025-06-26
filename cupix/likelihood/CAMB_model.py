@@ -194,11 +194,19 @@ class CAMBModel(object):
 
         return M_kms_of_zs
     
+    def get_M_AA_of_zs(self):
+        """Return conversion factor from inv cMpc to inv Angstroms for each z"""
+        M_AA_of_zs = []
+        for z in self.zs:
+            M_AA_of_zs.append(camb_cosmo.dAA_dMpc(self.cosmo, z, 1215.67))
+
+        return M_AA_of_zs
+    
     def get_M_tdeg_of_zs(self):
         """Return conversion factor from Mpc to deg for each z"""
         M_tdeg_of_zs = []
         for z in self.zs:
-            M_tdeg_of_zs.append(camb_cosmo.ddeg_dMpc_tvs(self.cosmo, z))
+            M_tdeg_of_zs.append(camb_cosmo.ddeg_dMpc(self.cosmo, z))
 
         return M_tdeg_of_zs
 

@@ -160,6 +160,7 @@ class FF_emulator():
         print("emu call ffemu", emu_call)
         # update the IGM params with cosmo params
         Nz = len(self.z)
+        print("Nz is", Nz)
         if Nz>1:
             for i in range(Nz):
                 
@@ -204,7 +205,9 @@ class FF_emulator():
             print("Calling...")
             # _, Px_pred_Mpc = self.arinyo.Px_Mpc(self.z, k_Mpc, arinyo_coeffs, **{'rperp_choice':theta_Mpc})
             _, Px_pred_Mpc = pcross.Px_Mpc(k_Mpc, self.arinyo.P3D_Mpc, self.z, rperp_choice=theta_Mpc,**{"pp":arinyo_coeffs})
-            return Px_pred_Mpc
+            print("Px pred shape before return", np.asarray(Px_pred_Mpc).shape)
+            print("px pred shape becomes", Px_pred_Mpc.reshape((Nz, theta_Mpc.size, k_Mpc.size)).shape)
+            return np.transpose(Px_pred_Mpc,(1, 2, 0))
         # except:
         # print('Problematic model so None is returned for Px prediction')
         #     return None
