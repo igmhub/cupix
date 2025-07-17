@@ -1,0 +1,7 @@
+*~
+.DS_store
+.DS_Store
+__pycache__/
+*.ipynb
+.ipynb_checkpoints
+**/*.ipynb_checkpoints/

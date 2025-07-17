@@ -1,0 +1,1 @@
+Here we might want to include an example or documentation of a data format accepted for Lyacolore Px. Generally I am assuming those are in .hdf5 format, but I'm writing this text file just to keep the folder tracked on Git.

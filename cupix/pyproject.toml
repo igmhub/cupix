@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="cupix"
+version="2025.0.0"
+authors = [
+    { name="Martine Lokken", email="mlokken@ifae.es" },
+    { name="Sindhu Satyavolu", email="ssatyavolu@ifae.es" },
+    { name="Andreu Font-Ribera", email="afont@ifae.es" },
+    { name="Chris Pedersen" },
+    { name="Jonas Chaves-Montero", email="jchaves@ifae.es" },
+]
+maintainers = [
+    { name="Martine Lokken", email="mlokken@ifae.es" },
+    { name="Sindhu Satyavolu", email="ssatyavolu@ifae.es" },
+    { name="Andreu Font-Ribera", email="afont@ifae.es" },
+]
+description = "Likelihood for Lyman-alpha cross-power spectrum"
+readme = "README.md"
+keywords = [
+    "Lyman-alpha", "Cosmology", "Power Spectrum", "Emulator",
+]
+requires-python = ">= 3.10"
+dependencies = [
+    "numpy>=1.24.4",
+    "pandas>=2.1.4",
+    "scipy>=1.11.4",
+    "h5py>=3.10.0",
+    "matplotlib>=3.8.2",
+    "configobj>=5.0.8",
+    "configargparse>=1.7",
+    "emcee>=3.1.4",
+    "chainconsumer>=1.0.2",
+    "getdist>=1.4.6",
+    "iminuit>=2.24.0",
+    "bottleneck>=1.3.7",
+    "jupyterlab",
+    "pyDOE2",
+    "numdifftools",
+    "astropy"
+]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific :: Cosmology/Astrophysics",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[tool.setuptools.packages.find]
+include = ["cupix"]
+namespaces = false
+
+[project.urls]
+Homepage="https://github.com/igmhub/cupix"
+Repository="https://github.com/igmhub/cupix.git"
+Issues="https://github.com/igmhub/cupix/issues"

@@ -1,3 +1,41 @@
+Metadata-Version: 0.0
+Name: cupix
+Version: 2025.0.0
+Summary: Likelihood for Lyman-alpha cross-power spectrum
+Author: Martine Lokken, Jonas Chaves-Montero, Andreu Font-Ribera, Chris Pedersen, Sindhu Satyavolu
+Author-email: Martine Lokken <mlokken@ifae.es>, Sindhu Satyavolu <ssatyavolu@ifae.es>, Andreu Font-Ribera <afont@ifae.es>, Jonas Chaves-Montero <jchaves@ifae.es>
+Maintainer-email: Martine Lokken <mlokken@ifae.es>, Sindhu Satyavolu <ssatyavolu@ifae.es>, Andreu Font-Ribera <afont@ifae.es>
+Project-URL: Homepage, https://github.com/igmhub/cupix
+Project-URL: Repository, https://github.com/igmhub/cupix.git
+Project-URL: Issues, https://github.com/igmhub/cupix/issues
+Keywords: Lyman-alpha,Cosmology,Power Spectrum,Emulator
+Classifier: Development Status :: 1 - Planning
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific :: Cosmology/Astrophysics
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.24.4
+Requires-Dist: pandas>=2.1.4
+Requires-Dist: scipy>=1.11.4
+Requires-Dist: h5py>=3.10.0
+Requires-Dist: matplotlib>=3.8.2
+Requires-Dist: configobj>=5.0.8
+Requires-Dist: configargparse>=1.7
+Requires-Dist: emcee>=3.1.4
+Requires-Dist: chainconsumer>=1.0.2
+Requires-Dist: getdist>=1.4.6
+Requires-Dist: iminuit>=2.24.0
+Requires-Dist: bottleneck>=1.3.7
+Requires-Dist: jupyterlab
+Requires-Dist: pyDOE2
+Requires-Dist: numdifftools
+Requires-Dist: astropy
+
 # cupix
 
 Cosmology using Px (p-cross) - the Lyman-alpha cross-spectrum, which measures 3D small-scale clustering of the Lyman alpha forest.
@@ -28,15 +66,7 @@ cd LacE
 pip install -e .
 ``` 
 
-- Clone and install ForestFlow with Px routines (do so within the environment created above):
-
-```
-git clone https://github.com/igmhub/ForestFlow.git
-cd ForestFlow
-pip install -e .[px]
-``` 
-
-- Clone and install cupix (do so within the environment created above):
+- Clone and install cupix:
 
 ```
 git clone https://github.com/igmhub/cupix.git

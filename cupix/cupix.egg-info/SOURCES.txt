@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+cupix/__init__.py
+cupix.egg-info/PKG-INFO
+cupix.egg-info/SOURCES.txt
+cupix.egg-info/dependency_links.txt
+cupix.egg-info/requires.txt
+cupix.egg-info/top_level.txt
