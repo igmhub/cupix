@@ -15,7 +15,9 @@ class FF_emulator():
             self,
             z,
             cosmo_param_dict,
-            camb_cosmo_results
+            camb_cosmo_results,
+            kp_Mpc=0.7,
+            match_lyacolore=False
         ):
 
         self.emu_params = [
@@ -29,8 +31,15 @@ class FF_emulator():
         self.z = z
         self.cosmo_param_dict = cosmo_param_dict
         self.camb_cosmo_results = camb_cosmo_results
+        self.emulator_label = "forestflow_emu"
+        self.kp_Mpc = kp_Mpc
+        self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
         self._load_emu()
         self._load_arinyo()
+        if match_lyacolore:
+            self.match_lyacolore = True
+        else:
+            self.match_lyacolore = False
 
     def _load_emu(self, Nrealizations=1000):
         """ This function loads the emulator and doesn't require any input """
@@ -156,11 +165,7 @@ class FF_emulator():
         # prepare an Arinyo dictionary
         arinyo_coeffs = []
 
-        # Evaluating emulator at the input parameters values
-        print("emu call ffemu", emu_call)
-        # update the IGM params with cosmo params
         Nz = len(self.z)
-        print("Nz is", Nz)
         if Nz>1:
             for i in range(Nz):
                 
@@ -180,35 +185,48 @@ class FF_emulator():
                     emu_call[key] = emu_call[key][0] # turn arrays into floats
             arinyo_coeffs = self.emu.predict_Arinyos(
                 emu_params=emu_call)
+            if self.match_lyacolore:
+                print("Enforcing Lyacolore values for arinyo parameters")
+                arinyo_coeffs[0] = -0.115 # 0.127 * ((1+self.z)/(1+2.3))**2.9 # bias
+                arinyo_coeffs[1] = 1.55 # beta
+                arinyo_coeffs[2] = 0.1112 # q1
+                arinyo_coeffs[3] = 0.0001**0.2694 # kvav
+                arinyo_coeffs[4] = 0.2694 # av
+                arinyo_coeffs[5] = .0002 # bv
+                arinyo_coeffs[6] = .5740 # kp # previously 0.25
+                # ### values to 4 Mpc/h
+                # arinyo_coeffs[2] = 0.0 # q1
+                # arinyo_coeffs[3] = 0.3**0.3 # kvav
+                # arinyo_coeffs[4] = 0.3 # av
+                # arinyo_coeffs[5] = 1.0 # bv
+                # arinyo_coeffs[6] = 472e-3 # kp # previously 0.25
             # turn into a dictionary
             arinyo_coeffs = {"bias": arinyo_coeffs[0], "beta": arinyo_coeffs[1], "q1": arinyo_coeffs[2],
                             "kvav": arinyo_coeffs[3], "av": arinyo_coeffs[4], "bv": arinyo_coeffs[5],
                             "kp": arinyo_coeffs[6], "q2": arinyo_coeffs[7]}
         # Predict Px
         # try:
+            # print('Input parameters were:', emu_call)
+            # print('Input parameters given to the arinyo model are:', arinyo_coeffs)
+        try:
+            if Nz>1:
+                Px_pred = []
+                for i, z_i in enumerate(self.z):
+                    # _, Px_pred_Mpc_i = self.arinyo.Px_Mpc(z_i, k_Mpc[i], arinyo_coeffs[i], **{'rperp_choice':theta_Mpc[i]})
+                    _, Px_pred_Mpc_i = pcross.Px_Mpc(k_Mpc[i], self.arinyo.P3D_Mpc, self.z[i], rperp_choice=theta_Mpc[i],**{"pp":arinyo_coeffs[i]})
+                    # Return transpose to match Px_data shapes
+                    Px_pred_output_transpose = Px_pred_Mpc_i.T
+                    if np.any(np.isnan(Px_pred_output_transpose)):
+                        print("NaN encountered in Px prediction!")
+                    Px_pred.append(Px_pred_output_transpose)
+                return np.asarray(Px_pred)
+            else:
+                # _, Px_pred_Mpc = self.arinyo.Px_Mpc(self.z, k_Mpc, arinyo_coeffs, **{'rperp_choice':theta_Mpc})
+                _, Px_pred_Mpc = pcross.Px_Mpc(k_Mpc, self.arinyo.P3D_Mpc, self.z, rperp_choice=theta_Mpc,**{"pp":arinyo_coeffs})
+                return np.transpose(Px_pred_Mpc,(1, 2, 0))
+        except:
+            print('Problematic model so None is returned for Px prediction')
             print('Input parameters were:', emu_call)
             print('Input parameters given to the arinyo model are:', arinyo_coeffs)
-            
-        if Nz>1:
-            Px_pred = []
-            for i, z_i in enumerate(self.z):
-                # _, Px_pred_Mpc_i = self.arinyo.Px_Mpc(z_i, k_Mpc[i], arinyo_coeffs[i], **{'rperp_choice':theta_Mpc[i]})
-                _, Px_pred_Mpc_i = pcross.Px_Mpc(k_Mpc[i], self.arinyo.P3D_Mpc, self.z[i], rperp_choice=theta_Mpc[i],**{"pp":arinyo_coeffs[i]})
-                # Return transpose to match Px_data shapes
-                Px_pred_output_transpose = Px_pred_Mpc_i.T
-                if np.any(np.isnan(Px_pred_output_transpose)):
-                    print("NaN encountered in Px prediction!")
-                Px_pred.append(Px_pred_output_transpose)
-            print("Px pred shape before return", np.asarray(Px_pred).shape)
-            return np.asarray(Px_pred)
-        else:
-            print("Calling...")
-            # _, Px_pred_Mpc = self.arinyo.Px_Mpc(self.z, k_Mpc, arinyo_coeffs, **{'rperp_choice':theta_Mpc})
-            _, Px_pred_Mpc = pcross.Px_Mpc(k_Mpc, self.arinyo.P3D_Mpc, self.z, rperp_choice=theta_Mpc,**{"pp":arinyo_coeffs})
-            print("Px pred shape before return", np.asarray(Px_pred_Mpc).shape)
-            print("px pred shape becomes", Px_pred_Mpc.reshape((Nz, theta_Mpc.size, k_Mpc.size)).shape)
-            return np.transpose(Px_pred_Mpc,(1, 2, 0))
-        # except:
-        # print('Problematic model so None is returned for Px prediction')
-        #     return None
+            return None
         

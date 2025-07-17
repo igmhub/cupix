@@ -89,6 +89,11 @@ class BaseDataPx(object):
         window=None,
         zmin=0.0,
         zmax=10.0,
+        k_AA_min=None,
+        k_AA_max=None,
+        full_zs=None,
+        full_Pk_AA=None,
+        full_cov_AA=None,
     ):
         """Construct base Px class, from measured power and covariance"""
 
@@ -114,7 +119,11 @@ class BaseDataPx(object):
         self.weights = weights
         self.thetabin_deg = thetabin_deg
         self.window = window
-
+        self.k_AA_min = 0.001 # placeholder for now
+        self.k_AA_max = 10 # placeholder for now
+        self.full_Pk_AA = full_Pk_AA
+        self.full_cov_Pk_AA = full_cov_AA
+        self.full_zs = full_zs
         # decide if applying blinding
         self.apply_blinding = False
         if hasattr(self, "blinding"):

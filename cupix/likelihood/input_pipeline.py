@@ -2,7 +2,7 @@ import sys, os, configargparse
 from dataclasses import dataclass, field
 from typing import Optional
 
-from cup1d.utils.utils import create_print_function, mpi_hello_world
+from cupix.utils.utils import create_print_function, mpi_hello_world
 
 
 def parse_args():

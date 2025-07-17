@@ -72,28 +72,28 @@ class Likelihood(object):
         if "rebin_k" not in self.args:
             self.args["rebin_k"] = 1
 
-        # k_kms_new2 = np.linspace(kmin[0], kmax[-1], len(k_kms) * 20)
+        # k_AA_new2 = np.linspace(kmin[0], kmax[-1], len(k_AA) * 20)
         if self.args["rebin_k"] != 1:
             self.rebin = {}
-            self.rebin["k_kms"] = []  # new k_kms
+            self.rebin["k_AA"] = []  # new k_AA
             self.rebin["cover"] = []  # to accelerate rebinning
             self.rebin["sum_cover"] = []  # to accelerate rebinning
             for iz in range(len(self.data.z)):
-                nelem = len(self.data.k_kms[iz]) * self.args["rebin_k"]
+                nelem = len(self.data.k_AA[iz]) * self.args["rebin_k"]
                 _kms_reb = np.linspace(
-                    self.data.k_kms_min[iz][0],
-                    self.data.k_kms_max[iz][-1],
+                    self.data.k_AA_min[iz][0],
+                    self.data.k_AA_max[iz][-1],
                     nelem,
                 )
-                self.rebin["k_kms"].append(_kms_reb)
+                self.rebin["k_AA"].append(_kms_reb)
                 xmin_o = _kms_reb - 0.5 * (_kms_reb[1] - _kms_reb[0])
                 xmax_o = _kms_reb + 0.5 * (_kms_reb[1] - _kms_reb[0])
 
                 _cover = get_bin_coverage(
                     xmin_o,
                     xmax_o,
-                    self.data.k_kms_min[iz],
-                    self.data.k_kms_max[iz],
+                    self.data.k_AA_min[iz],
+                    self.data.k_AA_max[iz],
                 )
                 self.rebin["cover"].append(_cover)
                 self.rebin["sum_cover"].append(np.sum(_cover, axis=1))
@@ -116,21 +116,21 @@ class Likelihood(object):
         # store also fiducial model
         self.set_fid()
 
-    def rebinning(self, zs, Pk_kms_finek):
+    def rebinning(self, zs, Pk_AA_finek):
         """For rebinning Pk predictions"""
-        Pk_kms_origk = []
-        # _Pk_kms_finek = np.atleast_1d(Pk_kms_finek)
+        Pk_AA_origk = []
+        # _Pk_AA_finek = np.atleast_1d(Pk_AA_finek)
         for iz in range(len(zs)):
             indz = np.argmin(np.abs(self.data.z - zs[iz]))
-            _Pk_kms = (
+            _Pk_AA = (
                 np.sum(
-                    self.rebin["cover"][indz] * Pk_kms_finek[iz][np.newaxis, :],
+                    self.rebin["cover"][indz] * Pk_AA_finek[iz][np.newaxis, :],
                     axis=1,
                 )
                 / self.rebin["sum_cover"][indz]
             )
-            Pk_kms_origk.append(_Pk_kms)
-        return Pk_kms_origk
+            Pk_AA_origk.append(_Pk_AA)
+        return Pk_AA_origk
 
     def set_Gauss_priors(self):
         """
@@ -158,7 +158,7 @@ class Likelihood(object):
 
         This method processes the main dataset (`data`) and any additional dataset (`extra_data`) associated
         with the object. For each dataset:
-        - It computes the inverse covariance matrices for the power spectrum (`Pk_kms`) at different redshifts,
+        - It computes the inverse covariance matrices for the power spectrum (`Pk_AA`) at different redshifts,
           incorporating an emulator error factor.
         - It computes the inverse covariance matrix for the full power spectrum data, if available.
 
@@ -166,25 +166,25 @@ class Likelihood(object):
 
         Attributes Modified:
         --------------------
-        icov_Pk_kms : list of numpy.ndarray
+        icov_Pk_AA : list of numpy.ndarray
             List of inverse covariance matrices for the power spectrum of the main dataset at different redshifts.
 
-        full_icov_Pk_kms : numpy.ndarray or None
+        full_icov_Pk_AA : numpy.ndarray or None
             Inverse covariance matrix for the full power spectrum of the main dataset.
             Set to `None` if the full power spectrum is not available.
 
-        extra_icov_Pk_kms : list of numpy.ndarray
+        extra_icov_Pk_AA : list of numpy.ndarray
             List of inverse covariance matrices for the power spectrum of the additional dataset at different redshifts.
             Set to `None` if `extra_data` is not provided.
 
-        extra_full_icov_Pk_kms : numpy.ndarray or None
+        extra_full_icov_Pk_AA : numpy.ndarray or None
             Inverse covariance matrix for the full power spectrum of the additional dataset.
             Set to `None` if the full power spectrum is not available or if `extra_data` is not provided.
 
         Notes:
         -----
         - The emulator error is added to the diagonal of the covariance matrix before inverting. The error is
-          computed as `(data.Pk_kms * emu_cov_factor) ** 2`, where `emu_cov_factor` is an attribute of the object.
+          computed as `(data.Pk_AA * emu_cov_factor) ** 2`, where `emu_cov_factor` is an attribute of the object.
         - The method iterates over redshift bins (`data.z`) and processes the covariance matrices accordingly.
         - If the dataset (`data` or `extra_data`) is `None`, no processing occurs for that dataset.
 
@@ -195,69 +195,66 @@ class Likelihood(object):
         """
 
         # get emulator error
-        filename = "cov_" + self.theory.emulator.emulator_label + ".npy"
-        full_path = os.path.join(
-            os.path.dirname(lace.__path__[0]), "data", "covariance", filename
-        )
-        dict_save = np.load(full_path, allow_pickle=True).item()
-        emu_cov = dict_save["cov"]
-        emu_cov_zz = dict_save["zz"]
-        emu_cov_unique_zz = np.unique(emu_cov_zz)
-        emu_cov_k_Mpc = dict_save["k_Mpc"]
+        # filename = "cov_" + self.theory.emulator.emulator_label + ".npy"
+        # full_path = os.path.join(
+        #     os.path.dirname(lace.__path__[0]), "data", "covariance", filename
+        # )
+        # dict_save = np.load(full_path, allow_pickle=True).item()
+        # emu_cov = dict_save["cov"]
+        # emu_cov_zz = dict_save["zz"]
+        # emu_cov_unique_zz = np.unique(emu_cov_zz)
+        # emu_cov_k_Mpc = dict_save["k_Mpc"]
 
         # Iterate over both datasets: main dataset (idata = 0) and additional dataset (idata = 1)
         for idata in range(2):
             if idata == 0:  # Main dataset
                 data = self.data
-                # Initialize list to store inverse covariance matrices for Pk_kms
-                self.icov_Pk_kms = []
-                self.cov_Pk_kms = []
-                # Initialize the full inverse covariance matrix for Pk_kms
-                self.full_icov_Pk_kms = None
-                self.full_cov_Pk_kms = None
+                # Initialize list to store inverse covariance matrices for Pk_AA
+                self.icov_Pk_AA = []
+                self.cov_Pk_AA = []
+                # Initialize the full inverse covariance matrix for Pk_AA
+                self.full_icov_Pk_AA = None
+                self.full_cov_Pk_AA = None
             else:  # Additional dataset
                 data = self.extra_data
                 # Initialize list for extra inverse covariance matrices
-                self.extra_icov_Pk_kms = []
-                self.extra_cov_Pk_kms = []
+                self.extra_icov_Pk_AA = []
+                self.extra_cov_Pk_AA = []
                 # Initialize the full inverse covariance matrix for extra data
-                self.extra_full_icov_Pk_kms = None
-                self.extra_full_cov_Pk_kms = None
+                self.extra_full_icov_Pk_AA = None
+                self.extra_full_cov_Pk_AA = None
 
             if data is None:  # Skip if no data is provided for this dataset
                 continue
 
-            if data.Pksmooth_kms is not None:
-                pksmooth = data.Pksmooth_kms
-            else:
-                pksmooth = data.Pk_kms
+            pksmooth = data.Pk_AA
 
             # Total number of k values across all redshifts
             nks = 0
             for ii in range(len(data.z)):
-                nks += len(data.Pk_kms[ii])
+                nks += len(data.Pk_AA[ii])
 
-            # Process each redshift bin
+            # Process each redshift bin and each theta bin
             emu_cov_blocks = []
             for ii in range(len(data.z)):
+                
                 # Copy the covariance matrix for the current redshift bin
-                cov = data.cov_Pk_kms[ii].copy()
-                covemu = np.zeros_like(cov)
+                cov = data.cov_Pk_AA[ii].copy()
                 # Indices of the diagonal elements
                 # Add emulator error
-                if self.emu_cov_factor is not None:
+                if self.emu_cov_factor is not None: # THIS IS NOT RUNNING FOR NOW, DON"T WORRY ABOUT IT
                     if self.emu_cov_factor != 0:
                         if ii == 0:
                             if idata == 0:
-                                self.covemu_Pk_kms = []
+                                self.covemu_Pk_AA = []
                             else:
-                                self.extra_covemu_Pk_kms = []
+                                self.extra_covemu_Pk_AA = []
 
-                        dkms_dMpc = self.theory.fid_cosmo["cosmo"].dkms_dMpc(
+                        dAA_dMpc = self.theory.fid_cosmo["cosmo"].dAA_dMpc(
                             data.z[ii]
                         )
-                        # data k_kms to Mpc
-                        k_Mpc = data.k_kms[ii] * dkms_dMpc
+                        # data k_AA to Mpc
+                        k_Mpc = data.k_AA[ii] * dAA_dMpc
                         add_emu_cov_kms = np.zeros(
                             (k_Mpc.shape[0], k_Mpc.shape[0])
                         )
@@ -299,31 +296,32 @@ class Likelihood(object):
                                     add_emu_cov_kms[i0, i1]
                                     * self.emu_cov_factor
                                 )
-
+                
                 # inflate errors
                 cov *= self.cov_factor
                 # Compute and store the inverse covariance matrix
                 if idata == 0:
-                    self.icov_Pk_kms.append(np.linalg.inv(cov))
-                    self.cov_Pk_kms.append(cov)
+                    self.icov_Pk_AA.append(np.linalg.inv(cov))
+                    self.cov_Pk_AA.append(cov)
                     if self.emu_cov_factor is not None:
                         if self.emu_cov_factor != 0:
-                            self.covemu_Pk_kms.append(
+                            self.covemu_Pk_AA.append(
                                 add_emu_cov_kms * self.emu_cov_factor
                             )
                 else:
-                    self.extra_icov_Pk_kms.append(np.linalg.inv(cov))
-                    self.extra_cov_Pk_kms.append(cov)
+                    # THIS DOES NOT HAPPEN RIGHT NOW, DON"T WORRY ABOUT IT
+                    self.extra_icov_Pk_AA.append(np.linalg.inv(cov))
+                    self.extra_cov_Pk_AA.append(cov)
                     if self.emu_cov_factor is not None:
                         if self.emu_cov_factor != 0:
-                            self.extra_covemu_Pk_kms.append(
+                            self.extra_covemu_Pk_AA.append(
                                 add_emu_cov_kms * self.emu_cov_factor
                             )
 
             # Process the full power spectrum data if available
-            if data.full_Pk_kms is not None:
+            if data.full_Pk_AA is not None:
                 # Copy the full covariance matrix
-                cov = data.full_cov_Pk_kms.copy()
+                cov = data.full_cov_Pk_AA.copy()
                 # Indices of the diagonal elements
                 if self.emu_cov_factor is not None:
                     if self.emu_cov_factor != 0:
@@ -349,7 +347,7 @@ class Likelihood(object):
                                 j0 = np.argmin(
                                     (data.full_zs[i0] - emu_cov_zz) ** 2
                                     + (
-                                        data.full_k_kms[i0] * dkms_dMpc
+                                        data.full_k_AA[i0] * dkms_dMpc
                                         - emu_cov_k_Mpc
                                     )
                                     ** 2
@@ -361,15 +359,15 @@ class Likelihood(object):
                                     j1 = np.argmin(
                                         (data.full_zs[i1] - emu_cov_zz) ** 2
                                         + (
-                                            data.full_k_kms[i1] * dkms_dMpc
+                                            data.full_k_AA[i1] * dkms_dMpc
                                             - emu_cov_k_Mpc
                                         )
                                         ** 2
                                     )
                                     full_emu_cov[i0, i1] = (
                                         emu_cov[j0, j1]
-                                        * data.full_Pk_kms[i0]
-                                        * data.full_Pk_kms[i1]
+                                        * data.full_Pk_AA[i0]
+                                        * data.full_Pk_AA[i1]
                                     )
 
                             cov += full_emu_cov * self.emu_cov_factor
@@ -378,22 +376,23 @@ class Likelihood(object):
                 cov *= self.cov_factor
                 # Compute and store the inverse covariance matrix
                 if idata == 0:
-                    self.full_icov_Pk_kms = np.linalg.inv(cov)
-                    self.full_cov_Pk_kms = cov
+                    self.full_icov_Pk_AA = np.linalg.inv(cov)
+                    self.full_cov_Pk_AA = cov
                     if self.emu_cov_factor is not None:
                         if self.emu_cov_factor != 0:
-                            self.emu_full_cov_Pk_kms = (
+                            self.emu_full_cov_Pk_AA = (
                                 full_emu_cov * self.emu_cov_factor
                             )
                 else:
-                    self.extra_full_icov_Pk_kms = np.linalg.inv(cov)
-                    self.extra_full_cov_Pk_kms = cov
+                    self.extra_full_icov_Pk_AA = np.linalg.inv(cov)
+                    self.extra_full_cov_Pk_AA = cov
                     if self.emu_cov_factor is not None:
                         if self.emu_cov_factor != 0:
-                            self.extra_emu_full_cov_Pk_kms = (
+                            self.extra_emu_full_cov_Pk_AA = (
                                 full_emu_cov * self.emu_cov_factor
                             )
-
+        self.icov_Pk_AA = np.asarray(self.icov_Pk_AA)
+        self.cov_Pk_AA = np.asarray(self.cov_Pk_AA)
     def set_free_parameters(self, free_param_names, free_param_limits):
         """Setup likelihood parameters that we want to vary"""
 
@@ -668,10 +667,77 @@ class Likelihood(object):
                 else:
                     return self.rebinning(zs, results)
 
+    def get_px_AA(
+        self,
+        zs=None,
+        _k_AA=None,
+        theta_bin_deg=None,
+        values=None,
+        return_covar=False,
+        return_blob=False,
+        return_emu_params=False,
+        apply_hull=True,
+    ):
+        """Compute theoretical prediction for Pcross"""
+
+        if _k_AA is None:
+            print("getting k_AA from data")
+            print("self data k_AA has shape", self.data.k_AA.shape)
+            k_AA = self.data.k_AA
+
+        if zs is None:
+            zs = self.data.z
+
+        if theta_bin_deg is None:
+            theta_bin_deg = self.data.theta_bin_deg
+
+        if self.args["rebin_k"] != 1:
+            k_AA = []
+            zs = np.atleast_1d(zs)
+            for iz in range(len(zs)):
+                ind = np.argmin(np.abs(zs[iz] - self.data.z))
+                k_AA.append(self.rebin["k_AA"][ind])
+        else:
+            k_AA = _k_AA
+
+        # translate sampling point (in unit cube) to parameter values
+        if values is not None:
+            like_params = self.parameters_from_sampling_point(values)
+        else:
+            like_params = []
+
+        results = self.theory.get_px_AA(
+            zs,
+            k_AA,
+            theta_bin_deg=theta_bin_deg,
+            like_params=like_params,
+            return_covar=return_covar,
+            return_blob=return_blob,
+            return_emu_params=return_emu_params,
+            apply_hull=apply_hull,
+        )
+        
+
+        if results is None:
+            return None
+        else:
+            if self.args["rebin_k"] == 1:
+                return results
+            else:
+                if return_blob | return_emu_params:
+                    results2 = []
+                    results2.append(self.rebinning(zs, results[0]))
+                    for ii in range(1, len(results)):
+                        results2.append(results[ii])
+                    return results2
+                else:
+                    return self.rebinning(zs, results)
+
+
     def get_chi2(self, values=None, return_all=False, zmask=None):
         """Compute chi2 using data and theory, without adding
         emulator covariance"""
-
+        # DEALING with LINE BELOW HERE
         log_like, log_like_all = self.get_log_like(
             values, ignore_log_det_cov=True, zmask=zmask
         )
@@ -704,7 +770,7 @@ class Likelihood(object):
             if (values > 1.0).any() | (values < 0.0).any():
                 return null_out
 
-        # ask emulator prediction for P1D in each bin
+        # ask emulator prediction for Px in each bin
         if zmask is not None:
             _res = []
             for iz in range(len(self.data.z)):
@@ -712,9 +778,10 @@ class Likelihood(object):
                 if len(ind) == 0:
                     _res.append(0)
                 else:
-                    _ = self.get_p1d_kms(
+                    _ = self.get_px_AA(
                         np.atleast_1d(self.data.z[iz]),
-                        np.atleast_2d(self.data.k_kms[iz]),
+                        np.atleast_2d(self.data.k_AA[iz]),
+                        np.atleast_2d(self.theta_bin_deg[iz]),
                         values,
                         return_blob=return_blob,
                     )
@@ -724,8 +791,8 @@ class Likelihood(object):
                     else:
                         _res.append(_[0])
         else:
-            _res = self.get_p1d_kms(
-                self.data.z, self.data.k_kms, values, return_blob=return_blob
+            _res = self.get_px_AA(
+                self.data.z, self.data.k_AA, self.data.thetabin_deg, values, return_blob=return_blob
             )
 
         # out of priors
@@ -733,9 +800,9 @@ class Likelihood(object):
             return null_out
 
         if return_blob:
-            emu_p1d, blob = _res
+            emu_px, blob = _res
         else:
-            emu_p1d = _res
+            emu_px = _res
 
         # use high-res data
         if self.extra_data is not None:
@@ -751,74 +818,76 @@ class Likelihood(object):
                     if len(ind) == 0:
                         _res.append(0)
                     else:
-                        _res = self.get_p1d_kms(
+                        _res = self.get_px_AA(
                             np.atleast_1d(self.extra_data.z[iz]),
-                            np.atleast_1d(self.extra_data.k_kms[iz]),
+                            np.atleast_1d(self.extra_data.k_AA[iz]),
                             values,
                             return_blob=return_blob,
                         )
             else:
-                _res = self.get_p1d_kms(
+                _res = self.get_px_AA(
                     self.extra_data.z,
-                    self.extra_data.k_kms,
+                    self.extra_data.k_AA,
                     values,
                     return_blob=return_blob,
                 )
 
-            emu_p1d_extra = _res
+            emu_px_extra = _res
             # out of priors
-            if emu_p1d_extra is None:
+            if emu_px_extra is None:
                 return null_out
 
         else:
             length = 1
             nz = len(self.data.z)
-
+            ntheta = len(self.data.thetabin_deg)
         # compute log like contribution from each redshift bin
-        log_like_all = np.zeros((length, nz))
+        log_like_all = np.zeros((length, nz, ntheta))
         log_like = 0
         # loop over low and high res data
+        
         for ii in range(length):
             if ii == 0:
-                emu_p1d_use = emu_p1d
+                emu_p1d_use = emu_px
                 data = self.data
-                icov_Pk_kms = self.icov_Pk_kms
-                full_icov_Pk_kms = self.full_icov_Pk_kms
+                icov_Pk_AA = self.icov_Pk_AA
+                full_icov_Pk_AA = self.full_icov_Pk_AA
             else:
-                emu_p1d_use = emu_p1d_extra
+                emu_p1d_use = emu_px_extra
                 data = self.extra_data
-                icov_Pk_kms = self.extra_icov_Pk_kms
-                full_icov_Pk_kms = self.extra_full_icov_Pk_kms
+                icov_Pk_AA = self.extra_icov_Pk_AA
+                full_icov_Pk_AA = self.extra_full_icov_Pk_AA
 
             # loop over redshift bins
             for iz in range(len(data.z)):
-                if zmask is not None:
-                    ind = np.argwhere(np.abs(zmask - data.z[iz]) < 1e-3)
-                    if len(ind) == 0:
-                        continue
-                # compute chi2 for this redshift bin
-                diff = data.Pk_kms[iz] - emu_p1d_use[iz]
-                chi2_z = np.dot(np.dot(icov_Pk_kms[iz], diff), diff)
-                # check whether to add determinant of covariance as well
-                if ignore_log_det_cov:
-                    log_like_all[ii, iz] = -0.5 * chi2_z
-                else:
-                    log_det_cov = np.log(
-                        np.abs(1 / np.linalg.det(icov_Pk_kms[iz]))
-                    )
-                    log_like_all[ii, iz] = -0.5 * (chi2_z + log_det_cov)
-
-            if (full_icov_Pk_kms is None) | (zmask is not None):
+                for itheta in range(len(data.thetabin_deg)):
+                    if zmask is not None:
+                        ind = np.argwhere(np.abs(zmask - data.z[iz]) < 1e-3)
+                        if len(ind) == 0:
+                            continue
+                    # compute chi2 for this redshift bin
+                    diff = data.Pk_AA[iz, itheta] - emu_p1d_use[iz, itheta]
+                    chi2_z = np.dot(np.dot(icov_Pk_AA[iz, itheta], diff), diff)
+                    # check whether to add determinant of covariance as well
+                    if ignore_log_det_cov:
+                        log_like_all[ii, iz, itheta] = -0.5 * chi2_z
+                    else:
+                        log_det_cov = np.log(
+                            np.abs(1 / np.linalg.det(icov_Pk_AA[iz, itheta]))
+                        )
+                        log_like_all[ii, iz, itheta] = -0.5 * (chi2_z + log_det_cov)
+            if (full_icov_Pk_AA is None) | (zmask is not None):
                 log_like += np.sum(log_like_all[ii])
             else:
+                # NOT DOING THIS FOR NOW
                 # compute chi2 using full cov
-                diff = data.full_Pk_kms - np.concatenate(emu_p1d_use)
-                chi2_all = np.dot(np.dot(full_icov_Pk_kms, diff), diff)
+                diff = data.full_Pk_AA - np.concatenate(emu_p1d_use)
+                chi2_all = np.dot(np.dot(full_icov_Pk_AA, diff), diff)
                 if ignore_log_det_cov:
                     log_like += -0.5 * chi2_all
                 else:
                     log_det_cov = np.log(
-                        np.abs(1 / np.linalg.det(full_icov_Pk_kms))
+                        np.abs(1 / np.linalg.det(full_icov_Pk_AA))
                     )
                     log_like += -0.5 * (chi2_all + log_det_cov)
 
@@ -915,6 +984,7 @@ class Likelihood(object):
         log_prior = -np.sum(
             (np.array(fid_values) - values) ** 2 / (2 * self.Gauss_priors**2)
         )
+        print("log prior is", log_prior)
         return log_prior
 
     def minus_log_prob(self, values, zmask=None):
@@ -934,7 +1004,7 @@ class Likelihood(object):
             self.minus_log_prob, x0=initial_values, method=method, tol=tol
         )
 
-    def plot_p1d(
+    def plot_px(
         self,
         values=None,
         plot_every_iz=1,
@@ -962,40 +1032,42 @@ class Likelihood(object):
 
         if zmask is None:
             _data_z = self.data.z
-            _data_k_kms = self.data.k_kms
+            _data_k_AA = self.data.k_AA
+            _data_theta_bin_deg = self.data.thetabin_deg
         else:
             _data_z = []
-            _data_k_kms = []
+            _data_k_AA = []
             for iz in range(len(self.data.z)):
                 _ = np.argwhere(np.abs(zmask - self.data.z[iz]) < 1e-3)
                 if len(_) != 0:
                     _data_z.append(self.data.z[iz])
-                    _data_k_kms.append(self.data.k_kms[iz])
+                    _data_k_AA.append(self.data.k_AA[iz])
             _data_z = np.array(_data_z)
 
         # z at time fits or full fit
         if z_at_time is False:
-            _res = self.get_p1d_kms(
-                _data_z, _data_k_kms, values, return_covar=return_covar
+            _res = self.get_px_AA(
+                _data_z, _data_k_AA, _data_theta_bin_deg, values, return_covar=return_covar
             )
             if _res is None:
                 return print("Prior out of range")
             if return_covar:
-                emu_p1d, emu_cov = _res
+                emu_px, emu_cov = _res
             else:
-                emu_p1d = _res
+                emu_px = _res
 
             # the sum of chi2_all may be different from chi2 due to covariance
             chi2, chi2_all = self.get_chi2(
                 values=values, return_all=True, zmask=zmask
             )
         else:
-            emu_p1d = []
+            emu_px = []
             chi2_all = []
             for iz in range(len(_data_z)):
-                _res = self.get_p1d_kms(
+                _res = self.get_px_kms(
                     _data_z[iz],
-                    _data_k_kms[iz],
+                    _data_k_AA[iz],
+                    _data_theta_bin_deg[iz],
                     values[iz],
                     return_covar=return_covar,
                 )
@@ -1003,12 +1075,12 @@ class Likelihood(object):
                 if _res is None:
                     return print("Prior out of range for z = ", _data_z[iz])
                 if return_covar:
-                    emu_p1d.append(_res[0])
+                    emu_px.append(_res[0])
                 else:
                     if len(_res) == 1:
-                        emu_p1d.append(_res[0])
+                        emu_px.append(_res[0])
                     else:
-                        emu_p1d.append(_res)
+                        emu_px.append(_res)
 
                 _chi2, _ = self.get_chi2(
                     values=values[iz],
@@ -1023,16 +1095,16 @@ class Likelihood(object):
         if self.extra_data is not None:
             _res = self.get_p1d_kms(
                 self.extra_data.z,
-                self.extra_data.k_kms,
+                self.extra_data.k_AA,
                 values,
                 return_covar=return_covar,
             )
             if _res is None:
                 return print("Prior out of range")
             if return_covar:
-                emu_p1d_extra, emu_cov_extra = _res
+                emu_px_extra, emu_cov_extra = _res
             else:
-                emu_p1d_extra = _res
+                emu_px_extra = _res
 
         # if rand_posterior is not None:
         #     Nz = len(self.data.z)
@@ -1085,11 +1157,11 @@ class Likelihood(object):
         # print chi2
         n_free_p = len(self.free_params)
         ndeg = 0
-        for iz in range(len(self.data.k_kms)):
-            ndeg += np.sum(self.data.Pk_kms[iz] != 0)
+        for iz in range(len(self.data.k_AA)):
+            ndeg += np.sum(self.data.Pk_AA[iz] != 0)
         if self.extra_data is not None:
-            for iz in range(len(self.extra_data.k_kms)):
-                ndeg += np.sum(self.extra_data.Pk_kms[iz] != 0)
+            for iz in range(len(self.extra_data.k_AA)):
+                ndeg += np.sum(self.extra_data.Pk_AA[iz] != 0)
         prob = chi2_scipy.sf(chi2, ndeg - n_free_p)
 
         if plot_panels == False:
@@ -1113,16 +1185,16 @@ class Likelihood(object):
         for ii in range(length):
             if ii == 0:
                 data = self.data
-                emu_p1d_use = emu_p1d
+                emu_p1d_use = emu_px
                 if return_covar:
                     emu_cov_use = emu_cov
                 if rand_posterior is not None:
                     err_posterior_use = err_posterior
                 out["zs"] = []
-                out["k_kms"] = []
-                out["p1d_data"] = []
-                out["p1d_model"] = []
-                out["p1d_err"] = []
+                out["k_AA"] = []
+                out["px_data"] = []
+                out["px_model"] = []
+                out["px_err"] = []
                 out["chi2"] = []
                 out["prob"] = []
             else:
@@ -1133,17 +1205,17 @@ class Likelihood(object):
                 if rand_posterior is not None:
                     err_posterior_use = err_posterior_extra
                 out["extra_zs"] = []
-                out["extra_k_kms"] = []
-                out["extra_p1d_data"] = []
-                out["extra_p1d_model"] = []
-                out["extra_p1d_err"] = []
+                out["extra_k_AA"] = []
+                out["extra_px_data"] = []
+                out["extra_px_model"] = []
+                out["extra_px_err"] = []
                 out["extra_chi2"] = []
                 out["extra_prob"] = []
 
-            full_emu_p1d = np.concatenate(emu_p1d_use)
+            full_emu_px = np.concatenate(emu_p1d_use)
             if n_perturb > 0:
                 perturb = np.random.multivariate_normal(
-                    full_emu_p1d, self.full_cov_Pk_kms, n_perturb
+                    full_emu_px, self.full_cov_Pk_AA, n_perturb
                 )
 
             zs = data.z
@@ -1161,11 +1233,11 @@ class Likelihood(object):
                     indemu = iz
                 # access data for this redshift
                 z = zs[iz]
-                k_kms = data.k_kms[iz]
-                p1d_data = data.Pk_kms[iz]
-                p1d_cov = self.cov_Pk_kms[iz]
-                p1d_err = np.sqrt(np.diag(p1d_cov))
-                p1d_theory = emu_p1d_use[indemu]
+                k_AA = data.k_AA[iz]
+                px_data = data.Pk_AA[iz]
+                px_cov = self.cov_Pk_AA[iz]
+                px_err = np.sqrt(np.diag(px_cov))
+                px_theory = emu_p1d_use[indemu]
 
                 if rand_posterior is None:
                     if return_covar:
@@ -1201,10 +1273,10 @@ class Likelihood(object):
                     )
                     # shift data in y axis for clarity
                     axs.errorbar(
-                        k_kms,
-                        p1d_data / p1d_theory + yshift,
+                        k_AA,
+                        px_data / px_theory + yshift,
                         color=col,
-                        yerr=p1d_err / p1d_theory,
+                        yerr=px_err / px_theory,
                         fmt="o",
                         ms="4",
                         label="z=" + str(np.round(z, 2)),
@@ -1213,15 +1285,15 @@ class Likelihood(object):
                     ind = self.data.full_zs == z
                     for kk in range(n_perturb):
                         axs.plot(
-                            k_kms,
-                            perturb[kk, ind] / p1d_theory + yshift,
+                            k_AA,
+                            perturb[kk, ind] / px_theory + yshift,
                             color=col,
                             alpha=0.025,
                         )
 
                     # print chi2
-                    xpos = k_kms[0]
-                    ndeg = np.sum(p1d_data != 0)
+                    xpos = k_AA[0]
+                    ndeg = np.sum(px_data != 0)
                     prob = chi2_scipy.sf(chi2_all[ii, iz], ndeg - n_free_p)
                     label = (
                         r"$\chi^2=$"
@@ -1239,26 +1311,26 @@ class Likelihood(object):
                             axs.text(xpos, ypos, label, fontsize=10)
 
                     if print_ratio:
-                        print(p1d_data / p1d_theory)
-                    ymin = min(ymin, min(p1d_data / p1d_theory + yshift))
-                    ymax = max(ymax, max(p1d_data / p1d_theory + yshift))
+                        print(px_data / px_theory)
+                    ymin = min(ymin, min(px_data / px_theory + yshift))
+                    ymax = max(ymax, max(px_data / px_theory + yshift))
 
                     axs.axhline(1, color="k", linestyle=":", alpha=0.5)
 
                     if return_covar | (rand_posterior is not None):
                         axs.fill_between(
-                            k_kms,
-                            (p1d_theory + err_theory) / p1d_theory + yshift,
-                            (p1d_theory - err_theory) / p1d_theory + yshift,
+                            k_AA,
+                            (px_theory + err_theory) / px_theory + yshift,
+                            (px_theory - err_theory) / px_theory + yshift,
                             alpha=0.35,
                             color=col,
                         )
                 else:
                     ax[ii].errorbar(
-                        k_kms,
-                        p1d_data * k_kms / np.pi,
+                        k_AA,
+                        px_data * k_AA / np.pi,
                         color=col,
-                        yerr=p1d_err * k_kms / np.pi,
+                        yerr=px_err * k_AA / np.pi,
                         fmt="o",
                         ms="4",
                         label="z=" + str(np.round(z, 2)),
@@ -1267,16 +1339,16 @@ class Likelihood(object):
                     ind = self.data.full_zs == z
                     for kk in range(n_perturb):
                         ax[ii].plot(
-                            k_kms,
-                            perturb[kk, ind] * k_kms / np.pi,
+                            k_AA,
+                            perturb[kk, ind] * k_AA / np.pi,
                             color=col,
                             alpha=0.05,
                         )
 
                     # print chi2
-                    xpos = k_kms[-1] + 0.001
-                    ypos = (p1d_theory * k_kms / np.pi)[-1]
-                    ndeg = np.sum(p1d_data != 0)
+                    xpos = k_AA[-1] + 0.001
+                    ypos = (px_theory * k_AA / np.pi)[-1]
+                    ndeg = np.sum(px_data != 0)
                     prob = chi2_scipy.sf(chi2_all[ii, iz], ndeg - n_free_p)
                     label = (
                         r"$\chi^2=$"
@@ -1291,26 +1363,26 @@ class Likelihood(object):
                         ax[ii].text(xpos, ypos, label, fontsize=8)
 
                     ax[ii].plot(
-                        k_kms,
-                        (p1d_theory * k_kms) / np.pi,
+                        k_AA,
+                        (px_theory * k_AA) / np.pi,
                         color=col,
                         linestyle="dashed",
                     )
                     if return_covar | (rand_posterior is not None):
                         ax[ii].fill_between(
-                            k_kms,
-                            (p1d_theory + err_theory) * k_kms / np.pi,
-                            (p1d_theory - err_theory) * k_kms / np.pi,
+                            k_AA,
+                            (px_theory + err_theory) * k_AA / np.pi,
+                            (px_theory - err_theory) * k_AA / np.pi,
                             alpha=0.35,
                             color=col,
                         )
-                    ymin = min(ymin, min(p1d_data * k_kms / np.pi))
-                    ymax = max(ymax, max(p1d_data * k_kms / np.pi))
+                    ymin = min(ymin, min(px_data * k_AA / np.pi))
+                    ymax = max(ymax, max(px_data * k_AA / np.pi))
 
                 if residuals & plot_panels:
                     axs.legend(loc="upper right")
-                    ymin = 1 - min((p1d_data - p1d_err) / p1d_theory + yshift)
-                    ymax = 1 - max((p1d_data + p1d_err) / p1d_theory + yshift)
+                    ymin = 1 - min((px_data - px_err) / px_theory + yshift)
+                    ymax = 1 - max((px_data + px_err) / px_theory + yshift)
                     y2plot = 1.05 * np.max([np.abs(ymin), np.abs(ymax)])
                     if iz % 2 == 1:
                         # y2plot0 = ax[iz - 1].get_ylim()[1] - 1
@@ -1331,30 +1403,30 @@ class Likelihood(object):
 
                 if ii == 0:
                     out["zs"].append(z)
-                    out["k_kms"].append(k_kms)
-                    out["p1d_data"].append(p1d_data)
-                    out["p1d_model"].append(p1d_theory)
-                    out["p1d_err"].append(p1d_err)
+                    out["k_AA"].append(k_AA)
+                    out["px_data"].append(px_data)
+                    out["px_model"].append(px_theory)
+                    out["px_err"].append(px_err)
                     out["chi2"].append(chi2_all[ii, iz])
                     out["prob"].append(prob)
                 else:
                     out["extra_zs"].append(z)
-                    out["extra_k_kms"].append(k_kms)
-                    out["extra_p1d_data"].append(p1d_data)
-                    out["extra_p1d_model"].append(p1d_theory)
-                    out["extra_p1d_err"].append(p1d_err)
+                    out["extra_k_AA"].append(k_AA)
+                    out["extra_px_data"].append(px_data)
+                    out["extra_px_model"].append(px_theory)
+                    out["extra_px_err"].append(px_err)
                     out["extra_chi2"].append(chi2_all[ii, iz])
                     out["extra_prob"].append(prob)
 
-            # ax[ii].plot(k_kms[0], 1, linestyle="-", label="Data", color="k")
-            ax[ii].plot(k_kms[0], 1, linestyle="--", label="Fit", color="k")
+            # ax[ii].plot(k_AA[0], 1, linestyle="-", label="Data", color="k")
+            ax[ii].plot(k_AA[0], 1, linestyle="--", label="Fit", color="k")
             if residuals:
                 if plot_panels == False:
                     ax[ii].legend()
             else:
                 ax[ii].legend(loc="lower right", ncol=4, fontsize=fontsize - 2)
 
-            # ax[ii].set_xlim(min(k_kms[0]) - 0.001, max(k_kms[-1]) + 0.001)
+            # ax[ii].set_xlim(min(k_AA[0]) - 0.001, max(k_AA[-1]) + 0.001)
             # if plot_panels == False:
             # ax[ii].set_xlabel(r"$k_\parallel$ [s/km]")
             # else:
@@ -1411,21 +1483,21 @@ class Likelihood(object):
 
         if zmask is None:
             _data_z = self.data.z
-            _data_k_kms = self.data.k_kms
+            _data_k_AA = self.data.k_AA
         else:
             _data_z = []
-            _data_k_kms = []
+            _data_k_AA = []
             for iz in range(len(self.data.z)):
                 _ = np.argwhere(np.abs(zmask - self.data.z[iz]) < 1e-3)
                 if len(_) != 0:
                     _data_z.append(self.data.z[iz])
-                    _data_k_kms.append(self.data.k_kms[iz])
+                    _data_k_AA.append(self.data.k_AA[iz])
             _data_z = np.array(_data_z)
 
         # z at time fits or full fit
         if z_at_time is False:
             _res = self.get_p1d_kms(
-                _data_z, _data_k_kms, values, return_covar=False
+                _data_z, _data_k_AA, values, return_covar=False
             )
             if _res is None:
                 return print("Prior out of range")
@@ -1440,7 +1512,7 @@ class Likelihood(object):
             for iz in range(len(_data_z)):
                 _res = self.get_p1d_kms(
                     _data_z[iz],
-                    _data_k_kms[iz],
+                    _data_k_AA[iz],
                     values[iz],
                     return_covar=False,
                 )
@@ -1455,7 +1527,7 @@ class Likelihood(object):
         if self.extra_data is not None:
             _res = self.get_p1d_kms(
                 self.extra_data.z,
-                self.extra_data.k_kms,
+                self.extra_data.k_AA,
                 values,
                 return_covar=return_covar,
             )
@@ -1509,13 +1581,13 @@ class Likelihood(object):
 
             # access data for this redshift
             z = zs[iz]
-            k_kms = data.k_kms[iz]
-            p1d_data = data.Pk_kms[iz]
-            p1d_cov = self.cov_Pk_kms[iz]
-            p1d_err = np.sqrt(np.diag(p1d_cov))
-            p1d_theory = emu_p1d_use[indemu]
+            k_AA = data.k_AA[iz]
+            px_data = data.Pk_AA[iz]
+            px_cov = self.cov_Pk_AA[iz]
+            px_err = np.sqrt(np.diag(px_cov))
+            px_theory = emu_p1d_use[indemu]
 
-            dme = (p1d_data - p1d_theory) / p1d_err
+            dme = (px_data - px_theory) / px_err
 
             ax[iz].tick_params(
                 axis="both", which="major", labelsize=fontsize - 4
@@ -1755,28 +1827,28 @@ class Likelihood(object):
             plt.show()
 
     def plot_cov_terms(self, save_directory=None):
-        npanels = int(np.round(np.sqrt(len(self.cov_Pk_kms))))
+        npanels = int(np.round(np.sqrt(len(self.cov_Pk_AA))))
         fig, ax = plt.subplots(
             npanels + 1, npanels, sharex=True, sharey=True, figsize=(10, 8)
         )
         ax = ax.reshape(-1)
-        for ii in range(len(self.cov_Pk_kms)):
-            cov_stat = np.diag(self.data.covstat_Pk_kms[ii])
-            cov_syst = np.diag(self.data.cov_Pk_kms[ii]) - cov_stat
-            cov_emu = np.diag(self.covemu_Pk_kms[ii])
-            cov_tot = np.diag(self.cov_Pk_kms[ii])
+        for ii in range(len(self.cov_Pk_AA)):
+            cov_stat = np.diag(self.data.covstat_Pk_AA[ii])
+            cov_syst = np.diag(self.data.cov_Pk_AA[ii]) - cov_stat
+            cov_emu = np.diag(self.covemu_Pk_AA[ii])
+            cov_tot = np.diag(self.cov_Pk_AA[ii])
             ax[ii].plot(
-                self.data.k_kms[ii], cov_stat / cov_tot, label=r"$x$ = Stat"
+                self.data.k_AA[ii], cov_stat / cov_tot, label=r"$x$ = Stat"
             )
             ax[ii].plot(
-                self.data.k_kms[ii], cov_syst / cov_tot, label=r"$x$ = Syst"
+                self.data.k_AA[ii], cov_syst / cov_tot, label=r"$x$ = Syst"
             )
             ax[ii].plot(
-                self.data.k_kms[ii], cov_emu / cov_tot, label=r"$x$ = Emu"
+                self.data.k_AA[ii], cov_emu / cov_tot, label=r"$x$ = Emu"
             )
             ax[ii].text(0.0, 0.1, "z=" + str(self.data.z[ii]))
-        if len(ax) > len(self.cov_Pk_kms):
-            for ii in range(len(self.cov_Pk_kms), len(ax)):
+        if len(ax) > len(self.cov_Pk_AA):
+            for ii in range(len(self.cov_Pk_AA), len(ax)):
                 ax[ii].axis("off")
         ax[0].legend()
         fig.supxlabel(r"$k\,[\mathrm{km}^{-1}\mathrm{s}]$")
@@ -1790,33 +1862,30 @@ class Likelihood(object):
         else:
             plt.show()
 
-    def plot_cov_to_pk(self, use_pk_smooth=True, save_directory=None):
-        npanels = int(np.round(np.sqrt(len(self.cov_Pk_kms))))
+    def plot_cov_to_pk(self, save_directory=None):
+        npanels = int(np.round(np.sqrt(len(self.cov_Pk_AA))))
 
         fig, ax = plt.subplots(
             npanels + 1, npanels, sharex=True, sharey="row", figsize=(10, 8)
         )
         ax = ax.reshape(-1)
-        for ii in range(len(self.cov_Pk_kms)):
-            cov_stat = np.diag(self.data.covstat_Pk_kms[ii])
-            cov_syst = np.diag(self.data.cov_Pk_kms[ii]) - cov_stat
-            cov_emu = np.diag(self.covemu_Pk_kms[ii])
-            cov_tot = np.diag(self.cov_Pk_kms[ii])
-            if use_pk_smooth:
-                pk = self.data.Pksmooth_kms[ii].copy()
-            else:
-                pk = self.data.Pk_kms[ii].copy()
+        for ii in range(len(self.cov_Pk_AA)):
+            cov_stat = np.diag(self.data.covstat_Pk_AA[ii])
+            cov_syst = np.diag(self.data.cov_Pk_AA[ii]) - cov_stat
+            cov_emu = np.diag(self.covemu_Pk_AA[ii])
+            cov_tot = np.diag(self.cov_Pk_AA[ii])
+            pk = self.data.Pk_AA[ii].copy()
             ax[ii].plot(
-                self.data.k_kms[ii], np.sqrt(cov_stat) / pk, label=r"$x$ = Stat"
+                self.data.k_AA[ii], np.sqrt(cov_stat) / pk, label=r"$x$ = Stat"
             )
             ax[ii].plot(
-                self.data.k_kms[ii], np.sqrt(cov_syst) / pk, label=r"$x$ = Syst"
+                self.data.k_AA[ii], np.sqrt(cov_syst) / pk, label=r"$x$ = Syst"
             )
             ax[ii].plot(
-                self.data.k_kms[ii], np.sqrt(cov_emu) / pk, label=r"$x$ = Emu"
+                self.data.k_AA[ii], np.sqrt(cov_emu) / pk, label=r"$x$ = Emu"
             )
             ax[ii].plot(
-                self.data.k_kms[ii], np.sqrt(cov_tot) / pk, label=r"$x$ = Total"
+                self.data.k_AA[ii], np.sqrt(cov_tot) / pk, label=r"$x$ = Total"
             )
             ax[ii].text(
                 0.2,
@@ -1826,8 +1895,8 @@ class Likelihood(object):
                 va="top",
                 transform=ax[ii].transAxes,
             )
-        if len(ax) > len(self.cov_Pk_kms):
-            for ii in range(len(self.cov_Pk_kms), len(ax)):
+        if len(ax) > len(self.cov_Pk_AA):
+            for ii in range(len(self.cov_Pk_AA), len(ax)):
                 ax[ii].axis("off")
         ax[0].legend(ncols=2)
         fig.supxlabel(r"$k\,[\mathrm{km}^{-1}\mathrm{s}]$")
@@ -1852,7 +1921,7 @@ class Likelihood(object):
         def is_pos_def(x):
             return np.all(np.linalg.eigvals(x) > 0)
 
-        plt.imshow(correlation_from_covariance(self.full_cov_Pk_kms))
+        plt.imshow(correlation_from_covariance(self.full_cov_Pk_AA))
         plt.colorbar()
 
         if save_directory is not None:

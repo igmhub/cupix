@@ -929,8 +929,6 @@ class Theory(object):
         # evaluate Px at many (N_theta_fine) theta values within the full theta range
         theta_fine = (np.linspace(theta_binin_Mpc[:, 0, 0], theta_binin_Mpc[:, -1, 1], N_theta_fine)).T
         px_Mpc_fine = self.emulator.emulate_px_Mpc(emu_call, kin_Mpc, theta_fine)
-        # print("theta fine shape", theta_fine[:, :, np.newaxis].shape)
-        print("px_Mpc_fine shape", px_Mpc_fine.shape)
         px_pred_Mpc_avg = np.zeros((Nz, Ntheta, Nk))
         if weights is None:
             weights = theta_fine
@@ -953,7 +951,6 @@ class Theory(object):
         # px_Mpc_bin = np.average(px_Mpc_fine, axis=1, weights=theta_fine[:, :, np.newaxis]) # make sure this averages over the correct axis (the one with many thetas)
         # px_Mpc = np.asarray(px_Mpc).reshape((Nz, Ntheta, Nk))
         # print("px Mpc shape", px_Mpc.shape)
-        print("px_pred_Mpc_avg shape", px_pred_Mpc_avg.shape)
         
 
         # move from Mpc to kms
@@ -969,7 +966,6 @@ class Theory(object):
             #             cov_Mpc[iz][: len(k_kms[iz]), : len(k_kms[iz])]
             #             * M_kms_of_z[iz] ** 2
             #         )
-        print("shape is", px_kms.shape)
         # apply weights
             
 
@@ -998,7 +994,6 @@ class Theory(object):
                 for itheta in range(Ntheta):
                     if window_function[iz, itheta] is not None:
                         px_kms[iz, itheta, :] = window_theory(window_function[iz, itheta], px_kms[iz, itheta, :])
-        print("shape is", px_kms.shape)
         # decide what to return, and return it
         out = [px_kms] # np.asarray([px_kms])
         if return_covar:

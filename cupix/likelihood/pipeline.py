@@ -1,5 +1,4 @@
-from cup1d.utils.utils import create_print_function
-
+from cupix.utils.utils import create_print_function
 import os, sys, time
 import numpy as np
 from mpi4py import MPI
@@ -9,18 +8,14 @@ import lace
 from lace.archive import gadget_archive, nyx_archive
 from lace.cosmo import camb_cosmo
 from cupix.likelihood.cosmologies import set_cosmo
-from lace.emulator.emulator_manager import set_emulator
-
 from cupix.likelihood import lya_theory, likelihood, fitter
 from cupix.likelihood.model_contaminants import Contaminants
 from cupix.likelihood.model_igm import IGM
-
 from cupix.likelihood.fitter import Fitter
-from cup1d.likelihood.plotter import Plotter
+from cupix.likelihood.plotter import Plotter # need to change to cupix later
 from cupix.px_data import (
     data_lyacolore
 )
-
 
 def set_free_like_parameters(params, emulator_label):
     """Set free parameters for likelihood"""
@@ -85,7 +80,7 @@ def set_archive(training_set):
 
 
 def set_Px(
-    args, archive=None, true_cosmo=None, emulator=None, cull_data=False
+    args, emulator=None, cull_data=False
 ):
     """Set Px data
 
@@ -273,66 +268,15 @@ class Pipeline(object):
 
         ###################
 
-        ## set training set (only for rank 0)
-        if rank == 0:
-            # start all clocks
-            start_all = time.time()
-
-            # only do it if running on mocks or using old emulators
-            read_archive = False
-            # running on mocks
-            if args.data_label[:3] in ["mpg", "nyx"]:
-                read_archive = True
-            elif args.emulator_label not in ["CH24_mpg_gp", "CH24_nyx_gp"]:
-                read_archive = True
-            else:
-                read_archive = False
-
-            if read_archive:
-                start = time.time()
-                fprint("----------")
-                fprint("Setting training set " + args.training_set)
-
-                # only when reusing archive
-                if args.archive is None:
-                    archive = set_archive(args.training_set)
-                else:
-                    archive = args.archive
-                end = time.time()
-                multi_time = str(np.round(end - start, 2))
-                fprint("Training set loaded in " + multi_time + " s")
-            else:
-                archive = None
-        #######################
 
         ## set emulator
         if rank == 0:
-            fprint("----------")
-            fprint("Setting emulator")
-            start = time.time()
-
+            # start all clocks
+            start_all = time.time()
             if args.emulator is None:
-                _drop_sim = None
-                if args.drop_sim:
-                    _drop_sim = args.data_label
-
-                emulator = set_emulator(
-                    emulator_label=args.emulator_label,
-                    archive=archive,
-                    drop_sim=_drop_sim,
-                )
-
-                # if "Nyx" in emulator.emulator_label:
-                #     emulator.list_sim_cube = archive.list_sim_cube
-                #     if "nyx_14" in emulator.list_sim_cube:
-                #         emulator.list_sim_cube.remove("nyx_14")
-                # else:
-                #     emulator.list_sim_cube = archive.list_sim_cube
+                sys.exit("Nothing implemented here yet, need to past ForestFlow emulator as arg")
             else:
                 emulator = args.emulator
-
-            multi_time = str(np.round(time.time() - start, 2))
-            fprint("Emulator set in " + multi_time + " s")
 
             # distribute emulator to all ranks
             for irank in range(1, size):
@@ -343,7 +287,7 @@ class Pipeline(object):
 
         #######################
 
-        ## set P1D
+        ## set Px
         if rank == 0:
             fprint("----------")
             fprint("Setting Px")
@@ -360,8 +304,6 @@ class Pipeline(object):
             # set P1D
             data["Px"] = set_Px(
                 args,
-                archive=archive,
-                true_cosmo=true_cosmo,
                 emulator=emulator,
             )
             fprint(
@@ -369,18 +311,18 @@ class Pipeline(object):
                 data["Px"].z,
             )
 
-            # set hires P1D
-            if args.data_label_hires is not None:
-                data["extra_Px"] = set_Px(
-                    args,
-                    archive=archive,
-                    true_cosmo=true_cosmo,
-                    emulator=emulator,
-                )
-                fprint(
-                    "Set " + str(len(data["extra_P1Ds"].z)) + " P1Ds at z = ",
-                    data["extra_P1Ds"].z,
-                )
+            # # set hires Px
+            # if args.data_label_hires is not None:
+            #     data["extra_Px"] = set_Px(
+            #         args,
+            #         archive=archive,
+            #         true_cosmo=true_cosmo,
+            #         emulator=emulator,
+            #     )
+            #     fprint(
+            #         "Set " + str(len(data["extra_P1Ds"].z)) + " P1Ds at z = ",
+            #         data["extra_P1Ds"].z,
+            #     )
             # distribute data to all tasks
             for irank in range(1, size):
                 comm.send(data, dest=irank, tag=(irank + 1) * 11)
@@ -390,7 +332,7 @@ class Pipeline(object):
 
         if rank == 0:
             multi_time = str(np.round(time.time() - start, 2))
-            fprint("P1D set in " + multi_time + " s")
+            fprint("Px set in " + multi_time + " s")
 
         #######################
 
@@ -398,9 +340,9 @@ class Pipeline(object):
 
         # check if data is blinded
         fprint("----------")
-        fprint("Is the data blinded: ", data["P1Ds"].apply_blinding)
-        if data["P1Ds"].apply_blinding:
-            fprint("Type of blinding: ", data["P1Ds"].blinding)
+        fprint("Is the data blinded: ", data["Px"].apply_blinding)
+        if data["Px"].apply_blinding:
+            fprint("Type of blinding: ", data["Px"].blinding)
 
         if rank == 0:
             # TBD save to file!
@@ -420,11 +362,12 @@ class Pipeline(object):
         fprint("----------")
         fprint("Setting likelihood")
 
+        
         like = set_like(
-            data["P1Ds"],
+            data["Px"],
             emulator,
             args,
-            data_hires=data["extra_P1Ds"],
+            data_hires=data["extra_Px"],
         )
 
         # print(like.truth)
@@ -465,6 +408,7 @@ class Pipeline(object):
             parallel=args.parallel,
             explore=args.explore,
             fix_cosmology=args.fix_cosmo,
+            nwalkers=args.nwalkers
         )
 
         #######################
@@ -524,11 +468,11 @@ class Pipeline(object):
             start = time.time()
             self.fprint("----------")
             self.fprint("Running minimizer")
-            # start fit from initial values
+            # start fit from initial values #DEALING WITH PART HERE
             self.fitter.run_minimizer(
                 log_func_minimize=self.fitter.like.get_chi2, p0=p0
             )
-
+            print("Done with the minimizer run")
             # save fit
             self.fitter.save_fitter(save_chains=save_chains)
 

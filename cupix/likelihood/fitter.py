@@ -9,9 +9,9 @@ import copy
 from mpi4py import MPI
 
 # our own modules
-import cup1d, lace
+import cupix, lace
 from lace.cosmo import camb_cosmo
-from cup1d.utils.utils import create_print_function, purge_chains
+from cupix.utils.utils import create_print_function, purge_chains
 
 
 class Fitter(object):
@@ -598,7 +598,7 @@ class Fitter(object):
         if rootdir:
             chain_location = rootdir
         else:
-            repo = os.path.dirname(cup1d.__path__[0])
+            repo = os.path.dirname(cupix.__path__[0])
             chain_location = os.path.join(repo, "data", "chains")
         if subfolder:
             # If there is one, check if it exists, if not make it
@@ -727,12 +727,12 @@ class Fitter(object):
         dict_out["data"] = {}
         dict_out["data"]["data_label"] = self.like.data.data_label
         dict_out["data"]["zs"] = self.like.data.z
-        dict_out["data"]["k_kms"] = self.like.data.k_kms
-        dict_out["data"]["Pk_kms"] = self.like.data.Pk_kms
-        dict_out["data"]["cov_Pk_kms"] = self.like.data.cov_Pk_kms
-        if self.like.data.full_Pk_kms is not None:
-            dict_out["data"]["full_Pk_kms"] = self.like.data.full_Pk_kms
-            dict_out["data"]["full_cov_Pk_kms"] = self.like.data.full_cov_Pk_kms
+        dict_out["data"]["k_AA"] = self.like.data.k_AA
+        dict_out["data"]["Pk_AA"] = self.like.data.Pk_AA
+        dict_out["data"]["cov_Pk_AA"] = self.like.data.cov_Pk_AA
+        if self.like.data.full_Pk_AA is not None:
+            dict_out["data"]["full_Pk_AA"] = self.like.data.full_Pk_AA
+            dict_out["data"]["full_cov_Pk_AA"] = self.like.data.full_cov_Pk_AA
 
         # EMULATOR
         dict_out["emulator"] = {}
