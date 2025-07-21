@@ -1,8 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
-import sys
-import h5py
+
 
 def calculate_estnorm(W, R, L):
     '''
@@ -33,8 +30,7 @@ def compute_cov(px, weights):
     mean_px = (px * weights).sum(axis=0)
     sum_weights = weights.sum(axis=0)
     w = sum_weights > 0.
-    mean_px[w] /= sum_weights[w]
-    
+    mean_px[w] /= sum_weights[w] 
     
     meanless_px_times_weight = weights * (px - mean_px)
 
@@ -92,5 +88,6 @@ def bin_power(k_arr,Px_k,bin_info,bin_func='top_hat'):
         px_Theta_A[i]=np.sum(B_m[i]*Px_k)/np.sum(B_m[i]) #/p1d_A_A[i] 
         
     return k_A, px_Theta_A
+
 
 
