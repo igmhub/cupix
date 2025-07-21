@@ -15,7 +15,7 @@ args = parser.parse_args()
 with open(args.config,'r') as f:
     params = yaml.safe_load(f)
 
-print(''Parmeters used:')
+print('Parmeters used:')
 pprint.pprint(params)
 
 px_dr2 = compute_binned_stats_px(**params)
