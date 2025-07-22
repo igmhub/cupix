@@ -20,73 +20,31 @@ def set_theory(
 ):
     """Set theory"""
 
+
     if fid_or_true == "fid":
-        sim_igm_mF = args.fid_label_mF
-        sim_igm_T = args.fid_label_T
-        sim_igm_kF = args.fid_label_kF
-        val_par_mF = args.fid_val_mF
-        val_par_sigT = args.fid_val_sigT
-        val_par_gamma = args.fid_val_gamma
-        val_par_kF = args.fid_val_kF
-        val_metals = args.fid_metals
-        val_A_damp = args.fid_A_damp
-        val_A_scale = args.fid_A_scale
-        val_SN = args.fid_SN
-        val_AGN = args.fid_AGN
-        val_R_coeff = args.fid_R_coeff
+        pars_igm = args.fid_igm
+        pars_cont = args.fid_cont
+        pars_syst = args.fid_syst
     elif fid_or_true == "true":
-        sim_igm_mF = args.true_label_mF
-        sim_igm_T = args.true_label_T
-        sim_igm_kF = args.true_label_kF
-        val_par_mF = args.true_val_mF
-        val_par_sigT = args.true_val_sigT
-        val_par_gamma = args.true_val_gamma
-        val_par_kF = args.true_val_kF
-        val_metals = args.true_metals
-        val_A_damp = args.true_A_damp
-        val_A_scale = args.true_A_scale
-        val_SN = args.true_SN
-        val_AGN = args.true_AGN
-        val_R_coeff = args.true_R_coeff
+        pars_igm = args.true_igm
+        pars_cont = args.true_cont
+        pars_syst = args.true_syst
     else:
         raise ValueError("fid_or_true must be 'fid' or 'true'")
+    args.pars_igm = pars_igm
 
     # set igm model
-    model_igm = IGM(
-        free_param_names=free_parameters,
-        fid_sim_igm_mF=sim_igm_mF,
-        fid_sim_igm_T=sim_igm_T,
-        fid_sim_igm_kF=sim_igm_kF,
-        fid_val_par_mF=val_par_mF,
-        fid_val_par_sigT=val_par_sigT,
-        fid_val_par_gamma=val_par_gamma,
-        fid_val_par_kF=val_par_kF,
-        mF_model_type=args.mF_model_type,
-        emu_suite="mpg", # emulator.list_sim_cube[0][:3]
-        type_priors=args.igm_priors,
-        Gauss_priors=args.Gauss_priors,
-    )
-
+    model_igm = IGM(free_param_names=free_parameters, pars_igm=pars_igm)
+    
     # set contaminants
     model_cont = Contaminants(
         free_param_names=free_parameters,
-        metal_lines=args.metal_lines,
-        fid_metals=val_metals,
-        fid_A_damp=val_A_damp,
-        fid_A_scale=val_A_scale,
-        fid_SN=val_SN,
-        fid_AGN=val_AGN,
-        hcd_model_type=args.hcd_model_type,
+        pars_cont=pars_cont,
         ic_correction=args.ic_correction,
-        Gauss_priors=args.Gauss_priors,
     )
-
     # set systematics
     model_syst = Systematics(
-        resolution_model_type=args.resolution_model_type,
-        free_param_names=free_parameters,
-        fid_R_coeff=val_R_coeff,
-        Gauss_priors=args.Gauss_priors,
+        free_param_names=free_parameters, pars_syst=pars_syst
     )
 
     
@@ -162,9 +120,11 @@ class Theory(object):
 
         # setup model_igm
         if model_igm is None:
-            self.model_igm = IGM(zs)
-        else:
+            print("Model_IGM is None, this isn't implemented yet.")
+            self.model_igm = IGM() # should add some default behavior here
+        else: 
             self.model_igm = model_igm
+            print("Using input IGM model.")
 
         # setup model_cont
         if model_cont is None:
@@ -519,30 +479,33 @@ class Theory(object):
                 for ii in range(len(linP_Mpc_params)):
                     emu_call[key][ii] = linP_Mpc_params[ii][key]
             elif key == "mF":
-                emu_call[key] = self.model_igm.F_model.get_mean_flux(
+                emu_call[key] = self.model_igm.models["F_model"].get_mean_flux(
                     zs, like_params=like_params
                 )
+                emu_call["mF_fid"] = self.model_igm.models[
+                    "F_model"
+                ].get_mean_flux(zs)
             elif key == "gamma":
-                emu_call[key] = self.model_igm.T_model.get_gamma(
+                emu_call[key] = self.model_igm.models["T_model"].get_gamma(
                     zs, like_params=like_params
                 )
             elif key == "sigT_Mpc":
                 emu_call[key] = (
-                    self.model_igm.T_model.get_sigT_kms(
+                    self.model_igm.models["T_model"].get_sigT_kms(
                         zs, like_params=like_params
                     )
                     / M_kms_of_zs
                 )
             elif key == "kF_Mpc":
                 emu_call[key] = (
-                    self.model_igm.P_model.get_kF_kms(
+                    self.model_igm.models["P_model"].get_kF_kms(
                         zs, like_params=like_params
                     )
                     * M_kms_of_zs
                 )
             elif key == "lambda_P":
                 emu_call[key] = 1000 / (
-                    self.model_igm.P_model.get_kF_kms(
+                    self.model_igm.models["P_model"].get_kF_kms(
                         zs, like_params=like_params
                     )
                     * M_kms_of_zs

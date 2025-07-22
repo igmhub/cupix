@@ -4,7 +4,7 @@ import os
 import lace
 from scipy.interpolate import interp1d
 from lace.cosmo import thermal_broadening
-from cup1d.likelihood import likelihood_parameter
+from cupix.likelihood import likelihood_parameter
 
 
 class ThermalModel(object):

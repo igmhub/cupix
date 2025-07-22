@@ -3,7 +3,7 @@ import copy
 import os
 import lace
 from scipy.interpolate import interp1d
-from cup1d.likelihood import likelihood_parameter
+from cupix.likelihood import likelihood_parameter
 
 
 class MeanFluxModel(object):

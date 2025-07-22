@@ -13,22 +13,22 @@ This repository currently uses the ForestFlow emulator (https://github.com/igmhu
 
 - Download and install Conda. You can find the instructions here https://docs.anaconda.com/miniconda/miniconda-install/
 
-- Create a new conda environment. It is usually better to follow python version one or two behind. In July 2025, the latest is 3.15, so we recommend 3.13.
+- Create a new conda environment. In July 2025, we recommend to use Python 3.10 or 3.11.
 
 ```
-conda create -n cupix -c conda-forge python=3.13 camb mpi4py
+conda create -n cupix -c conda-forge python=3.11 camb mpi4py
 conda activate cupix
 pip install --upgrade pip
 ```
-- Clone and install LaCE (do so within the environment created above):
+- Navigate to the directory where you'd like to install all new software. Clone and install LaCE (do so within the `cupix` environment created above):
 
 ```
 git clone https://github.com/igmhub/LaCE.git
-cd LacE
+cd LaCE
 pip install -e .
 ``` 
 
-- Clone and install ForestFlow with Px routines (do so within the environment created above):
+- Navigate back to the base software directory (`cd ..`) and clone and install ForestFlow with Px routines (still within the `cupix` environment created above):
 
 ```
 git clone https://github.com/igmhub/ForestFlow.git
@@ -36,7 +36,7 @@ cd ForestFlow
 pip install -e .[px]
 ``` 
 
-- Clone and install cupix (do so within the environment created above):
+- Navigate back to the base software directory (`cd ..`) and clone and install cupix (still within the `cupix` environment created above):
 
 ```
 git clone https://github.com/igmhub/cupix.git
@@ -55,7 +55,12 @@ MPICC="cc -shared" pip install --force-reinstall --no-cache-dir --no-binary=mpi4
 ### Notebooks / tutorials
 
 
-- All notebooks in the repository are in .py format. To generate the .ipynb version, run:
+- All notebooks in the repository are in .py format. You need to install jupytext to generate the .ipynb versions:
+
+```
+conda install jupytext -c conda-forge
+```
+Then run:
 
 ```
 jupytext --to ipynb notebooks/*/*.py
@@ -65,7 +70,7 @@ jupytext --to ipynb notebooks/*/*.py
 
 ```
 pip install ipykernel
-python -m ipykernel install --user --name cup1d --display-name cupix
+python -m ipykernel install --user --name cupix --display-name cupix
 ```
 
 There are no clean tutorials yet, but you can find some in-development notebooks with examples in `notebooks/development`. You will need to point them to your own data because there are no small test files included in the package, at the moment.

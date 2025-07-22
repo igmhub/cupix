@@ -5,3 +5,4 @@ __pycache__/
 *.ipynb
 .ipynb_checkpoints
 **/*.ipynb_checkpoints/
+cupix.egg-info
