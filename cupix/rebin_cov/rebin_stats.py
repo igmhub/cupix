@@ -76,11 +76,12 @@ def compute_binned_stats_px(input_path,k_bins_ratio,k_max_ratio,theta_bins_ratio
         px_dr2.compute_stat()
     
     # bin in theta
-    px_dr2.compute_thetabinned_px(theta_min_rebin,theta_max_rebin)
+    if theta_bin_opt:
+        px_dr2.compute_thetabinned_px(theta_min_rebin,theta_max_rebin)
     
     #now bin in k 
-    
-    px_dr2.compute_binned_cov(bin_info,theta_binning=True)
+    if k_bin_opt:
+        px_dr2.compute_binned_cov(bin_info,theta_binning=theta_bin_opt)
     
 
     return px_dr2
