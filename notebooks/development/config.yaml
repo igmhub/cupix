@@ -1,0 +1,10 @@
+input_path: /pscratch/sd/s/sindhu_s/Pcross_lya/DR2_Px/postprocess_test/px-nhp_150-zbins_4-thetabins_40.hdf5  
+#/pscratch/sd/s/sindhu_s/Pcross_lya/DR2_Px/baseline/px-nhp_1147-zbins_4-thetabins_40.hdf5  # path to px_data hdf5 file
+k_bins_ratio: 4 # set to 4 if you want N_k_rebins = N_k/4
+theta_bins_ratio: 4 # set to 4 if you want N_theta_rebins = N_theta/4
+theta_bin_opt: false # set to true if you want to rebin in theta
+k_bin_opt: true # set to true if you want to rebin in k
+k_max_ratio: 4 # set to 4 if you want k_max = k_Nyquist/4
+unbinned_px: true # set to true if you want to compute stats like mean and covariance of unbinned px
+
+
