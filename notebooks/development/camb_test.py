@@ -3,16 +3,16 @@
 #   jupytext:
 #     text_representation:
 #       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.16.2
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.17.2
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
 #     name: python3
 # ---
 
-# +
+# %%
 import os
 import numpy as np
 import camb
@@ -60,26 +60,30 @@ def get_cosmology(
 
 
 
-# -
-
+# %%
 cosmo_fid = get_cosmology()
 camb_results = camb.get_results(cosmo_fid)
 
+# %%
 camb_results.comoving_radial_distance(3)
 
 
+# %%
 from lace.cosmo import camb_cosmo
 from astropy.cosmology import FlatLambdaCDM
 P18 = FlatLambdaCDM(H0=cosmo_fid.H0, Om0=cosmo_fid.omegam, Tcmb0=cosmo_fid.TCMB)
 import astropy.units as u
 
+# %%
 z = .7
 angle_deg = np.array([0,5,10,20])
 angle_Mpc_ap = (P18.kpc_comoving_per_arcmin(z)).to(u.Mpc/u.deg)*angle_deg*u.deg
 
 
+# %%
 angle_Mpc_ap
 
-1/camb_cosmo.ddeg_dMpc_tvs(cosmo_fid, z) * angle_deg
+# %%
+1/camb_cosmo.ddeg_dMpc(cosmo_fid, z) * angle_deg
 
-
+# %%

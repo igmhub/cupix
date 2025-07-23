@@ -3,18 +3,18 @@
 #   jupytext:
 #     text_representation:
 #       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.16.2
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.17.2
 #   kernelspec:
 #     display_name: pcross
 #     language: python
 #     name: python3
 # ---
 
+# %%
 import sys
 import numpy as np
-sys.path.append("/Users/mlokken/research/lyman_alpha/software/cupix")
 from cupix.likelihood.lya_theory import set_theory
 from cupix.likelihood.forestflow_emu import FF_emulator
 from cupix.likelihood.input_pipeline import Args
@@ -25,14 +25,18 @@ from cupix.likelihood.fitter import Fitter
 from cupix.likelihood.pipeline import set_Px
 
 
+# %%
 # %load_ext autoreload
 # %autoreload 2
 
+# %%
 args = Args(data_label='lyacolore')
 args.set_baseline()
 
+# %% [markdown]
 # Load the emulator
 
+# %%
 # Load emulator
 z = np.array([2.2])
 omnuh2 = 0.0006
@@ -60,8 +64,10 @@ sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(cosmo)
 cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
 ffemu = FF_emulator(z, cosmo, cc)
 
+# %% [markdown]
 # Set the arguments
 
+# %%
 args.emu_cov_factor = None
 args.use_pk_smooth = False
 args.rebin_k = 1
@@ -78,22 +84,25 @@ args.n_agn = 0
 args.n_res = 0
 args.nwalkers = 25
 
+# %% [markdown]
 # Setup the pipeline
 
+# %%
 pipe = Pipeline(args)
 
+# %%
 p0 = np.array(list(pipe.fitter.like.fid["fit_cube"].values()))
 pipe.run_minimizer(p0)
 
-# +
+# %%
 from cupix.likelihood.plotter import Plotter # need to change to cupix later
 
 pipe.plotter = Plotter(
     pipe.fitter, save_directory=pipe.fitter.save_directory
     )
 
-# -
 
+# %%
 Nfft = 30
 perf_res = np.ones(Nfft)
 w = np.ones(Nfft)
@@ -103,15 +112,19 @@ oldnorm = np.fft.ifft(np.fft.fft(perf_res**2)*np.fft.fft(W))
 newnorm = perf_res**2*W
 print(oldnorm, newnorm)
 
+# %%
 W
 
+# %%
 pipe.plotter.plots_minimizer()
 
+# %%
 pipe.mle_values = pipe.fitter.get_best_fit(stat_best_fit="mle")
      63 self.like_params = self.fitter.like.parameters_from_sampling_point(
      64     self.mle_values
 
 
+# %%
 pipe.fitter.like.plot_px(
     values =pipe.mle_values,
     plot_every_iz=1,
@@ -120,9 +133,10 @@ pipe.fitter.like.plot_px(
     zmask=None
 )
 
+# %% [markdown]
 # Set the likelihood
 
-# +
+# %%
 Px_data = set_Px(args)
 # remove the zero
 print(Px_data.Pk_AA.shape, Px_data.k_AA.shape, Px_data.window.shape)
@@ -131,25 +145,30 @@ Px_data.k_AA = Px_data.k_AA[:,1:200]
 Px_data.Pk_AA = Px_data.Pk_AA[:,:, 1:200]
 Px_data.window = Px_data.window[:,:, 1:200, 1:200]
 print(Px_data.Pk_AA.shape, Px_data.k_AA.shape, Px_data.window.shape)
-# -
 
+# %%
 p0 = np.array(list(likelihood.fid["fit_cube"].values()))
 pipe.run_minimizer(p0)
 
+# %% [markdown]
 # Set the theory
 
+# %%
 args = Args(data_label='lyacolore')
 args.set_baseline()
 theory_AA = set_theory(args, ffemu, k_unit='iAA')
 theory_AA.set_fid_cosmo(z)
 
+# %%
 args.fix_cosmo
 
+# %%
 dir(args)
 
+# %% [markdown]
 # ## Set the data
 
-# +
+# %%
 from cupix.likelihood.pipeline import set_Px
 Px_data = set_Px(args)
 # remove the zero
@@ -159,15 +178,17 @@ Px_data.k_AA = Px_data.k_AA[:,1:200]
 Px_data.Pk_AA = Px_data.Pk_AA[:,:, 1:200]
 Px_data.window = Px_data.window[:,:, 1:200, 1:200]
 print(Px_data.Pk_AA.shape, Px_data.k_AA.shape, Px_data.window.shape)
-# -
 
+# %% [markdown]
 # Note: it seems to matter whehter we keep all the k modes or only the positive ones, for the window matrix calculations
 
+# %%
 for i in range(len(Px_data.thetabin_deg[0])):
     print(f"theta bin {Px_data.thetabin_deg[0][i]}")
     plt.plot(Px_data.k_AA[0], Px_data.Pk_AA[0,i], label='data')
 plt.xlim([0,0.8])
 
+# %%
 out_AA = theory_AA.get_px_AA(
         zs = z,
         k_AA=Px_data.k_AA,
@@ -176,6 +197,7 @@ out_AA = theory_AA.get_px_AA(
         return_blob=False
     )
 
+# %%
 for iz, zbin in enumerate(out_AA):
     print("z=", z[iz])
     if iz==0:
@@ -194,18 +216,23 @@ plt.ylim([-0.01,.16])
 plt.ylabel('$P(k)~[\AA]$')
 plt.xlabel(r'$k~[\AA^{-1}]$')
 
+# %%
 Px_data.cov_Pk_AA.shape
 
+# %%
 args.emu_cov_factor = None
 args.use_pk_smooth = False
 args.rebin_k = 1
 Px_data.Pksmooth_kms = None
 Px_data.full_Pk_AA = None
 
+# %%
 likelihood = set_like(Px_data, ffemu, args, data_hires=None)
 
+# %%
 args.n_steps = 100
 
+# %%
 fitter =  Fitter(
             like=likelihood,
             rootdir=None,
@@ -217,15 +244,20 @@ fitter =  Fitter(
         )
 
 
+# %%
 args.emulator = ffemu
 
+# %%
 pipe = Pipeline(args)
 
+# %%
 pipe.fitter.like.data.k_AA.shape
 
+# %%
 p0 = np.array(list(likelihood.fid["fit_cube"].values()))
 pipe.run_minimizer(p0)
 
+# %%
 Pipeline.run_minimizer()
 
-
+# %%

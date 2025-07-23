@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 import os
-from cup1d.likelihood import likelihood_parameter
+from cupix.likelihood import likelihood_parameter
 
 
 class SN_Model(object):

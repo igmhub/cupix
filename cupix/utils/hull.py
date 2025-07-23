@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 
-from cup1d.utils.utils import get_path_repo
+from cupix.utils.utils import get_path_repo
 
 
 def in_hull(hull, p):

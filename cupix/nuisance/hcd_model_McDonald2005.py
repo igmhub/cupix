@@ -1,8 +1,8 @@
 import numpy as np
 import copy
 import os
-from cup1d.likelihood import likelihood_parameter
-from cup1d.utils.utils import get_discrete_cmap
+from cupix.likelihood import likelihood_parameter
+from cupix.utils.utils import get_discrete_cmap
 from matplotlib import pyplot as plt
 
 

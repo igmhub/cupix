@@ -1,8 +1,8 @@
 import numpy as np
 import copy, os
 from matplotlib import pyplot as plt
-from cup1d.utils.utils import get_discrete_cmap
-from cup1d.likelihood import likelihood_parameter
+from cupix.utils.utils import get_discrete_cmap
+from cupix.likelihood import likelihood_parameter
 
 
 class HCD_Model_Rogers2017(object):

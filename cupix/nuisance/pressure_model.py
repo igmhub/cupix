@@ -3,7 +3,7 @@ import copy
 import os
 import lace
 from scipy.interpolate import interp1d
-from cup1d.likelihood import likelihood_parameter
+from cupix.likelihood import likelihood_parameter
 
 # lambda_F ~ 80 kpc ~ 0.08 Mpc ~ 0.055 Mpc/h ~ 5.5 km/s (Onorbe et al. 2016)
 # k_F = 1 / lambda_F ~ 12.5 1/Mpc ~ 18.2 h/Mpc ~ 0.182 s/km

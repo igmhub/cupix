@@ -3,7 +3,7 @@ import copy
 import camb
 from lace.cosmo import camb_cosmo
 from lace.cosmo import fit_linP
-from cup1d.likelihood import likelihood_parameter
+from cupix.likelihood import likelihood_parameter
 
 
 class CAMBModel(object):

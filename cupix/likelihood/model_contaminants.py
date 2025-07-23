@@ -1,10 +1,14 @@
 import numpy as np
 
-from cup1d.nuisance import (
-    metal_model,
+from cupix.nuisance import (
+    metal_model_class,
+    metal_metal_model_class,
     hcd_model_McDonald2005,
     hcd_model_Rogers2017,
-    hcd_model_new,
+    hcd_model_class,
+    hcd_model_rogers_class,
+    si_mult,
+    si_add,
     SN_model,
     AGN_model,
 )
@@ -16,74 +20,127 @@ class Contaminants(object):
     def __init__(
         self,
         free_param_names=None,
-        dict_models=None,
+        metal_models=None,
         hcd_model=None,
         sn_model=None,
         agn_model=None,
-        metal_lines=None,
-        fid_metals=None,
-        fid_A_damp=None,
-        fid_A_scale=None,
-        fid_SN=None,
-        fid_AGN=None,
-        hcd_model_type=None,
+        pars_cont=None,
         ic_correction=None,
-        Gauss_priors=None,
     ):
-        self.metal_lines = metal_lines
-        self.fid_metals = fid_metals
-        self.fid_A_damp = fid_A_damp
-        self.fid_A_scale = fid_A_scale
-        self.fid_SN = fid_SN
-        self.fid_AGN = fid_AGN
-        self.hcd_model_type = hcd_model_type
+        self.pars_cont = pars_cont
         self.ic_correction = ic_correction
-
         # setup metal models
         self.metal_models = {}
+        if "flat_priors" in pars_cont:
+            flat_priors = pars_cont["flat_priors"]
+        else:
+            flat_priors = None
+        if "Gauss_priors" in pars_cont:
+            Gauss_priors = pars_cont["Gauss_priors"]
+        else:
+            Gauss_priors = None
 
-        for metal_line in self.metal_lines:
-            create_model = True
-            if dict_models is not None:
-                if metal_line in dict_models:
-                    self.metal_models[metal_line] = dict_models[metal_line]
-                    create_model = False
-            if create_model:
-                self.metal_models[metal_line] = metal_model.MetalModel(
-                    metal_label=metal_line,
-                    free_param_names=free_param_names,
-                    X_fid_value=self.fid_metals[metal_line + "_X"],
-                    D_fid_value=self.fid_metals[metal_line + "_D"],
-                    L_fid_value=self.fid_metals[metal_line + "_L"],
-                    A_fid_value=self.fid_metals[metal_line + "_A"],
-                    Gauss_priors=Gauss_priors,
-                )
+        if "z_max" in pars_cont:
+            z_max = pars_cont["z_max"]
+        else:
+            z_max = None
+
+        prop_coeffs = {}
+        fid_vals = {}
+        for key in pars_cont:
+            fid_vals[key] = pars_cont[key]
+            for key2 in ["otype", "ztype", "znodes"]:
+                key3 = key + "_" + key2
+                if key3 in pars_cont:
+                    prop_coeffs[key3] = pars_cont[key3]
+                else:
+                    if key3.endswith("otype"):
+                        prop_coeffs[key3] = "exp"
+                    elif key3.endswith("ztype"):
+                        prop_coeffs[key3] = "pivot"
+
+        # if joint_model:
+        self.metal_add = ["CIVa_CIVb", "MgIIa_MgIIb", "Si_add"]
+
+        # setup metal models
+        key = "Si_mult"
+        try:
+            self.metal_models[key] = metal_models[key]
+        except:
+            self.metal_models[key] = si_mult.SiMult(
+                free_param_names=free_param_names,
+                fid_vals=fid_vals,
+                prop_coeffs=prop_coeffs,
+                z_max=z_max,
+                flat_priors=flat_priors,
+                Gauss_priors=Gauss_priors,
+            )
+
+        key = "Si_add"
+        try:
+            self.metal_models[key] = metal_models[key]
+        except:
+            self.metal_models[key] = si_add.SiAdd(
+                free_param_names=free_param_names,
+                fid_vals=fid_vals,
+                prop_coeffs=prop_coeffs,
+                z_max=z_max,
+                flat_priors=flat_priors,
+                Gauss_priors=Gauss_priors,
+            )
+
+        # for metal_line in self.metal_add:
+        #     if metal_line == "Si_add":
+        #         continue
+        #     create_model = True
+        #     try:
+        #         self.metal_models[metal_line] = metal_models[metal_line]
+        #     except:
+        #         self.metal_models[
+        #             metal_line
+        #         ] = metal_metal_model_class.MetalModel(
+        #             metal_label=metal_line,
+        #             free_param_names=free_param_names,
+        #             fid_vals=fid_vals,
+        #             prop_coeffs=prop_coeffs,
+        #             z_max=z_max,
+        #             flat_priors=flat_priors,
+        #             Gauss_priors=Gauss_priors,
+        #         )
 
         # setup HCD model
         if hcd_model:
             self.hcd_model = hcd_model
         else:
-            if self.hcd_model_type == "Rogers2017":
+            if pars_cont["hcd_model_type"] == "Rogers2017":
                 self.hcd_model = hcd_model_Rogers2017.HCD_Model_Rogers2017(
                     free_param_names=free_param_names,
-                    fid_A_damp=self.fid_A_damp,
-                    fid_A_scale=self.fid_A_scale,
+                    fid_A_damp=pars_cont["A_damp1"],
+                    fid_A_scale=pars_cont["A_scale1"],
                 )
-            elif self.hcd_model_type == "McDonald2005":
+            elif pars_cont["hcd_model_type"] == "McDonald2005":
                 self.hcd_model = hcd_model_McDonald2005.HCD_Model_McDonald2005(
                     free_param_names=free_param_names,
-                    fid_A_damp=self.fid_A_damp,
+                    fid_A_damp=pars_cont["A_damp1"],
                 )
-            elif self.hcd_model_type == "new":
-                self.hcd_model = hcd_model_new.HCD_Model_new(
+            elif pars_cont["hcd_model_type"] == "new":
+                self.hcd_model = hcd_model_class.HCD_Model(
                     free_param_names=free_param_names,
-                    fid_A_damp=self.fid_A_damp,
-                    fid_A_scale=self.fid_A_scale,
+                    fid_vals=pars_cont,
+                    flat_priors=flat_priors,
+                    Gauss_priors=Gauss_priors,
+                )
+            elif pars_cont["hcd_model_type"] == "new_rogers":
+                self.hcd_model = hcd_model_rogers_class.HCD_Model_Rogers(
+                    free_param_names=free_param_names,
+                    fid_vals=fid_vals,
+                    prop_coeffs=prop_coeffs,
+                    flat_priors=flat_priors,
                     Gauss_priors=Gauss_priors,
                 )
             else:
                 raise ValueError(
-                    "hcd_model_type must be one of 'Rogers2017', 'McDonald2005', or 'new'"
+                    "hcd_model_type must be one of 'Rogers2017', 'McDonald2005', 'new', or 'new2'"
                 )
 
         # setup SN model
@@ -92,7 +149,7 @@ class Contaminants(object):
         else:
             self.sn_model = SN_model.SN_Model(
                 free_param_names=free_param_names,
-                fid_value=self.fid_SN,
+                fid_value=pars_cont["SN"],
             )
 
         # setup AGN model
@@ -101,39 +158,41 @@ class Contaminants(object):
         else:
             self.agn_model = AGN_model.AGN_Model(
                 free_param_names=free_param_names,
-                fid_value=self.fid_AGN,
+                fid_value=pars_cont["AGN"],
             )
 
-    def get_dict_cont(self):
-        dict_out = {}
+    # def get_dict_cont(self):
+    #     dict_out = {}
 
-        # maximum number of parameters
-        for ii in range(2):
-            for metal_line in self.metal_lines:
-                flag = "ln_x_" + metal_line + "_" + str(ii)
-                dict_out[flag] = self.fid_metals[metal_line + "_X"][-1 - ii]
-                flag = "d_" + metal_line + "_" + str(ii)
-                dict_out[flag] = self.fid_metals[metal_line + "_D"][-1 - ii]
-                flag = "l_" + metal_line + "_" + str(ii)
-                dict_out[flag] = self.fid_metals[metal_line + "_L"][-1 - ii]
-                flag = "a_" + metal_line + "_" + str(ii)
-                dict_out[flag] = self.fid_metals[metal_line + "_A"][-1 - ii]
-            dict_out["ln_A_damp_" + str(ii)] = self.fid_A_damp[-1 - ii]
-            dict_out["ln_A_scale_" + str(ii)] = self.fid_A_scale[-1 - ii]
-            dict_out["ln_SN_" + str(ii)] = self.fid_SN[-1 - ii]
-            dict_out["ln_AGN_" + str(ii)] = self.fid_AGN[-1 - ii]
-        dict_out["ic_correction"] = self.ic_correction
+    #     # maximum number of parameters
+    #     for ii in range(2):
+    #         for metal_line in self.args.metal_lines:
+    #             flag = "f_" + metal_line + "_" + str(ii)
+    #             dict_out[flag] = self.fid_metals[flag][-1 - ii]
+    #             flag = "s_" + metal_line + "_" + str(ii)
+    #             dict_out[flag] = self.fid_metals[flag][-1 - ii]
+    #         dict_out["ln_A_damp_" + str(ii)] = self.fid_A_damp[-1 - ii]
+    #         dict_out["ln_A_scale_" + str(ii)] = self.fid_A_scale[-1 - ii]
+    #         dict_out["ln_SN_" + str(ii)] = self.fid_SN[-1 - ii]
+    #         dict_out["ln_AGN_" + str(ii)] = self.fid_AGN[-1 - ii]
+    #     dict_out["ic_correction"] = self.args.ic_correction
 
-        return dict_out
+    #     return dict_out
 
-    def get_contamination(self, z, k_kms, mF, M_of_z, like_params=[]):
+    def get_contamination(
+        self, z, k_kms, mF, M_of_z, like_params=[], remove=None
+    ):
         # include multiplicative metal contamination
+
         if len(z) == 1:
-            cont_metals = np.ones_like(k_kms)
+            cont_mul_metals = np.ones_like(k_kms)
+            cont_add_metals = np.zeros_like(k_kms)
         else:
-            cont_metals = []
+            cont_mul_metals = []
+            cont_add_metals = []
             for iz in range(len(z)):
-                cont_metals.append(np.ones_like(k_kms[iz]))
+                cont_mul_metals.append(np.ones_like(k_kms[iz]))
+                cont_add_metals.append(np.zeros_like(k_kms[iz]))
 
         for model_name in self.metal_models:
             cont = self.metal_models[model_name].get_contamination(
@@ -141,13 +200,25 @@ class Contaminants(object):
                 k_kms=k_kms,
                 mF=mF,
                 like_params=like_params,
+                remove=remove,
             )
             if len(z) == 1:
-                cont_metals *= cont
+                if model_name in self.metal_add:
+                    cont_add_metals += cont
+                else:
+                    cont_mul_metals *= cont
             else:
                 for iz in range(len(z)):
-                    if type(cont) != int:
-                        cont_metals[iz] *= cont[iz]
+                    if model_name in self.metal_add:
+                        if type(cont) != int:
+                            cont_add_metals[iz] += cont[iz]
+                        else:
+                            cont_add_metals[iz] += cont
+                    else:
+                        if type(cont) != int:
+                            cont_mul_metals[iz] *= cont[iz]
+                        else:
+                            cont_mul_metals[iz] *= cont
 
         # include HCD contamination
         cont_HCD = self.hcd_model.get_contamination(
@@ -157,26 +228,28 @@ class Contaminants(object):
         )
 
         # include SN contamination
-        if len(z) != 1:
-            k_Mpc = []
-            for iz in range(len(z)):
-                k_Mpc.append(k_kms[iz] * M_of_z[iz])
-        else:
-            k_Mpc = [k_kms[0] * M_of_z[0]]
-        cont_SN = self.sn_model.get_contamination(
-            z=z,
-            k_Mpc=k_Mpc,
-            like_params=like_params,
-        )
+        # if len(z) != 1:
+        #     k_Mpc = []
+        #     for iz in range(len(z)):
+        #         k_Mpc.append(k_kms[iz] * M_of_z[iz])
+        # else:
+        #     k_Mpc = [k_kms[0] * M_of_z[0]]
+        # cont_SN = self.sn_model.get_contamination(
+        #     z=z,
+        #     k_Mpc=k_Mpc,
+        #     like_params=like_params,
+        # )
+        cont_SN = 1
 
         # include AGN contamination
-        cont_AGN = self.agn_model.get_contamination(
-            z=z,
-            k_kms=k_kms,
-            like_params=like_params,
-        )
-        if np.any(cont_AGN < 0):
-            return None
+        # cont_AGN = self.agn_model.get_contamination(
+        #     z=z,
+        #     k_kms=k_kms,
+        #     like_params=like_params,
+        # )
+        # if np.any(cont_AGN < 0):
+        #     cont_AGN = 1
+        cont_AGN = 1
 
         if self.ic_correction:
             IC_corr = ref_nyx_ic_correction(k_kms, z)
@@ -184,13 +257,22 @@ class Contaminants(object):
             IC_corr = 1
 
         if len(z) == 1:
-            cont_total = cont_metals * cont_HCD * cont_SN * cont_AGN * IC_corr
+            mult_cont_total = (
+                cont_mul_metals * cont_HCD * cont_SN * cont_AGN * IC_corr
+            )
+            add_cont_total = cont_add_metals
         else:
-            cont_total = []
-            if type(cont_metals) == int:
-                _cont_metals = np.ones_like(z)
+            mult_cont_total = []
+            add_cont_total = []
+            if type(cont_mul_metals) == int:
+                _cont_mul_metals = np.ones_like(z)
             else:
-                _cont_metals = cont_metals
+                _cont_mul_metals = cont_mul_metals
+
+            if type(cont_add_metals) == int:
+                _cont_add_metals = np.zeros_like(z)
+            else:
+                _cont_add_metals = cont_add_metals
 
             if type(cont_HCD) == int:
                 _cont_HCD = np.ones_like(z)
@@ -213,15 +295,16 @@ class Contaminants(object):
                 _IC_corr = IC_corr
 
             for iz in range(len(z)):
-                cont_total.append(
-                    _cont_metals[iz]
+                mult_cont_total.append(
+                    _cont_mul_metals[iz]
                     * _cont_HCD[iz]
                     * _cont_SN[iz]
                     * _cont_AGN[iz]
                     * _IC_corr[iz]
                 )
+                add_cont_total.append(_cont_add_metals[iz])
 
-        return cont_total
+        return mult_cont_total, add_cont_total
 
 
 def ref_nyx_ic_correction(k_kms, z):
