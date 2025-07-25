@@ -2,42 +2,38 @@ import numpy as np
 
 
 class Px_zt(object):
-    '''Px measurement at one (z,t), including many k bins'''
+    '''Collection of Px measurements at many k bins, same (z,t)'''
 
-    def __init__(self, z_bin, t_bin, k_bins, px_ztk, cov_px_ztk=None, V_ztk=None):
+    def __init__(self, z_bin, t_bin, k_bins, P_m, V_m=None, C_mn=None):
         '''Construct Px measurement at bin (z,t), for different k-bins'''
 
-        # px_ztk and cov_px_ztk should numpy (nd)arrays
+        # P_m, V_m and C_mn should be numpy arrays
         self.Nk = len(k_bins)
-        assert self.Nk == px_ztk.size, 'size mismatch'
+        assert self.Nk == P_m.size, 'size mismatch'
         self.k_bins = k_bins
-        self.px = px_ztk
+        self.P_m = P_m
 
         # before combining different healpixels, we do not have a covariance
-        if cov_px_ztk is not None:
-            assert cov_px_ztk.size == self.Nk**2
-            self.cov = cov_px_ztk
+        if C_mn is not None:
+            assert C_mn.size == self.Nk**2
+            self.C_mn = C_mn
         else:
-            self.cov = None
+            self.C_mn = None
 
-        # this is used to weight differnet bins when rebinning
-        if V_ztk is not None:
-            assert V_ztk.size == self.Nk
-            self.V_ztk = V_ztk
+        # this is used to weight different bins when rebinning
+        if V_m is not None:
+            assert V_m.size == self.Nk
+            self.V_m = V_m
         else:
-            self.V_ztk = None
-
-        # eventually, we should also keep track of W_ztk for the window matrix
-        # self.W_ztk = None
+            self.V_m = None
 
         # store information about this particular bin (z, t)
         self.z_bin = z_bin
         self.t_bin = t_bin
 
 
-
 class Px_z(object):
-    '''Px measurement at one z, including many (t,k) bins'''
+    '''Collection of Px measurements at many (t,k) bins, same z'''
 
     def __init__(self, t_bins, list_px_zt):
         '''Construct from list of theta, Px(z, theta)'''
@@ -58,7 +54,7 @@ class Px_z(object):
             assert px_z.k_bins == self.k_bins, 'inconsistent binning'
 
 
-class BaseDataPx(object):
+class BasePx(object):
     '''Base class to store measurements of the cross power spectrum'''
 
     def __init__(self, z_bins, list_px_z):

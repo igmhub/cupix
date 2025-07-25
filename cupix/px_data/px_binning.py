@@ -32,7 +32,7 @@ class Bin_t(object):
         self.min_t = min_t
         self.max_t = max_t
         if label is None:
-            self.label = f'{tmin} < theta [arcmin] < {tmax}'
+            self.label = f'{min_t} < theta [arcmin] < {max_t}'
         else:
             self.label = label
 
@@ -60,9 +60,10 @@ class Discrete_k(object):
     def __init__(self, k, label=None):
         '''Construct by providing value and plotting label'''
 
-        self.mean_k = k
+        #self.mean_k = k
+        self.k = k
         if label is None:
-            self.label = f'k = {mean_k} 1/A'
+            self.label = f'k = {k} 1/A'
         else:
             self.label = label
 
