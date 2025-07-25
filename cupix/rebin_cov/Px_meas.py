@@ -131,6 +131,17 @@ class Px_meas:
                 self.px_avg[key] = mean_px
   
     def compute_thetabinned_px(self,theta_min_rebin,theta_max_rebin):
+        """Computes the theta-binned mean and covariance matrix for the Px measurements
+
+        Args:
+            px_mocks: Px_meas object
+                Contains the Px measurements and their weights    
+       
+        Adds the following instances to Px_meas object:
+            px_theta_binned: dictionary with theta-binned px F_m_A in each healpix
+            vm_theta_binned: dictionary with theta-binned weights W_m_A in each healpix 
+        
+        """
         all_px = {}
         all_vm = {}
         key = self.px.keys()
@@ -202,14 +213,27 @@ class Px_meas:
                     stacked = np.stack(px_arrays)  # shape: (n_theta, nhp, Nk)
                     stacked_vm = np.stack(vm_arrays)
         
-                    px_avg = np.nanmean(stacked, axis=0)  # shape: (nhp, Nk) 
-                    vm_avg = np.nanmean(stacked_vm,axis=0)
+                    px_bin = np.nanmean(stacked, axis=0)  # shape: (nhp, Nk) 
+                    vm_bin = np.nanmean(stacked_vm,axis=0)
         
-                    self.px_theta_binned[(z_bin, theta_lo,theta_hi)] = px_avg # theta-binned F_m
-                    self.vm_theta_binned[(z_bin,theta_lo,theta_hi)] = vm_avg  #theta-binned V_m
+                    self.px_theta_binned[(z_bin, theta_lo,theta_hi)] = px_bin # theta-binned F_m
+                    self.vm_theta_binned[(z_bin,theta_lo,theta_hi)] = vm_bin  #theta-binned V_m
+                    
         print('Done')            
     
     def compute_binned_cov(self,bin_info,theta_binning):
+         """Computes the k- and theta-binned mean and covariance matrix for the Px measurements
+
+        Args:
+            px_mocks: Px_meas object
+                Contains the Px measurements and their weights    
+       
+        Adds the following instances to Px_meas object:
+            k_bins: dictionary with the coarse k bins 
+            px_avg_bin: dictionary with k- and theta-binned px averaged over all healpix pixels <F_M_A>
+            covariance_bin: dictionary with k- and theta-binned normalised weights averaged over all healpix pixels <V_M_A>
+            
+        """
         all_px = {}
         all_vm = {}
             
@@ -266,8 +290,7 @@ class Px_meas:
 
                 self.k_bins[key] = k_bins
                 self.px_avg_bin[key] , self.covariance_bin[key] = compute_cov(stacked_px_hat_binned, stacked_V_m_binned)  # covariance matrix of Px arrays
-               
-                
+                             
         elif theta_binning == True:
             for key in self.px_theta_binned.keys():
                 px_all = self.px_theta_binned

@@ -1,10 +1,24 @@
 import numpy as np
 import h5py
-from cupix.rebin_cov.Px_meas import Px_meas
+from cupix.rebin_cov.Px_class import Px_meas
 from collections import defaultdict
 
 
-def compute_binned_stats_px(input_path,k_bins_ratio,k_max_ratio,theta_bins_ratio,theta_bin_opt,k_bin_opt,unbinned_px):
+def compute_binned_stats_px(input_path,k_bins_ratio,k_max_ratio,theta_bins_ratio,theta_bin_opt,unbinned_px):
+    """Computes the theta-binned mean and covariance matrix for the Px measurements
+    
+        Args:
+            input path: Path to the Px measurements file 
+            k_bins_ratio: Ratio of number of k bins before and after rebinning
+            theta_bins_ratio: Ratio of number of theta bins before and after rebinning
+            theta_bin_opt: Boolean, Option to choose whether or not to bin in theta
+            unbinned_px: Boolean, Option to choose whether or not to compute the average and covairance of the unbinned Px 
+       
+        Returns:
+            px_mocks: Px_meas object
+                Contains the Px measurements and weights across all healpix pixels, average and covariance of px over all healpix pixels,                  binned average and covariance of px over all healpix pixels
+                
+        """
     px_dr2 = Px_meas()
     
     px_dr2.read_hdf5(input_path)
@@ -44,7 +58,6 @@ def compute_binned_stats_px(input_path,k_bins_ratio,k_max_ratio,theta_bins_ratio
     bin_info['k_edges'] = k_edges
     bin_info['N_fft'] = N_fft
     
-    
     zbins = np.unique(px_dr2.z_bins)
     theta_bins = np.unique(px_dr2.theta_bins)
     
@@ -79,9 +92,8 @@ def compute_binned_stats_px(input_path,k_bins_ratio,k_max_ratio,theta_bins_ratio
     if theta_bin_opt:
         px_dr2.compute_thetabinned_px(theta_min_rebin,theta_max_rebin)
     
-    #now bin in k 
-    if k_bin_opt:
-        px_dr2.compute_binned_cov(bin_info,theta_binning=theta_bin_opt)
+    # now bin in k 
+    px_dr2.compute_binned_cov(bin_info,theta_binning=theta_bin_opt)
     
 
     return px_dr2
