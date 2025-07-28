@@ -67,3 +67,37 @@ class HealpixPxArchive(object):
         return mean_px
 
 
+    def get_mean_and_cov(self):
+        list_px_z = []
+        for iz, z_bin in enumerate(self.z_bins):
+            list_px_zt = []
+            for it, t_bin in enumerate(self.t_bins):
+                # collect PX from each healpixel into (N_hp, Nk) array
+                Nk = len(self.k_bins)
+                N_hp = len(self.list_hp)
+                all_P_m = np.empty((N_hp,Nk))
+                all_V_m = np.empty((N_hp,Nk))
+                for ipix in range(N_hp):
+                    px_zt = self.list_px[ipix].list_px_z[iz].list_px_zt[it]
+                    all_P_m[ipix] = px_zt.P_m
+                    all_V_m[ipix] = px_zt.V_m
+                # compute weighted mean and covariance (from Picca)
+                mean_P_m = (all_P_m * all_V_m).sum(axis=0)
+                sum_V_m = all_V_m.sum(axis=0)
+                w = sum_V_m > 0.
+                mean_P_m[w] /= sum_V_m[w]
+                meanless_P_V_m = all_V_m * (all_P_m - mean_P_m)
+                C_mn = meanless_P_V_m.T.dot(meanless_P_V_m)
+                sum_V2 = sum_V_m * sum_V_m[:, None]
+                w = sum_V2 > 0.
+                C_mn[w] /= sum_V2[w]
+                # setup object (normalized, with covariance)
+                px_zt = px_window.Px_zt_w(z_bin, t_bin, self.k_bins,
+                                P_m=mean_P_m, V_m=sum_V_m, C_mn=C_mn,
+                                F_m=None, W_m=None, T_m=None, U_mn=None)
+                list_px_zt.append(px_zt)
+            px_z = px_ztk.Px_z(self.t_bins, list_px_zt)
+            list_px_z.append(px_z)
+        mean_px = px_window.Px_w(self.z_bins, list_px_z)
+        return mean_px
+
