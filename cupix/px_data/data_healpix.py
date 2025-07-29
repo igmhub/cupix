@@ -1,7 +1,7 @@
 import numpy as np
 import h5py
 
-from cupix.px_data import read_healpix_px, px_ztk, px_window
+from cupix.px_data import read_healpix_px, px_window
 
 
 class HealpixPxArchive(object):
@@ -61,7 +61,7 @@ class HealpixPxArchive(object):
                                 z_bin, t_bin, self.k_bins,
                                 F_m=F_m, W_m=W_m, T_m=T_m, L=L_A)
                 list_px_zt.append(px_zt)
-            px_z = px_ztk.Px_z(self.t_bins, list_px_zt)
+            px_z = px_window.Px_z_w(self.t_bins, list_px_zt)
             list_px_z.append(px_z)
         mean_px = px_window.Px_w(self.z_bins, list_px_z)
         return mean_px
@@ -96,8 +96,21 @@ class HealpixPxArchive(object):
                                 P_m=mean_P_m, V_m=sum_V_m, C_mn=C_mn,
                                 F_m=None, W_m=None, T_m=None, U_mn=None)
                 list_px_zt.append(px_zt)
-            px_z = px_ztk.Px_z(self.t_bins, list_px_zt)
+            px_z = px_window.Px_z_w(self.t_bins, list_px_zt)
             list_px_z.append(px_z)
         mean_px = px_window.Px_w(self.z_bins, list_px_z)
         return mean_px
 
+
+    def rebin(self, rebin_t_factor, rebin_k_factor, include_k_0=True):
+        '''Return a new Px archive, after rebinning in theta (t) and k'''
+
+        new_list_px = []
+        for px in self.list_px:
+            new_px = px.rebin(rebin_t_factor, rebin_k_factor, include_k_0)
+            new_list_px.append(new_px)
+
+        new_archive = HealpixPxArchive(fname=None,
+                            list_hp=self.list_hp, list_px=new_list_px)
+
+        return new_archive
