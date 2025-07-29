@@ -34,16 +34,17 @@ def sum_weights(pix, iz, it):
 
 
 # %%
+# find a good PX measurement to work with
 iz=1
 it=4
-for pix in range(10):
-    print(pix, sum_weights(pix, iz, it))
+for pix in archive.list_hp:
+    if sum_weights(pix, iz, it)>0:
+        print(pix)
+        ipix = pix
+        break
 
 # %%
 # rebin only a redshift bin and theta bin
-ipix = 5
-iz = 1
-it = 4
 test_px_zt = archive.list_px[ipix].list_px_z[iz].list_px_zt[it]
 new_px_zt = test_px_zt.rebin_k(rebin_factor=2, include_k_0=True)
 
