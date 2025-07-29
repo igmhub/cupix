@@ -125,7 +125,8 @@ class HealpixPxReader(object):
                 for t_bin in t_bins:
                     if verbose: print('setting PX for theta', t_bin.label)
                     # try to find PX for this bin and healpixel
-                    key = (z_bin.mean_z, t_bin.min_t, t_bin.max_t)
+                    mean_z = 0.5*(z_bin.min_z+z_bin.max_z)
+                    key = (mean_z, t_bin.min_t, t_bin.max_t)
                     if verbose: print(key)
                     F_m = self.px[key][pix]
                     W_m = self.px_weights[key][pix]

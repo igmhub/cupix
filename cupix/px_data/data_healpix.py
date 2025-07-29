@@ -49,9 +49,9 @@ class HealpixPxArchive(object):
                 N_fft = Nk
                 L_A = pw_A * N_fft
                 # add the contribution from each healpixel
-                F_m = np.zeros(Nk, dtype='complex')
-                W_m = np.zeros(Nk, dtype='complex')
-                T_m = np.zeros(Nk, dtype='complex')
+                F_m = np.zeros(Nk) #, dtype='complex')
+                W_m = np.zeros(Nk) #, dtype='complex')
+                T_m = np.zeros(Nk) #, dtype='complex')
                 for px in self.list_px:
                     px_zt = px.list_px_z[iz].list_px_zt[it]
                     F_m += px_zt.F_m
