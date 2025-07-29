@@ -13,8 +13,8 @@ from cupix.px_data import data_healpix, px_window, px_ztk
 # %%
 # hardcoded for now
 basedir = '/Users/afont/Codes/cupix/data/px_measurements/Lyacolore/'
-fname = basedir + '/px-nhp_41-zbins_3-thetabins_7.hdf5'
-#fname = basedir + '/px-nhp_41-zbins_4-thetabins_38.hdf5'
+#fname = basedir + '/px-nhp_41-zbins_3-thetabins_7.hdf5'
+fname = basedir + '/px-nhp_41-zbins_4-thetabins_40.hdf5'
 print(fname) 
 
 # %%
