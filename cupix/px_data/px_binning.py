@@ -102,7 +102,7 @@ def get_coarser_k_bins(in_k_bins, rebin_factor, include_k_0=True):
     in_dk = in_k[1]-in_k[0]
     in_Nk = len(in_k)
     in_k_max = np.max(np.abs(in_k))
-    print(f'input Nk = {in_Nk}, dk = {in_dk:.4f}, k_max = {in_k_max:.4f}')
+    #print(f'input Nk = {in_Nk}, dk = {in_dk:.4f}, k_max = {in_k_max:.4f}')
 
     # extra factor of 2 here since in_k_bins include negative frequencies
     out_Nk = int(in_Nk / 2 / rebin_factor)
@@ -115,7 +115,7 @@ def get_coarser_k_bins(in_k_bins, rebin_factor, include_k_0=True):
     out_k_edges = np.linspace(k_shift, in_k_max+k_shift, num = out_Nk+1, endpoint=True)
     out_dk = out_k_edges[1] - out_k_edges[0]
     out_k_max = np.max(np.abs(out_k_edges))
-    print(f'out Nk = {out_Nk}, dk = {out_dk:.4f}, k_max = {out_k_max:.4f}')
+    #print(f'out Nk = {out_Nk}, dk = {out_dk:.4f}, k_max = {out_k_max:.4f}')
     out_k_bins = []
     for ik in range(out_Nk):
         k_bin = Bin_k(out_k_edges[ik], out_k_edges[ik+1])
@@ -135,7 +135,7 @@ def get_coarser_t_bins(in_t_bins, rebin_factor):
     out_Nt = len(out_min_t)
     out_t_bins = []
     for it in range(out_Nt):
-        print(f'{it}, {out_min_t[it]} < t < {out_max_t[it]}')
+        #print(f'{it}, {out_min_t[it]} < t < {out_max_t[it]}')
         t_bin = Bin_t(out_min_t[it], out_max_t[it])
         out_t_bins.append(t_bin)
     return out_t_bins

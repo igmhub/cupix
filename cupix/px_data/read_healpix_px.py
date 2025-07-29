@@ -141,7 +141,7 @@ class HealpixPxReader(object):
                             F_m=F_m, W_m=W_m, T_m=T_m, L=self.L_A)
                     list_px_zt.append(px_zt)
                 # create Px_z object from these
-                px_z = px_ztk.Px_z(t_bins, list_px_zt)
+                px_z = px_window.Px_z_w(t_bins, list_px_zt)
                 list_px_z.append(px_z)
             # create Px_w object from these
             px = px_window.Px_w(z_bins, list_px_z)

@@ -46,12 +46,12 @@ class Px_z(object):
         # store information about this z-bin
         self.z_bin = list_px_zt[0].z_bin
         for px_zt in list_px_zt:
-            assert px_zt.z_bin == self.z_bin, 'inconsistent binning'
+            assert px_zt.z_bin.label == self.z_bin.label, 'inconsistent binning'
 
         # finally get k bins, and check consistency
         self.k_bins = list_px_zt[0].k_bins
         for px_z in list_px_zt:
-            assert px_z.k_bins == self.k_bins, 'inconsistent binning'
+            assert len(px_z.k_bins) == len(self.k_bins), 'inconsistent binning'
 
 
 class BasePx(object):
@@ -68,9 +68,9 @@ class BasePx(object):
         # get also theta bins, and check consistency
         self.t_bins = list_px_z[0].t_bins
         for px_z in list_px_z:
-            assert px_z.t_bins == self.t_bins, 'inconsistent binning'
+            assert len(px_z.t_bins) == len(self.t_bins), 'inconsistent binning'
 
         # finally get k bins, and check consistency
         self.k_bins = list_px_z[0].k_bins
         for px_z in list_px_z:
-            assert px_z.k_bins == self.k_bins, 'inconsistent binning'
+            assert len(px_z.k_bins) == len(self.k_bins), 'inconsistent binning'

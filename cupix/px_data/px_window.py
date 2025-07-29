@@ -10,6 +10,114 @@ class Px_w(px_ztk.BasePx):
         return
 
 
+    def rebin_t(self, rebin_factor):
+        '''Return a new Px_w object, rebinned in theta'''
+
+        # for each z bin, rebin in theta
+        new_list_px_z = []
+        for px_z in self.list_px_z:
+            new_px_z = px_z.rebin_t(rebin_factor)
+            new_list_px_z.append(new_px_z)
+
+        new_px = Px_w(self.z_bins, new_list_px_z)
+
+        return new_px
+
+
+    def rebin_k(self, rebin_factor, include_k_0=True):
+        '''Return a new Px_w object, rebinned in k'''
+
+        # for each z bin, rebin in k
+        new_list_px_z = []
+        for px_z in self.list_px_z:
+            new_px_z = px_z.rebin_k(rebin_factor, include_k_0)
+            new_list_px_z.append(new_px_z)
+
+        new_px = Px_w(self.z_bins, new_list_px_z)
+
+        return new_px
+
+
+    def rebin(self, rebin_t_factor, rebin_k_factor, include_k_0=True):
+        '''Return a new Px_w object, rebinned in theta and k'''
+
+        # for each z bin, rebin in theta
+        new_list_px_z = []
+        for px_z in self.list_px_z:
+            new_px_z = px_z.rebin(rebin_t_factor, rebin_k_factor, include_k_0)
+            new_list_px_z.append(new_px_z)
+
+        new_px = Px_w(self.z_bins, new_list_px_z)
+
+        return new_px
+
+
+
+class Px_z_w(px_ztk.Px_z):
+    '''Derived Px_z object, with information related to window matrix.'''
+
+    def __init__(self, t_bins, list_px_zt):
+        super().__init__(t_bins, list_px_zt)
+
+        return
+
+
+    def rebin_t(self, rebin_factor):
+        '''Return a new Px_z_w object, rebinned in theta'''
+
+        new_t_bins = px_binning.get_coarser_t_bins(self.t_bins, rebin_factor) 
+        new_list_px_zt = []
+        for new_t_bin in new_t_bins:
+            #print('new_t', new_t_bin.min_t, new_t_bin.max_t)
+            new_F_am = np.zeros(len(self.k_bins))
+            new_V_am = np.zeros_like(new_F_am)
+            # should rebin window matrix U_mn here as well
+            for in_t_bin, in_px_zt in zip(self.t_bins, self.list_px_zt):
+                t_a = in_t_bin.mean()
+                B_a = new_t_bin.B_t(t_a)
+                if B_a > 0:
+                    #print(t_a, B_a)
+                    new_F_am += B_a * in_px_zt.F_m
+                    new_V_am += B_a * in_px_zt.V_m
+
+            # normalize Px (for bins measured)
+            mask = new_V_am>0
+            new_P_am = np.zeros_like(new_F_am)
+            new_P_am[mask] = new_F_am[mask] / new_V_am[mask]
+            new_px_zt = Px_zt_w.from_rebinning(self.z_bin, new_t_bin, self.k_bins,
+                                            P_m=new_P_am, V_m=new_V_am, U_mn=None)
+            new_list_px_zt.append(new_px_zt)
+
+        new_px_z = Px_z_w(new_t_bins, new_list_px_zt)
+
+        return new_px_z
+
+
+    def rebin_k(self, rebin_factor, include_k_0=True):
+        '''Return a new Px_z_w object, rebinned in k'''
+
+        # for each theta bin, rebin in k
+        new_list_px_zt = []
+        for px_zt in self.list_px_zt:
+            new_px_zt = px_zt.rebin_k(rebin_factor, include_k_0)
+            new_list_px_zt.append(new_px_zt)
+
+        new_px_z = Px_z_w(self.t_bins, new_list_px_zt)
+
+        return new_px_z
+
+
+    def rebin(self, rebin_t_factor, rebin_k_factor, include_k_0=True):
+        '''Return a new Px_w_z object, rebinned in theta and k'''
+
+        # get first a new object, rebinned in k
+        new_px_z = self.rebin_k(rebin_k_factor, include_k_0)
+
+        # ask the new object to rebin in theta
+        return new_px_z.rebin_t(rebin_t_factor)
+
+
+
 class Px_zt_w(px_ztk.Px_zt):
     '''Derived Px_zt object, with information related to window matrix'''
 
@@ -52,8 +160,9 @@ class Px_zt_w(px_ztk.Px_zt):
     def from_rebinning(cls, z_bin, t_bin, k_bins, P_m, V_m, U_mn):
         '''Construct object from rebinning thinner bins'''
 
+        # these might be used in further rebinning
+        F_m = P_m * V_m
         # for now, these are not needed
-        F_m = None
         W_m = None
         T_m = None
         C_mn = None
@@ -81,6 +190,7 @@ class Px_zt_w(px_ztk.Px_zt):
                     #print('in_ik', in_ik, in_k, B_m)
                     new_F_m[new_ik] += B_m * self.F_m[in_ik]
                     new_V_m[new_ik] += B_m * self.V_m[in_ik]
+
         # normalize Px (for bins measured)
         mask = new_V_m>0
         new_P_m = np.zeros_like(new_F_m)
