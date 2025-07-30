@@ -153,7 +153,7 @@ class Px_zt_w(px_ztk.Px_zt):
         # should compute the window matrix here
         U_mn = None
 
-        return Px_zt_w(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn)
+        return cls(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn)
 
 
     @classmethod
@@ -167,7 +167,7 @@ class Px_zt_w(px_ztk.Px_zt):
         T_m = None
         C_mn = None
 
-        return Px_zt_w(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn)
+        return cls(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn)
 
 
     def rebin_k(self, rebin_factor, include_k_0=True):

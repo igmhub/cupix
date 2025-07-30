@@ -12,7 +12,8 @@ from cupix.px_data import data_healpix, px_window, px_ztk
 # hardcoded for now
 basedir = '/Users/afont/Codes/cupix/data/px_measurements/Lyacolore/'
 #fname = basedir + '/px-nhp_41-zbins_3-thetabins_7.hdf5'
-fname = basedir + '/px-nhp_41-zbins_4-thetabins_40.hdf5'
+#fname = basedir + '/px-nhp_41-zbins_4-thetabins_40.hdf5'
+fname = basedir + '/px-nhp_150-zbins_4-thetabins_40.hdf5'
 print(fname) 
 
 # %%
@@ -69,5 +70,25 @@ compare_px(iz=0, rebinned_it=4)
 
 # %%
 compare_px(iz=1, rebinned_it=7)
+
+
+# %%
+def plot_px(px, iz, theta_min, theta_max):
+    '''Plot Px at given z, for theta bins within range'''
+    k_m = [ k_bin.mean() for k_bin in px.k_bins ]
+    for px_zt in px.list_px_z[iz].list_px_zt:
+        min_t = px_zt.t_bin.min_t
+        max_t = px_zt.t_bin.max_t
+        if min_t > theta_min and max_t < theta_max:
+            label=f'{px_zt.t_bin.min_t} < $\\theta$ < {px_zt.t_bin.max_t}'
+            yerr = np.sqrt(np.diagonal(px_zt.C_mn))
+            plt.errorbar(k_m, px_zt.P_m, yerr=yerr, label=label)
+    plt.legend()
+    plt.axhline(y=0, ls=':', color='gray')
+    plt.xlim(0, 0.5)
+
+
+# %%
+plot_px(mean_rebinned_px, iz=0, theta_min=3, theta_max=100)
 
 # %%
