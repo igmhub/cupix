@@ -1,6 +1,7 @@
 import numpy as np
 from cupix.px_data import px_binning, px_ztk
 
+
 class Px_w(px_ztk.BasePx):
     '''Derived BasePx object, with information related to window matrix.'''
 
@@ -71,7 +72,6 @@ class Px_z_w(px_ztk.Px_z):
             #print('new_t', new_t_bin.min_t, new_t_bin.max_t)
             new_F_am = np.zeros(len(self.k_bins))
             new_V_am = np.zeros_like(new_F_am)
-            # should rebin window matrix U_mn here as well
             for in_t_bin, in_px_zt in zip(self.t_bins, self.list_px_zt):
                 t_a = in_t_bin.mean()
                 B_a = new_t_bin.B_t(t_a)
@@ -205,13 +205,16 @@ class Px_zt_w(px_ztk.Px_zt):
 
 
     @classmethod
-    def from_unnormalized(cls, z_bin, t_bin, k_bins, F_m, W_m, T_m, L):
+    def from_unnormalized(cls, z_bin, t_bin, k_bins, 
+                F_m, W_m, T_m, L, compute_window=False):
         '''Construct object from unnormalized quantities'''
 
         P_m, V_m = normalize_Px(F_m, W_m, T_m, L)
         C_mn = None
-        # should compute the window matrix here
-        U_mn = None
+        if compute_window:
+            U_mn = compute_U_mn(W_m, T_m, L)
+        else:
+            U_mn = None
 
         return cls(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn)
 
@@ -270,6 +273,39 @@ def normalize_Px(F_m, W_m, T_m, L):
     P_m[V_m>0] = (F_m[V_m>0] / V_m[V_m>0]).real
 
     return P_m, V_m
+
+
+def compute_U_mn(W_m, T_m, L):
+    '''Compute window matrix'''
+
+    # effective resolution kernel (squared)
+    Nk = len(W_m)
+    R2_m = np.zeros(Nk)
+    R2_m[W_m>0] = T_m[W_m>0] / W_m[W_m>0]
+ 
+    # normalization
+    V_m = compute_V_m(W_m, T_m, L)
+
+    # setup window matrix
+    U_mn = np.zeros([Nk, Nk])
+
+    # avoid unnecessary computations
+    if np.sum(V_m) == 0:
+        #print('empty bin')
+        return U_mn
+
+    for m in range(Nk):
+        if V_m[m] >0:
+            V_m_L = V_m[m]*L
+            U_mn[m,m] = W_m[0] * R2_m[0] / V_m_L # m = n
+            for n in range(m):
+                U_mn[m,n] = W_m[m-n] * R2_m[n] / V_m_L # m > n
+            for n in range(m+1,Nk):
+                U_mn[n,m] = W_m[Nk+m-n] *  R2_m[n] / V_m_L # m < n
+        else:
+            print('ignore bin', m)
+
+    return U_mn
 
 
 def compute_V_m(W_m, T_m, L):

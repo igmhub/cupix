@@ -105,7 +105,7 @@ class HealpixPxReader(object):
         return k_bins
 
 
-    def get_list_px(self, verbose=False):
+    def get_list_px(self, compute_window=False, verbose=False):
         '''Get a list of PX (Px_w objects), one per healpixel'''
 
         # get list of bins 
@@ -138,14 +138,19 @@ class HealpixPxReader(object):
                     # create Px_zt_w object from these
                     px_zt = px_window.Px_zt_w.from_unnormalized(
                             z_bin, t_bin, k_bins, 
-                            F_m=F_m, W_m=W_m, T_m=T_m, L=self.L_A)
+                            F_m=F_m, W_m=W_m, T_m=T_m, 
+                            L=self.L_A, compute_window=compute_window)
                     list_px_zt.append(px_zt)
-                # create Px_z object from these
+                # create Px_z object from these (if not empty)
                 px_z = px_window.Px_z_w(t_bins, list_px_zt)
                 list_px_z.append(px_z)
-            # create Px_w object from these
+            # create Px_w object from these (if not empty)
             px = px_window.Px_w(z_bins, list_px_z)
             list_px.append(px)
+
+        # count empty healpixels
+        N_empty = list_px.count(None)
+        print(f'{N_empty} out of {len(list_px)} healpixels are empty')
 
         return list_hp, list_px
 

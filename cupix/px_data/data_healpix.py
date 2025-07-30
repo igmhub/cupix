@@ -7,7 +7,8 @@ from cupix.px_data import read_healpix_px, px_window
 class HealpixPxArchive(object):
     '''Collection of PX measurements from healpixels'''
 
-    def __init__(self, fname, list_hp=None, list_px=None):
+    def __init__(self, fname, list_hp=None, list_px=None, 
+                    compute_window=False):
         '''Setup collection, from file or by hand'''
 
         if fname is not None:
@@ -17,7 +18,7 @@ class HealpixPxArchive(object):
             # read information from file (Sindhu's format)      
             reader = read_healpix_px.HealpixPxReader(fname)
             # use information to construct list_px
-            self.list_hp, self.list_px = reader.get_list_px()
+            self.list_hp, self.list_px = reader.get_list_px(compute_window)
         else:
             self.fname = None
             assert len(list_hp) == len(list_px)
@@ -59,7 +60,8 @@ class HealpixPxArchive(object):
                     T_m += px_zt.T_m
                 px_zt = px_window.Px_zt_w.from_unnormalized(
                                 z_bin, t_bin, self.k_bins,
-                                F_m=F_m, W_m=W_m, T_m=T_m, L=L_A)
+                                F_m=F_m, W_m=W_m, T_m=T_m, 
+                                L=L_A, compute_window=False)
                 list_px_zt.append(px_zt)
             px_z = px_window.Px_z_w(self.t_bins, list_px_zt)
             list_px_z.append(px_z)
