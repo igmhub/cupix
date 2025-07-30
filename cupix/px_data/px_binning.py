@@ -49,6 +49,15 @@ class Bin_t(object):
             return 0.0
 
 
+    def B_t_bins(self, t_bins):
+        '''Same than B_t for a list of narrow theta bins'''
+
+        t_a = np.array( [ t_bin.mean() for t_bin in t_bins ])
+        B_a = np.zeros_like(t_a)
+        in_bin = [ (t >= self.min_t) and (t < self.max_t) for t in t_a ]
+        B_a[in_bin] = 1.0
+        return B_a
+
 
 class Discrete_k(object):
     '''Description of a particular wavenumber k (no binning)'''
@@ -90,6 +99,16 @@ class Bin_k(object):
             return 1.0
         else:
             return 0.0
+
+
+    def B_k_bins(self, k_bins):
+        '''Same than B_k, for list of narrow bins'''
+
+        k_m = np.array( [ k_bin.k for k_bin in k_bins ])
+        B_m = np.zeros_like(k_m)
+        in_bin = [ (k >= self.min_k) and (k < self.max_k) for k in k_m ]
+        B_m[in_bin] = 1.0
+        return B_m
 
 
 def get_coarser_k_bins(in_k_bins, rebin_factor, include_k_0=True):

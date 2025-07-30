@@ -46,7 +46,7 @@ for pix in archive.list_hp:
 # %%
 # rebin only a redshift bin and theta bin
 test_px_zt = archive.list_px[ipix].list_px_z[iz].list_px_zt[it]
-new_px_zt = test_px_zt.rebin_k(rebin_factor=2, include_k_0=True)
+new_px_zt = test_px_zt.rebin_k(rebin_factor=4, include_k_0=True)
 
 
 # %%
@@ -62,6 +62,12 @@ def compare(px_zt_1, px_zt_2):
 
 # %%
 compare(test_px_zt, new_px_zt)
+
+# %%
+new_px_zt.k_bins[-1].mean()
+
+# %%
+test_px_zt.k_bins[512].k
 
 # %% [markdown]
 # ## Rebin in theta
@@ -95,10 +101,10 @@ def compare(test_px_z, new_px_z, new_it, plot_V_m=False):
 
 
 # %%
-compare(test_px_z, new_px_z, 4)
+compare(test_px_z, new_px_z, 7)
 
 # %%
-compare(test_px_z, new_px_z, 4, plot_V_m=True)
+compare(test_px_z, new_px_z, 3, plot_V_m=True)
 
 # %% [markdown]
 # ### Rebin the entire PX measurement
@@ -106,15 +112,15 @@ compare(test_px_z, new_px_z, 4, plot_V_m=True)
 # %%
 # rebin the entire Px object
 test_px = archive.list_px[ipix]
-test_px.rebin_k(rebin_factor=4)
-test_px.rebin_t(rebin_factor=4)
+_ = test_px.rebin_k(rebin_factor=4)
+_ = test_px.rebin_t(rebin_factor=4)
 new_px = test_px.rebin(rebin_t_factor=4, rebin_k_factor=4, include_k_0=True)
 
 # %%
 # rebin only a redshift bin
 test_px_z = archive.list_px[ipix].list_px_z[iz]
-test_px_z.rebin_k(rebin_factor=4)
-test_px_z.rebin_t(rebin_factor=4)
+_ = test_px_z.rebin_k(rebin_factor=4)
+_ = test_px_z.rebin_t(rebin_factor=4)
 new_px_z = test_px_z.rebin(rebin_t_factor=4, rebin_k_factor=4, include_k_0=True)
 
 # %%

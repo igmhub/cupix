@@ -2,6 +2,8 @@
 # # Interfaces between likelihood, data and theory
 
 # %%
+import numpy as np
+
 from lace.cosmo import camb_cosmo
 from cupix.px_data import data_healpix, px_window, px_ztk
 
@@ -60,7 +62,7 @@ class Theory(object):
         rt_Mpc, kp_Mpc = self.get_rt_kp_Mpc(px_z)
 
         # ask emulator for prediction in Mpc
-        px_Mpc = self.emulator.emulate_px_Mpc(z, rt, kp, emu_params)
+        px_Mpc = self.emulator.emulate_px_Mpc(z, rt_Mpc, kp_Mpc, emu_params)
 
         # you would here convert to px (Angstroms, arcmin)
         px_arcmin_A = px_Mpc
@@ -85,10 +87,12 @@ class Theory(object):
 
         # redshift of the measurement
         z = px_z.z_bin.mean()
+        print(f'in get_rt_kp_Mpc, z = {z}')
         # theta bins (in arcmin), could use t_min, t_max here
-        theta_arcmin = [t_bin.mean() for t_bin in px_z.t_bins()]
+        theta_arcmin = [t_bin.mean() for t_bin in px_z.t_bins]
+        #print('theta_arcmin =', theta_arcmin) 
         # kp bins (in inverse Angstroms)
-        kp_A = [k_bin.k for k_bin in px_z.k_bins()]
+        kp_A = [k_bin.k for k_bin in px_z.k_bins]
 
         # convert to comoving separations with angular comoving distance (dummy)
         rt_Mpc = 1.0 * np.array(theta_arcmin)
@@ -106,6 +110,7 @@ class Likelihood(object):
         print('setting up likelihood')
         self.data = data
         self.theory = theory
+        self.z_bins = data.z_bins
 
     
     @classmethod
@@ -120,9 +125,62 @@ class Likelihood(object):
     def get_chi2(self, like_params):
         '''Given input parameters, return chi2'''
 
-        # (data-theory) C^{-1} (data-theory)
-        return 0.0
+        # sum over redshift bins
+        sum_chi2=0
+        for iz in range(len(self.z_bins)):
+            chi2 = self.get_chi2_z(iz, like_params)
+            sum_chi2 += chi2
+            
+        return sum_chi2
+        
     
+    def get_chi2_z(self, iz, like_params):
+        '''Compute chi2 for a single z bin'''
+
+        z = self.z_bins[iz].mean()
+        print(f'add chi2 for z = {z}')
+
+        # get convolved theoretical prediction, after rebinning
+        model_z = self.convolved_model_z(iz, like_params)
+        print(f'colvolved model prediction, shape = {model_z.shape}')
+
+        # get rebinned data
+        px_z = self.data.rebinned_px.list_px_z[iz]
+        Nt = len(px_z.t_bins)
+        assert (Nt == model_z.shape[0]), 'size mismatch'
+
+        # sum over (rebinned) theta bins
+        sum_chi2=0
+        for it in range(Nt):
+            data = px_z.list_px_zt[it].P_m
+            model = model_z[it]
+            cov = px_z.list_px_zt[it].C_mn
+            # (data-theory) C^{-1} (data-theory)
+            chi2 = 1 + np.sum(data-model) * 0.0 
+            sum_chi2 += chi2
+
+        return sum_chi2
+
+    
+    def convolved_model_z(self, iz, like_params):
+        '''Compute convolved model for rebinned data'''
+        
+        # get theoretical prediction, in raw bins (2D array)
+        raw_px_z = self.data.raw_px.list_px_z[iz]
+        raw_model = self.theory.model_px(raw_px_z, like_params)
+        Nt, Nk = raw_model.shape
+        print(f'model prediction, shape = {Nt}, {Nk}')
+
+        # rebin and convolve model, using window matrix
+        rb_px_z = self.data.rebinned_px.list_px_z[iz]
+        rb_model = rb_px_z.rebin_model(raw_model, raw_px_z, convolve=True)
+               
+        # convolve here with the window, rebin, etc
+        rb_px_z = self.data.rebinned_px.list_px_z[iz]
+        rb_model = np.zeros([len(rb_px_z.t_bins), len(rb_px_z.k_bins)])
+        
+        return rb_model
+
 
 # %%
 class Data(object):
@@ -156,6 +214,10 @@ class Data(object):
         self.rebinned_px = rebinned_archive.get_mean_and_cov()
         print('got rebinned Px data (averaged)')
 
+        # both datasets should have the same z bins
+        self.z_bins = self.rebinned_px.z_bins
+        assert len(self.z_bins) == len(self.raw_px.z_bins)
+
 
 # %%
 config = {}
@@ -171,7 +233,7 @@ camb_cosmo.dkms_dhMpc(fid_cosmo, z=3)
 theory = Theory(fid_cosmo, emulator, contaminants=None)
 
 # %%
-theory_2 = Theory.from_config(config)
+# theory_2 = Theory.from_config(config)
 
 # %%
 basedir = '/Users/afont/Codes/cupix/data/px_measurements/Lyacolore/'
@@ -185,13 +247,23 @@ print(f'Raw Px has Nt = {len(data.raw_px.t_bins)}, Nk = {len(data.raw_px.k_bins)
 print(f'Rebinned Px has Nt = {len(data.rebinned_px.t_bins)}, Nk = {len(data.rebinned_px.k_bins)}')
 
 # %%
-likelihood = Likelihood(data, theory)
 
 # %%
-like_2 = Likelihood.from_config(config)
+
+# %%
+likelihood = Likelihood(data, theory)
+# like_2 = Likelihood.from_config(config)
 
 # %%
 like_params = {'mF': 0.8}
-likelihood.get_chi2(like_params)
+iz=0
+px_z = likelihood.data.raw_px.list_px_z[iz]
+#rt_Mpc, kp_Mpc = likelihood.theory.get_rt_kp_Mpc(px_z)
+#model_px = likelihood.theory.model_px(px_z, like_params)
+likelihood.get_chi2_z(iz, like_params)
+#likelihood.get_chi2(like_params)
+
+# %%
+np.exp(-(0.8*0.5)**2)
 
 # %%

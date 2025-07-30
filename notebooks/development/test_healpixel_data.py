@@ -14,7 +14,8 @@ from cupix.px_data import data_healpix, px_window, px_ztk
 # hardcoded for now
 basedir = '/Users/afont/Codes/cupix/data/px_measurements/Lyacolore/'
 #fname = basedir + '/px-nhp_41-zbins_3-thetabins_7.hdf5'
-fname = basedir + '/px-nhp_41-zbins_4-thetabins_40.hdf5'
+#fname = basedir + '/px-nhp_41-zbins_4-thetabins_40.hdf5'
+fname = basedir + '/px-nhp_150-zbins_4-thetabins_40.hdf5'
 print(fname) 
 
 # %%
@@ -57,7 +58,7 @@ def compare_means(iz, it):
 
 
 # %%
-compare_means(0,4)
+compare_means(1,8)
 
 
 # %%
@@ -67,7 +68,7 @@ def plot_weights(iz, it):
     k = [k_bin.k for k_bin in archive.k_bins]
     for px in archive.list_px:
         px_zt = px.list_px_z[iz].list_px_zt[it]
-        plt.semilogy(k, px_zt.V_m, alpha=0.1)
+#        plt.semilogy(k, px_zt.V_m, alpha=0.1)
     plt.semilogy(k, px_zt_v1.V_m, label='total weights v1')
     plt.semilogy(k, px_zt_v2.V_m, label='total weights v2')
     plt.xlim(0,0.5)

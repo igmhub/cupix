@@ -117,6 +117,66 @@ class Px_z_w(px_ztk.Px_z):
         return new_px_z.rebin_t(rebin_t_factor)
 
 
+    def rebin_model(self, raw_model, raw_px_z, convolve=True):
+        '''Rebin model, and convolve with window matrix'''
+
+        # theoretical prediction, in raw bins (2D array)
+        raw_Nt, raw_Nk = raw_model.shape
+        print(f'input raw model, shape = {raw_Nt}, {raw_Nk}')
+        assert raw_Nt == len(raw_px_z.t_bins), 'size mismatch'
+        assert raw_Nk == len(raw_px_z.k_bins), 'size mismatch'
+
+        # get window matrix (and weights) for each (original) theta bin
+        list_V_m = [ px_zt.V_m for px_zt in raw_px_z.list_px_zt]
+        list_U_mn = [ px_zt.U_mn for px_zt in raw_px_z.list_px_zt]
+        print(f'got {len(list_U_mn)} window matrices')
+
+        # for each (original) theta bin, construct rectangular window
+        rb_Nk = len(self.k_bins) 
+        print(f'will rebin windows to shape {rb_Nk} x {raw_Nk}')
+
+        # for each rebinned k bin, figure out contributions
+        B_M_m = []
+        for iM in range(rb_Nk):
+            k_bin = self.k_bins[iM]
+            B_m = k_bin.B_k_bins(raw_px_z.k_bins)
+            print(iM, np.nonzero(B_m)[0])
+            B_M_m.append(B_m)
+
+        # compute rectangular window matrix (one per original theta bin)
+        list_U_Mn = []
+        list_V_M = []
+        list_P_M = []
+        for raw_it in range(raw_Nt):
+            V_m = list_V_m[raw_it]
+            U_mn = list_U_mn[raw_it]  
+            # V_M = sum_m (V_m B_M_m) 
+            V_M = np.zeros(rb_Nk)
+            # U_Mn = sum_m (V_m B_M_m U_mn) / V_M
+            U_Mn = np.zeros([rb_Nk, raw_Nk])
+            # P_M = sum_n U_Mn P_n
+            P_M = np.zeros(rb_Nk)
+            list_P_M.append(P_M)
+            list_V_M.append(V_M)
+            list_U_Mn.append(U_Mn)
+
+
+        # rebin model into coarser theta bins
+        rb_Nt = len(self.t_bins) 
+        B_A_a = []
+        for iA in range(rb_Nt):
+            t_bin = self.t_bins[iA]
+            B_a = t_bin.B_t_bins(raw_px_z.t_bins)
+            print(iA, np.nonzero(B_a)[0])
+            B_A_a.append(B_a)
+
+
+        # convolve here with the window, rebin, etc
+        rb_model = np.zeros([len(self.t_bins), len(self.k_bins)])
+
+        return rb_model
+
+
 
 class Px_zt_w(px_ztk.Px_zt):
     '''Derived Px_zt object, with information related to window matrix'''
