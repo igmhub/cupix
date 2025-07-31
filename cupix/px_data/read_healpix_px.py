@@ -22,6 +22,8 @@ class HealpixPxReader(object):
             self.N_fft = f.attrs['N_fft']
             self.pw_A = f.attrs['pixel_width_A']
             self.L_A = self.N_fft * self.pw_A
+            # mean spectral resolution (made up number for now)
+            self.sig_A = self.pw_A
             if verbose: print(f'N_fft = {self.N_fft}, pw_A = {self.pw_A}')
             
             group_names = [
@@ -134,12 +136,12 @@ class HealpixPxReader(object):
                     # set NaNs to zero
                     F_m[np.isnan(F_m)] = 0
                     W_m[np.isnan(W_m)] = 0
-                    T_m = W_m * R2_m
                     # create Px_zt_w object from these
                     px_zt = px_window.Px_zt_w.from_unnormalized(
                             z_bin, t_bin, k_bins, 
-                            F_m=F_m, W_m=W_m, T_m=T_m, 
-                            L=self.L_A, compute_window=compute_window)
+                            F_m=F_m, W_m=W_m,  
+                            L_A=self.L_A, sig_A=self.sig_A,
+                            compute_window=compute_window)
                     list_px_zt.append(px_zt)
                 # create Px_z object from these (if not empty)
                 px_z = px_window.Px_z_w(t_bins, list_px_zt)

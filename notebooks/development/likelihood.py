@@ -71,7 +71,7 @@ class Theory(object):
         px_arcmin_A *= 1.0
         
         return px_arcmin_A
-        
+
 
     def get_emu_params(self, z, like_params):
         '''Figure out emulator params given likelihood params'''
@@ -264,6 +264,17 @@ likelihood.get_chi2_z(iz, like_params)
 #likelihood.get_chi2(like_params)
 
 # %%
-np.exp(-(0.8*0.5)**2)
+test = [0, 1, 2]
+test.append(None)
 
 # %%
+test
+
+# %%
+test.count(None)
+
+# %%
+test.count(None) == len(test)
+
+# %%
+np.all(

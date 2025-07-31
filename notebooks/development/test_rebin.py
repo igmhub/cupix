@@ -17,7 +17,8 @@ print(fname)
 
 # %%
 # load PX measurement from different healpixels
-archive = data_healpix.HealpixPxArchive(fname)
+compute_window=False
+archive = data_healpix.HealpixPxArchive(fname, compute_window=compute_window)
 
 # %%
 # define new, coarser k bins
@@ -50,24 +51,18 @@ new_px_zt = test_px_zt.rebin_k(rebin_factor=4, include_k_0=True)
 
 
 # %%
-def compare(px_zt_1, px_zt_2):
-    k1 = [k_bin.k for k_bin in px_zt_1.k_bins]
+def compare(px_zt_1, px_zt_2, kmax=0.2):
+    k1 = np.array( [k_bin.k for k_bin in px_zt_1.k_bins] )
     p1 = px_zt_1.P_m
-    k2 = [k_bin.mean() for k_bin in px_zt_2.k_bins]
-    p2 = px_zt_2.P_m    
-    plt.plot(k1, p1, 'o')
-    plt.plot(k2, p2, 'x')
-    plt.xlim(0,0.1)
+    k2 = np.array( [k_bin.mean() for k_bin in px_zt_2.k_bins] )
+    p2 = px_zt_2.P_m  
+    plt.plot(k1[np.abs(k1)<kmax], p1[np.abs(k1)<kmax], 'o')
+    plt.plot(k2[np.abs(k2)<kmax], p2[np.abs(k2)<kmax], 'x')
+    plt.xlim(0,kmax)
 
 
 # %%
 compare(test_px_zt, new_px_zt)
-
-# %%
-new_px_zt.k_bins[-1].mean()
-
-# %%
-test_px_zt.k_bins[512].k
 
 # %% [markdown]
 # ## Rebin in theta
@@ -96,12 +91,12 @@ def compare(test_px_z, new_px_z, new_it, plot_V_m=False):
         plt.plot(k_m, new_px_z.list_px_zt[new_it].V_m)
     else:
         plt.plot(k_m, new_px_z.list_px_zt[new_it].P_m)
-    plt.xlim([0,0.5])
-    #plt.ylim([-0.01, 0.02])
+        plt.ylim([-0.1, 0.2])
+        plt.xlim([0,0.5])
 
 
 # %%
-compare(test_px_z, new_px_z, 7)
+compare(test_px_z, new_px_z, 4)
 
 # %%
 compare(test_px_z, new_px_z, 3, plot_V_m=True)

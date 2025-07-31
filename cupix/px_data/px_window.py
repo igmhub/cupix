@@ -1,4 +1,6 @@
 import numpy as np
+from numba import njit
+
 from cupix.px_data import px_binning, px_ztk
 
 
@@ -7,6 +9,13 @@ class Px_w(px_ztk.BasePx):
 
     def __init__(self, z_bins, list_px_z):
         super().__init__(z_bins, list_px_z)
+
+        # check consistency of FFT length and pixel resolution
+        self.L_A = list_px_z[0].L_A
+        self.sig_A = list_px_z[0].sig_A
+        for px_z in list_px_z:
+            assert self.L_A == px_z.L_A
+            assert self.sig_A == px_z.sig_A
 
         return
 
@@ -59,6 +68,13 @@ class Px_z_w(px_ztk.Px_z):
 
     def __init__(self, t_bins, list_px_zt):
         super().__init__(t_bins, list_px_zt)
+
+        # check consistency of FFT length and pixel resolution
+        self.L_A = list_px_zt[0].L_A
+        self.sig_A = list_px_zt[0].sig_A
+        for px_zt in list_px_zt:
+            assert self.L_A == px_zt.L_A
+            assert self.sig_A == px_zt.sig_A
 
         return
 
@@ -181,7 +197,8 @@ class Px_z_w(px_ztk.Px_z):
 class Px_zt_w(px_ztk.Px_zt):
     '''Derived Px_zt object, with information related to window matrix'''
 
-    def __init__(self, z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn=None):
+    def __init__(self, z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, U_mn, 
+                    C_mn=None, L_A=None, sig_A=None):
         '''Provide extra information related to window / weights'''
 
         super().__init__(
@@ -196,27 +213,31 @@ class Px_zt_w(px_ztk.Px_zt):
         self.F_m = F_m
         # sum of the product of FFT of weights
         self.W_m = W_m
-        # sum of the product of FFT of resolution * weights
-        self.T_m = T_m
         # window matrix
         self.U_mn = U_mn
+        # length of FFT grid (in Angstroms)
+        self.L_A = L_A
+        # mean pixel resolution (in Angstroms)
+        self.sig_A = sig_A
 
         return
 
 
     @classmethod
     def from_unnormalized(cls, z_bin, t_bin, k_bins, 
-                F_m, W_m, T_m, L, compute_window=False):
+                F_m, W_m, L_A, sig_A, compute_window=False):
         '''Construct object from unnormalized quantities'''
 
-        P_m, V_m = normalize_Px(F_m, W_m, T_m, L)
+        R2_m = compute_R2_m(k_bins, sig_A)
+        P_m, V_m = normalize_Px(F_m, W_m, R2_m, L_A)
         C_mn = None
         if compute_window:
-            U_mn = compute_U_mn(W_m, T_m, L)
+            R2_m = compute_R2_m(k_bins, sig_A)
+            U_mn = compute_U_mn(W_m, R2_m, L_A)
         else:
             U_mn = None
 
-        return cls(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn)
+        return cls(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, U_mn, C_mn, L_A, sig_A)
 
 
     @classmethod
@@ -227,10 +248,11 @@ class Px_zt_w(px_ztk.Px_zt):
         F_m = P_m * V_m
         # for now, these are not needed
         W_m = None
-        T_m = None
         C_mn = None
+        L_A = None
+        sig_A = None
 
-        return cls(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, T_m, U_mn, C_mn)
+        return cls(z_bin, t_bin, k_bins, P_m, V_m, F_m, W_m, U_mn, C_mn, L_A, sig_A)
 
 
     def rebin_k(self, rebin_factor, include_k_0=True):
@@ -264,58 +286,51 @@ class Px_zt_w(px_ztk.Px_zt):
 
 
 
-def normalize_Px(F_m, W_m, T_m, L):
+def normalize_Px(F_m, W_m, R2_m, L_A):
     '''Compute P_m and V_m given unnormalized measurements'''
-
     # compute normalization factors, used 
-    V_m = compute_V_m(W_m, T_m, L)
+    V_m = compute_V_m(W_m, R2_m, L_A)
     P_m = np.zeros_like(V_m)
     P_m[V_m>0] = (F_m[V_m>0] / V_m[V_m>0]).real
-
     return P_m, V_m
 
 
-def compute_U_mn(W_m, T_m, L):
-    '''Compute window matrix'''
-
-    # effective resolution kernel (squared)
+@njit
+def compute_U_mn_fast(W_m, R2_m, V_m_L):
+    '''numba function to speed up the matrix operation'''
     Nk = len(W_m)
-    R2_m = np.zeros(Nk)
-    R2_m[W_m>0] = T_m[W_m>0] / W_m[W_m>0]
- 
-    # normalization
-    V_m = compute_V_m(W_m, T_m, L)
-
-    # setup window matrix
-    U_mn = np.zeros([Nk, Nk])
-
-    # avoid unnecessary computations
-    if np.sum(V_m) == 0:
-        #print('empty bin')
-        return U_mn
-
+    U_mn = np.zeros((Nk, Nk))
     for m in range(Nk):
-        if V_m[m] >0:
-            V_m_L = V_m[m]*L
-            U_mn[m,m] = W_m[0] * R2_m[0] / V_m_L # m = n
-            for n in range(m):
-                U_mn[m,n] = W_m[m-n] * R2_m[n] / V_m_L # m > n
-            for n in range(m+1,Nk):
-                U_mn[n,m] = W_m[Nk+m-n] *  R2_m[n] / V_m_L # m < n
-        else:
-            print('ignore bin', m)
-
+        U_mn[m, m] = W_m[0] * R2_m[m] / V_m_L[m]
+        for n in range(m):
+            diff = m - n
+            U_mn[m, n] = W_m[diff] * R2_m[n] / V_m_L[m]
+        for n in range(m+1, Nk):
+            diff = Nk + m - n
+            U_mn[m, n] = W_m[diff] * R2_m[n] / V_m_L[m]
     return U_mn
 
 
-def compute_V_m(W_m, T_m, L):
-    '''Compute normalization factor for Px'''
+def compute_R2_m(k_bins, sig_A):
+    '''Resolution kernel'''
+    k_m = np.array( [ k_bin.k for k_bin in k_bins ] )
+    R2_m = np.exp(-(k_m * sig_A)**2)   
+    return R2_m
 
-    # effective resolution kernel (squared)
-    R2_m = np.zeros_like(W_m)
-    R2_m[W_m>0] = T_m[W_m>0] / W_m[W_m>0]
- 
+
+def compute_U_mn(W_m, R2_m, L_A):
+    '''Compute window matrix'''
+    # normalization
+    V_m = compute_V_m(W_m, R2_m, L_A)
+    Nk = len(V_m)
+    if np.all(V_m == 0):
+        return np.zeros((Nk, Nk))
+    V_m_L = V_m * L_A
+    return compute_U_mn_fast(W_m, R2_m, V_m_L)
+
+
+def compute_V_m(W_m, R2_m, L_A):
+    '''Compute normalization factor for Px'''
     # convolve W and R2 arrays 
     W_R2 = np.fft.ifft(np.fft.fft(W_m)* np.fft.fft(R2_m))
-
-    return np.abs(W_R2) / L
+    return np.abs(W_R2) / L_A
