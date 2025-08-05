@@ -91,24 +91,24 @@ class SiMult(Contaminant):
 
         self.off = {
             "SiIII_Lya": 1,
-            "SiIIa_Lya": 1,
-            "SiIIb_Lya": 1,
-            "SiIIc_Lya": 0,
-            "SiIII_SiIIa": 1,
-            "SiIII_SiIIb": 1,
-            "SiIII_SiIIc": 0,
-            "SiIIc_SiIIb": 0,
-            "SiIIc_SiIIa": 0,
-            "SiIIb_SiIIa": 0,
+            # "SiIIa_Lya": 1,
+            # "SiIIb_Lya": 1,
+            # "SiIIc_Lya": 0,
+            # "SiIII_SiIIa": 1,
+            # "SiIII_SiIIb": 1,
+            # "SiIII_SiIIc": 0,
+            # "SiIIc_SiIIb": 0,
+            # "SiIIc_SiIIa": 0,
+            # "SiIIb_SiIIa": 0,
         }
 
         list_coeffs = [
             "f_Lya_SiIII",
-            "s_Lya_SiIII",
-            "f_Lya_SiII",
-            "s_Lya_SiII",
-            "f_SiIIa_SiIII",
-            "f_SiIIb_SiIII",
+            "s_Lya_SiIII"
+            # "f_Lya_SiII",
+            # "s_Lya_SiII",
+            # "f_SiIIa_SiIII",
+            # "f_SiIIb_SiIII",
             # "f_SiIIa_SiIIb",
             # "s_SiII_SiIII",
             # "s_SiII_SiII",
@@ -179,6 +179,7 @@ class SiMult(Contaminant):
                 _ = vals[key] <= null
                 vals[key][_] = 0
 
+        print("vals is", vals)
         ra3 = self.rat["SiIIa_SiIII"]
         rb3 = self.rat["SiIIb_SiIII"]
         rc3 = self.rat["SiIIc_SiIII"]

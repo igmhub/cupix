@@ -60,13 +60,15 @@ class Contaminants(object):
                         prop_coeffs[key3] = "pivot"
 
         # if joint_model:
-        self.metal_add = ["CIVa_CIVb", "MgIIa_MgIIb", "Si_add"]
+        self.metal_add = ["Si_add"] #"CIVa_CIVb", "MgIIa_MgIIb", 
 
         # setup metal models
         key = "Si_mult"
         try:
+            print("Models already set up")
             self.metal_models[key] = metal_models[key]
         except:
+            print("Setting up Si_mult model")
             self.metal_models[key] = si_mult.SiMult(
                 free_param_names=free_param_names,
                 fid_vals=fid_vals,
@@ -88,25 +90,6 @@ class Contaminants(object):
                 flat_priors=flat_priors,
                 Gauss_priors=Gauss_priors,
             )
-
-        # for metal_line in self.metal_add:
-        #     if metal_line == "Si_add":
-        #         continue
-        #     create_model = True
-        #     try:
-        #         self.metal_models[metal_line] = metal_models[metal_line]
-        #     except:
-        #         self.metal_models[
-        #             metal_line
-        #         ] = metal_metal_model_class.MetalModel(
-        #             metal_label=metal_line,
-        #             free_param_names=free_param_names,
-        #             fid_vals=fid_vals,
-        #             prop_coeffs=prop_coeffs,
-        #             z_max=z_max,
-        #             flat_priors=flat_priors,
-        #             Gauss_priors=Gauss_priors,
-        #         )
 
         # setup HCD model
         if hcd_model:
@@ -183,7 +166,7 @@ class Contaminants(object):
         self, z, k_kms, mF, M_of_z, like_params=[], remove=None
     ):
         # include multiplicative metal contamination
-
+        
         if len(z) == 1:
             cont_mul_metals = np.ones_like(k_kms)
             cont_add_metals = np.zeros_like(k_kms)
@@ -193,7 +176,8 @@ class Contaminants(object):
             for iz in range(len(z)):
                 cont_mul_metals.append(np.ones_like(k_kms[iz]))
                 cont_add_metals.append(np.zeros_like(k_kms[iz]))
-
+        print("midway model_contaminants.py")
+        print(self.metal_models)
         for model_name in self.metal_models:
             cont = self.metal_models[model_name].get_contamination(
                 z=z,
@@ -202,6 +186,7 @@ class Contaminants(object):
                 like_params=like_params,
                 remove=remove,
             )
+            print("further model_contaminants.py")
             if len(z) == 1:
                 if model_name in self.metal_add:
                     cont_add_metals += cont
@@ -219,7 +204,7 @@ class Contaminants(object):
                             cont_mul_metals[iz] *= cont[iz]
                         else:
                             cont_mul_metals[iz] *= cont
-
+        print("late model_contaminants.py")
         # include HCD contamination
         cont_HCD = self.hcd_model.get_contamination(
             z=z,
@@ -303,7 +288,7 @@ class Contaminants(object):
                     * _IC_corr[iz]
                 )
                 add_cont_total.append(_cont_add_metals[iz])
-
+        print("end model_contaminants.py") 
         return mult_cont_total, add_cont_total
 
 

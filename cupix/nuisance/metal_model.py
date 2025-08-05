@@ -376,14 +376,14 @@ class MetalModel(object):
     def get_contamination(self, z, k_kms, mF, like_params=[]):
         """Multiplicative contamination at a given z and k (in s/km).
         The mean flux (mF) is used scale it (see McDonald et al. 2006)"""
-
+        print("made it to metal model cont")
         # Note that this represents "f" in McDonald et al. (2006)
         # It is later rescaled by <F> to compute "a" in eq. (15)
         f = self.get_amplitude(z, like_params=like_params)
         if f == 0:
             return 1
         alpha = self.get_exp_damping(z, like_params=like_params)
-
+        print("midway model cont")
         if alpha == 0:
             damping = 1
         else:
@@ -392,7 +392,7 @@ class MetalModel(object):
 
         a = f / (1 - mF)
         cont = 1 + a**2 + 2 * a * np.cos(self.dv * k_kms) * damping
-
+        print("end model cont")
         return cont
 
     def plot_contamination(

@@ -17,7 +17,6 @@ class FF_emulator():
             cosmo_param_dict,
             camb_cosmo_results,
             kp_Mpc=0.7,
-            match_lyacolore=False
         ):
 
         self.emu_params = [
@@ -26,7 +25,7 @@ class FF_emulator():
             "mF",
             "sigT_Mpc",
             "gamma",
-            "kF_Mpc",
+            "kF_Mpc"
         ]
         self.z = z
         self.cosmo_param_dict = cosmo_param_dict
@@ -34,12 +33,9 @@ class FF_emulator():
         self.emulator_label = "forestflow_emu"
         self.kp_Mpc = kp_Mpc
         self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
+        
         self._load_emu()
         self._load_arinyo()
-        if match_lyacolore:
-            self.match_lyacolore = True
-        else:
-            self.match_lyacolore = False
 
     def _load_emu(self, Nrealizations=1000):
         """ This function loads the emulator and doesn't require any input """
@@ -100,133 +96,63 @@ class FF_emulator():
         self.arinyo = arinyo
 
 
-    def emulate_px_Mpc(self, emu_call, k_Mpc, theta_Mpc):
-        """ This function predicts Px from forestflow given the IGM and cosmo parameters of the input.
-        PS: the function is not yet adapted to vary cosmology.
-
+    def emulate_P3D_params(self, emu_call):
+        """ This function predicts P3D parameters (the 'arinyo coefficients') from forestflow given the IGM and cosmo parameters of the input.
         Arguments:
         ----------
-        kpar: Array of floats
-        Array of k_parallel at which we want to get a prediction.
-
-        sepbins: Array of floats
-        Array of sepbins at which we want to get a prediction.
-
-        z: Float or array of floats
-        Redshift.
-
-        cosmo_param_dict: Dictionary
-        Dictionary of cosmo parameters. It should include 'H0', 'omch2', 'ombh2', 'mnu', 'omk', 'As', 'ns', 'nrun', 'w'. 
-        PS: they vary as function of redshift z, but are given as input to this function since cosmo is not to be varied for the moment.
-
-        dAA_dMpc_zs, dkms_dMpc_zs: Float or array of floats
-        Conversion factors.
-
-        emulator: Emulator already loaded using load_emulator() function.
-
-        arinyo: Loaded using load_arinyo() function. It must be given as input as long as the cosmo is not to be varied for now.
-
-        inout_unit: String, default: 'AA', options: 'kmps'
-        Units of input kpar that must be given in terms of the output units we want, and the output will be given in that same unit.
-
-        sepbins_unit: Sting, default: 'deg', options: 'Mpc'
-        Units of separation values at which we want to get the prediction.
-
-        Delta2_p, n_p: Floats
-        Amplitude and slope of the linear matter power spectrum precomputed from fixed cosmo for now.
-
-        mF: Float or array of floats []
-        Mean transmitted flux fraction. It is just an array if z is an array.
-
-        T0: Float or array of floats
-        Amplitude of the temperature density relation T = T0 * delta_b**(gamma - 1). It is just an array if z is an array.
-
-        gamma: Float or array of floats
-        Slope of the temperature density relation T = T0 * delta_b**(gamma - 1). It is just an array if z is an array.
-
-        lambda_pressure: Float or array of floats
-        Pressure smoothing scale (Jeans smoothing): The scale where pressure overcomes gravity at small scales -> smoothing of fluctuations.
+        emu_call: Dictionary with keys as the names of the parameters and values as the values of the parameters.
 
         Return:
         -------
-        Px_pred_output_units: 
+        arinyo_coeffs: Dictionary with keys as the names of the Arinyo coefficients and values as the values of the coefficients.
         
         """
-
-        # need to either load emulator or have it pre-loaded (e.g. as a class)
-
-        # Code won't work if kpar has a zero
-        if 0 in  k_Mpc:
-            sys.exit('kpar array must not have a zero')
-        # won't work if kpar is an array of single element
-        if len(k_Mpc)==1:
-            k_Mpc = k_Mpc[0]
+        
+        # make sure that emu_call has a value for every z
+        Nz = len(self.z)
+        
+        for key in emu_call.keys():
+            assert len(emu_call[key]) == Nz, f"Parameter {key} has {len(emu_call[key])} values but should have {Nz} values for each redshift z."
         
         # prepare an Arinyo dictionary
-        arinyo_coeffs = []
-
         Nz = len(self.z)
-        if Nz>1:
-            for i in range(Nz):
-                
-                emu_params_i = {}
-                for key in emu_call.keys():
-                    emu_params_i[key] = emu_call[key][i]
-                arinyo_coeffs_i = self.emu.predict_Arinyos(
-                emu_params=emu_params_i)    
-                # turn into a dictionary
-                arinyo_coeffs_i = {"bias": arinyo_coeffs_i[0], "beta": arinyo_coeffs_i[1], "q1": arinyo_coeffs_i[2],
-                                "kvav": arinyo_coeffs_i[3], "av": arinyo_coeffs_i[4], "bv": arinyo_coeffs_i[5],
-                                "kp": arinyo_coeffs_i[6], "q2": arinyo_coeffs_i[7]}
-                arinyo_coeffs.append(arinyo_coeffs_i)
-        else:
+        arinyo_coeffs = {}
+        for key in ["bias",
+            "beta",
+            "q1",
+            "kvav",
+            "av",
+            "bv",
+            "kp",
+            "q2"
+        ]:
+             arinyo_coeffs[key] = np.zeros(Nz)
+        for iz in range(Nz):
+            emu_call_iz = {} # make a dictionary just for this z
             for key in emu_call.keys():
-                if type(emu_call[key]) is np.ndarray:
-                    emu_call[key] = emu_call[key][0] # turn arrays into floats
-            arinyo_coeffs = self.emu.predict_Arinyos(
-                emu_params=emu_call)
-            if self.match_lyacolore:
-                print("Enforcing Lyacolore values for arinyo parameters")
-                arinyo_coeffs[0] = -0.115 # 0.127 * ((1+self.z)/(1+2.3))**2.9 # bias
-                arinyo_coeffs[1] = 1.55 # beta
-                arinyo_coeffs[2] = 0.1112 # q1
-                arinyo_coeffs[3] = 0.0001**0.2694 # kvav
-                arinyo_coeffs[4] = 0.2694 # av
-                arinyo_coeffs[5] = .0002 # bv
-                arinyo_coeffs[6] = .5740 # kp # previously 0.25
-                # ### values to 4 Mpc/h
-                # arinyo_coeffs[2] = 0.0 # q1
-                # arinyo_coeffs[3] = 0.3**0.3 # kvav
-                # arinyo_coeffs[4] = 0.3 # av
-                # arinyo_coeffs[5] = 1.0 # bv
-                # arinyo_coeffs[6] = 472e-3 # kp # previously 0.25
+                if key in self.emu_params:
+                    emu_call_iz[key] = emu_call[key][iz]
+                else:
+                    print(f"Warning: {key} is not a valid emu parameter. It will not be used in the emulation.")
+            # make sure emu_call contains all the required parameters
+            for key in self.emu_params:
+                if key not in emu_call_iz:
+                    raise ValueError(f"Parameter {key} is missing from emu_call. It is required for the emulation.")
+            print("Trying to predict arinyo params with emu_call", emu_call_iz)
+            arinyo_coeffs_iz = self.emu.predict_Arinyos(
+            emu_params=emu_call_iz)
+            
             # turn into a dictionary
-            arinyo_coeffs = {"bias": arinyo_coeffs[0], "beta": arinyo_coeffs[1], "q1": arinyo_coeffs[2],
-                            "kvav": arinyo_coeffs[3], "av": arinyo_coeffs[4], "bv": arinyo_coeffs[5],
-                            "kp": arinyo_coeffs[6], "q2": arinyo_coeffs[7]}
-        # Predict Px
-        # try:
-            # print('Input parameters were:', emu_call)
-            # print('Input parameters given to the arinyo model are:', arinyo_coeffs)
-        try:
-            if Nz>1:
-                Px_pred = []
-                for i, z_i in enumerate(self.z):
-                    # _, Px_pred_Mpc_i = self.arinyo.Px_Mpc(z_i, k_Mpc[i], arinyo_coeffs[i], **{'rperp_choice':theta_Mpc[i]})
-                    _, Px_pred_Mpc_i = pcross.Px_Mpc(k_Mpc[i], self.arinyo.P3D_Mpc, self.z[i], rperp_choice=theta_Mpc[i],**{"pp":arinyo_coeffs[i]})
-                    # Return transpose to match Px_data shapes
-                    Px_pred_output_transpose = Px_pred_Mpc_i.T
-                    if np.any(np.isnan(Px_pred_output_transpose)):
-                        print("NaN encountered in Px prediction!")
-                    Px_pred.append(Px_pred_output_transpose)
-                return np.asarray(Px_pred)
-            else:
-                # _, Px_pred_Mpc = self.arinyo.Px_Mpc(self.z, k_Mpc, arinyo_coeffs, **{'rperp_choice':theta_Mpc})
-                _, Px_pred_Mpc = pcross.Px_Mpc(k_Mpc, self.arinyo.P3D_Mpc, self.z, rperp_choice=theta_Mpc,**{"pp":arinyo_coeffs})
-                return np.transpose(Px_pred_Mpc,(1, 2, 0))
-        except:
-            print('Problematic model so None is returned for Px prediction')
-            print('Input parameters were:', emu_call)
-            print('Input parameters given to the arinyo model are:', arinyo_coeffs)
-            return None
+            ia = 0
+            for key in arinyo_coeffs.keys():
+                arinyo_coeffs[key][iz] = arinyo_coeffs_iz[ia]
+                ia += 1
+        print("got arinyo coeffs", arinyo_coeffs)
+
+        for key in emu_call.keys():
+            if key in ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]:
+                # If any of the keys are in the emu_call, overwrite the emulated values
+                arinyo_coeffs[key] = emu_call[key]
+        
+        return arinyo_coeffs
         
