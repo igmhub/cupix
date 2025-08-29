@@ -1,6 +1,6 @@
 import numpy as np
 import h5py
-from cupix.rebin_cov.Px_class import Px_meas
+from cupix.rebin_cov.healpix_px import Px_meas
 from collections import defaultdict
 
 

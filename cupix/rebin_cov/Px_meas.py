@@ -3,7 +3,6 @@ from cupix.rebin_cov.rebin_cov import calculate_estnorm,bin_power,compute_cov
 from collections import defaultdict
 import numpy as np
 
-
 # make a class for the output data
 class Px_meas:
     """ Class to store the Px measurements """
