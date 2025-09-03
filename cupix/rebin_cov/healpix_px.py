@@ -76,7 +76,7 @@ class Px_meas(object):
         self.k_Nyq = np.pi/self.pw_A
         return None
             
-    def unpack_healpix(self, positive_frequencies: bool = True, max_k=None):
+    def unpack_healpix(self, positive_frequencies: bool = True):
         """
         Pack dicts into dense arrays for einsum ops.
         Returns: P, W, k_out with shapes (Nz, Nθ, Nhp, Nk_out)
@@ -117,13 +117,6 @@ class Px_meas(object):
             P = P[..., :half]
             W = W[..., :half]
             k_out = k_out[:half]
-
-        # Truncate by max_k if provided
-        if max_k is not None:
-            sel = k_out <= max_k
-            P = P[..., sel]
-            W = W[..., sel]
-            k_out = k_out[sel]
 
         return P, W, k_out
 
