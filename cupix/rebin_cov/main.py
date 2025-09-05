@@ -3,13 +3,15 @@ import configparser
 from cupix.rebin_cov.healpix_px import Px_meas
 from cupix.rebin_cov.lib_funcs import bin_func_k, bin_func_theta, rebin_k, rebin_theta, average_px, compute_covariance, calculate_window_matrix, bin_window, save_to_hdf5, calculate_V_zh_AM, get_sum_over_healpix
 import matplotlib.pyplot as plt 
-root = './data/px_measurements/raw_mocks/'
+#root = './data/px_measurements/raw_mocks/'
+root = '/Users/ssatyavolu/projects/DESI/Y3_Lya_Px/mocks/raw_mocks/'
 datafile = 'px-nhp_41-zbins_4-thetabins_40.hdf5'
 
 # Read data from HDF5 files and store px_data object
 
 px_data = Px_meas(root+datafile)
 F_zh_am, W_zh_am, k_m = px_data.unpack_healpix(positive_frequencies=True)
+print(k_m)
 print('Shape of F is',np.shape(F_zh_am)) # (N_z, N_theta, N_hp, N_k)
 assert ~np.isnan(F_zh_am).any()
 assert ~np.isnan(W_zh_am).any()
@@ -31,7 +33,7 @@ k_max_ratio = 4 # maximum frequency will be max_k/k_max_ratio
 
 # we will rebin the wavenumbers to make them more independent, and better measured
 
-B_M_m, k_M = bin_func_k(k_m,px_data.k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type='top_hat') # B_M_m has shape (NK, Nk) and B_A_a has shape (Ntheta_rebin, Ntheta_bin)
+B_M_m, k_M_edges = bin_func_k(k_m,px_data.k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type='top_hat') # B_M_m has shape (NK, Nk) and B_A_a has shape (Ntheta_rebin, Ntheta_bin)
 
 # Rebin in k per healpix
 F_zh_aM =  rebin_k(F_zh_am,B_M_m,healpix=True)
@@ -108,6 +110,6 @@ U_z_aMn, V_z_aM, V_z_am = bin_window(U_z_amn,B_M_m,W_z_am,R2_m,px_data.L_fft)
 
 # Save to new hdf5 file with metadata and binning information for theory
 outfile= root+'output_data_for_cupix_zbins_4_thetabins_40_nhp41.hdf5'
-save_to_hdf5(outfile,P_z_AM,C_z_AMN,U_z_aMn,B_A_a,V_z_aM,V_z_am,k_m,k_M,px_data.theta_bin_min,px_data.theta_bin_max,theta_min_A,theta_max_A,px_data.N_fft,px_data.L_fft,px_data.z_bin_centers)
+save_to_hdf5(outfile,P_z_AM,C_z_AMN,U_z_aMn,B_A_a,V_z_aM,k_m,k_M_edges,px_data.theta_bin_min,px_data.theta_bin_max,theta_min_A,theta_max_A,px_data.N_fft,px_data.L_fft,px_data.z_bin_centers)
 
 

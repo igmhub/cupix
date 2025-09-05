@@ -28,7 +28,7 @@ def bin_func_k(k_arr,k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type):
     print('k < ',k_max)
 
     k_edges=np.arange(0.01*dk_bin,k_max+dk_bin,dk_bin)
-
+    
     Nk=k_edges.size-1
     N_fft = len(k_arr)
 
@@ -36,13 +36,15 @@ def bin_func_k(k_arr,k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type):
     B_M_m=np.zeros([Nk,N_fft]) # includes negative k values
     if bin_func_type == 'top_hat':
         for i in range(Nk):
-            inbin=(abs(k_arr)>k_edges[i]) & (abs(k_arr)<k_edges[i+1])
+            inbin=(abs(k_arr)>=k_edges[i]) & (abs(k_arr)<k_edges[i+1]) # left closed, right open edges
             B_M_m[i,inbin]=1
     k_M =0.5*(k_edges[:-1] + k_edges[1:])        
     print('Done')
     print('shape of B_M_m is ', np.shape(B_M_m))
+    
 
-    return B_M_m,k_M
+    #return B_M_m,k_M
+    return B_M_m, k_edges
 
 def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type):
     """
@@ -71,6 +73,8 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
 
     # Use geometric centers for classification (since we are binning in log space)
     c_a = np.sqrt(theta_min * theta_max)
+    
+    
     epsilon = 1e-5 * (c_a.max() + c_a.min())/2  # small padding to avoid underflow/overflow
     #print('min and max of theta centers:', c_a.min(), c_a.max())
     #print('epsilon:', epsilon)
@@ -79,7 +83,7 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
 
     # Log-spaced coarse edges over the full range of centers
     edges = np.logspace(np.log10(lo), np.log10(hi), N_A + 1)
-
+    
     
     # Assign each original bin 'a' to a coarse bin 'A'
     A_idx = np.digitize(c_a, edges, right=False) - 1   # in [0, N_A-1]
@@ -273,124 +277,62 @@ def bin_window(U_z_amn,B_M_m,W_z_am,R2_m,L):
 def get_sum_over_healpix(W_zh_am):
     return np.einsum('zahm->zam',W_zh_am)
 
-def save_to_hdf5(filename,P_z_AM,C_z_AMN,U_z_aMn,B_A_a,V_z_aM,V_z_am,k_m,k_M,theta_bin_min,theta_bin_max,theta_min_A,theta_max_A,N_fft,L_fft,zbin_centers):
+def save_to_hdf5(filename,P_Z_AM,C_Z_AMN,U_Z_aMn,B_A_a,V_Z_aM,k_m,k_M_edges,theta_bin_min,theta_bin_max,theta_min_A,theta_max_A,N_fft,L_fft,zbin_centers):
 
     with h5py.File(filename, 'w') as f:  
-        # all bins before and after rebinning
-        f.create_dataset('k_m', data=k_m)
-        f.create_dataset('k_M',data=k_M)
-        f.create_dataset('theta_min_a',data=theta_bin_min)
-        f.create_dataset('theta_max_a',data=theta_bin_max)
-        f.create_dataset('theta_min_A',data=theta_min_A)
-        f.create_dataset('theta_max_A',data=theta_max_A)
-        f.create_dataset('z_centers',data=zbin_centers)
+        # Save metadata as attributes
+        g = f.create_group('metadata')
+        g.attrs['k_m'] = k_m
+        g.attrs['k_M_edges'] = k_M_edges
+        g.attrs['N_fft'] = N_fft
+        g.attrs['L_fft'] = L_fft
+        g.attrs['z_centers'] = zbin_centers
+        g.attrs['theta_min_a'] = theta_bin_min
+        g.attrs['theta_max_a'] = theta_bin_max
+        g.attrs['theta_min_A'] = theta_min_A
+        g.attrs['theta_max_A'] = theta_max_A
+        g.create_dataset('B_A_a',data=B_A_a)
 
-        f.attrs['N_fft'] = N_fft
-        f.attrs['L_fft'] = L_fft
+        
+        
+        # Save rebinned Px and covariance for each redshift and coarse theta bin
+        gP = f.create_group('P_Z_AM')
+        gC = f.create_group('C_Z_AMN')
+        gU = f.create_group('U_Z_aMn')
+        gV = f.create_group('V_Z_aM')
 
-        f.create_dataset("P_Z_AM", data=P_z_AM, compression="gzip", compression_opts=4)
-        f.create_dataset("C_Z_AMN", data=C_z_AMN, compression="gzip", compression_opts=4)
-        f.create_dataset("U_Z_aMn", data=U_z_aMn, compression="gzip", compression_opts=4)
-        f.create_dataset("B_A_a", data=B_A_a, compression="gzip", compression_opts=4)
-        f.create_dataset("V_Z_aM", data=V_z_aM, compression="gzip", compression_opts=4)
-        f.create_dataset("V_Z_am", data=V_z_am, compression="gzip", compression_opts=4)
+        Nz, N_A, NK = P_Z_AM.shape
+        for i in range(Nz):
+            z_str = f'z_{i}'
+            for j in range(N_A):
+                theta_str = f'theta_rebin_{j}'
+                ds_name = f'{z_str}/{theta_str}'
+                gP.create_dataset(ds_name, data=P_Z_AM[i,j,:], compression="gzip", compression_opts=4)
+                gC.create_dataset(ds_name, data=C_Z_AMN[i,j,:,:], compression="gzip", compression_opts=4)
 
+        Nz, N_a, NK, Nk = U_Z_aMn.shape 
+        for i in range(Nz):
+            z_str = f'z_{i}'
+            for j in range(N_a):
+                theta_str = f'theta_{j}'
+                ds_name = f'{z_str}/{theta_str}'
+                gU.create_dataset(ds_name, data=U_Z_aMn[i,j,:,:], compression="gzip", compression_opts=4)
+                gV.create_dataset(ds_name, data=V_Z_aM[i,j,:], compression="gzip", compression_opts=4)
+
+        
+        
+
+        #f.create_dataset("P_Z_AM", data=P_z_AM, compression="gzip", compression_opts=4)
+        #f.create_dataset("C_Z_AMN", data=C_z_AMN, compression="gzip", compression_opts=4)
+        #f.create_dataset("U_Z_aMn", data=U_z_aMn, compression="gzip", compression_opts=4)
+        #f.create_dataset("V_Z_aM", data=V_z_aM, compression="gzip", compression_opts=4)
+        #f.create_dataset("V_Z_am", data=V_z_am, compression="gzip", compression_opts=4)
+
+    print(f"Output saved to {filename}")
 
     return None
 
 
 
 
-def global_avg(fm_data, wm_data,N_fft,pw_A,R_avg):
-    """Computes the global average of Px measurements across all healpix pixels
-    Args:
-        fm_data: Px in each healpix in a given z and theta bin, having shape  (Nhp, N_k)
-        wm_data: Weights on the Px measurement in each healpix, same shape as px
-
-    Returns:
-        The global average of Px
-    """
-    # Method 1 
-    # F^a_m  =  Sum over all healpixels(F^a_m,hp)
-    # W^a_m  =  Sum over all healpixels(W^a_m,hp)
-    # Px^a_m =  F^a_m/V^a_m
-
-    # get F^a_m
-    F_a_m = np.nansum(fm_data,axis=0)
-
-    # compute V^a_m from W^a_m
-    L = N_fft*pw_A
-    R = R_avg
-    W_a_m = np.nansum(wm_data,axis=0)
-    V_a_m = calculate_estnorm(W_a_m,R , L)       
-
-    # Px
-    Px_a_m = F_a_m/V_a_m
-                
-    return Px_a_m
-
-
-def compute_cov(px, weights):
-    """Computes the covariance matrix using the subsampling technique
-
-    Args:
-        px: array of floats
-            Px measurement in each healpix in a given z and theta bin, having shape  (Nhp, N_k)
-        weights: array of floats
-            Weights on the Px measurement in each healpix, same shape as px
-
-    Returns:
-        The covariance matrix
-    """
-    print("Computing mean Px...")
-    mean_px = (px * weights).sum(axis=0)
-    sum_weights = weights.sum(axis=0)
-    w = sum_weights > 0.
-    mean_px[w] /= sum_weights[w]
-
-
-    meanless_px_times_weight = weights * (px - mean_px)
-
-    print("Computing subsampling cov...")
-
-    covariance = meanless_px_times_weight.T.dot(meanless_px_times_weight)
-
-    sum_weights_squared = sum_weights * sum_weights[:, None]
-
-    w = sum_weights_squared > 0.
-
-    # covariance estimator C^_ij
-    covariance[w] /= sum_weights_squared[w]
-
-    num = np.matmul((weights**2).T,weights) + np.matmul(weights.T, weights**2)
-    correction_factor = 1+ np.matmul(weights.T, weights) - num/np.matmul(weights.T, weights)
-
-    #print(np.matmul(weights.T, weights),num)
-    #print("Correction factor:", correction_factor)
-
-    # True covariance C_ij
-    #covariance /= correction_factor
-    #print("true Covariance:", covariance)
-    return mean_px, covariance
-
-"""
-def calculate_window_matrix(W, R, L):
-    '''
-    W (np.ndarray): average of (w1) conj(w2) where w1 and w2 are FFT of original weights per skewer
-    R (np.ndarray): vector length N, resolution in Fourier space
-    L (float): physical length of skewers (e.g., in Angstroms)
-    Returns:
-    window_matrix (np.ndarray): window matrix to be convolved with pure theory
-    estnorm (np.ndarray): vector length N, to be multiplied by every P1D mode of the measurement
-    '''
-    R2 = R.real**2 + R.imag**2
-    denom = np.absolute(np.fft.ifft(np.fft.fft(W)* np.fft.fft(R2)))
-    estnorm = np.absolute(L/denom)
-    N = estnorm.size
-    window_matrix = np.zeros((N,N))
-    for m in range(N):
-        for n in range(N):
-            window_matrix[m,n] = W[m-n]*R2[n] / denom[m]
-    return window_matrix, estnorm
-"""
 
