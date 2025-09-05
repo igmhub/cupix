@@ -448,6 +448,8 @@ class Likelihood(object):
 
         return like_params
 
+    # future function: def convolve_theory_with_window(theta_bin_index, z_bin_index):
+    
     def cosmology_params_from_sampling_point(self, values):
         """For a given point in sampling space, return a list of
         cosmology params"""

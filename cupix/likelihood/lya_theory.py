@@ -13,7 +13,7 @@ from cupix.likelihood.cosmologies import set_cosmo
 from cupix.utils.utils_sims import get_training_hc
 from cupix.utils.hull import Hull
 from cupix.utils.utils import is_number_string
-from cupix.window.window import window_theory
+from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
 
 def set_theory(
@@ -608,7 +608,7 @@ class Theory(object):
         self,
         zs,
         k_AA,
-        theta_bin_deg,
+        theta_arcmin,
         window_function=None,
         like_params=[],
         return_covar=False,
@@ -620,12 +620,14 @@ class Theory(object):
     ):
         """Emulate Px in velocity units, for all redshift bins,
         as a function of input likelihood parameters.
-        theta_bin_deg is a list of theta bins.
+        theta_arcmin is a list of theta bins.
         It might also return a covariance from the emulator,
         or a blob with extra information for the fitter."""
         
+
         zs = np.atleast_1d(zs)
         Nz = len(zs)
+        theta_deg = np.atleast_1d(theta_arcmin) / 60.0
         # figure out emulator calls
         emu_call, M_AA_of_z, M_tdeg_of_z, blob = self.get_emulator_calls(
             zs,
@@ -634,6 +636,7 @@ class Theory(object):
             return_blob=True,
         )
         
+        print("Here 1")
 
         # also apply priors on compressed parameters
         # temporary hack
@@ -653,7 +656,7 @@ class Theory(object):
                     return None
 
 
-
+        print("Here 2")
         # compute input k, theta to emulator in Mpc
         
         Nk = 0
@@ -662,28 +665,27 @@ class Theory(object):
             for iz in range(Nz):
                 if len(k_AA[iz]) > Nk:
                     Nk = len(k_AA[iz])
-                if len(theta_bin_deg[iz]) > Ntheta:
-                    Ntheta = len(theta_bin_deg[iz])
+                if len(theta_deg[iz]) > Ntheta:
+                    Ntheta = len(theta_deg[iz])
         else:
             if len(k_AA) == 1:
                 k_AA = k_AA[0]
-            if len(theta_bin_deg) == 1:
-                theta_bin_deg = theta_bin_deg[0]
+            if len(theta_deg) == 1:
+                theta_deg = theta_deg[0]
 
             Nk = len(k_AA)
             k_AA = [k_AA]
-            Ntheta = len(theta_bin_deg)
-            theta_bin_deg = [theta_bin_deg]
-
+            Ntheta = len(theta_deg)
+            theta_deg = [theta_deg]
+        
         kin_Mpc = np.zeros((Nz, Nk))
-        theta_binin_Mpc = np.zeros((Nz, Ntheta,2))
+        theta_in_Mpc = np.zeros((Nz, Ntheta))
+        
         for iz in range(Nz):
             kin_Mpc[iz, : len(k_AA[iz])] = k_AA[iz] * M_AA_of_z[iz]
-            theta_binin_Mpc[iz, : len(theta_bin_deg[iz]), :] = theta_bin_deg[iz] / M_tdeg_of_z[iz]
+            theta_in_Mpc[iz, : len(theta_deg[iz])] = theta_deg[iz] / M_tdeg_of_z[iz]
+        print("Here 3")
         
-        # evaluate Px at many (N_theta_fine) theta values within the full theta range
-        theta_fine = (np.linspace(theta_binin_Mpc[:, 0, 0], theta_binin_Mpc[:, -1, 1], N_theta_fine)).T
-        # some pseudocode for now
         # get the Arinyo coeffs if they're not already being fed in (e.g. if the likelihood parameters don't include them)
         if not self.has_all_arinyo_coeffs(like_params):
             print("Arinyo coefficients not found in likelihood parameters, using emulator to get them")
@@ -712,24 +714,14 @@ class Theory(object):
 
         lyap3d = LyaP3D(zs, p3d_model, arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, Arinyo=self.emulator.arinyo)
         print("activated the P3D object")
-        px_Mpc_fine = lyap3d.model_Px(kin_Mpc, theta_fine)
-        print(px_Mpc_fine.shape, "shape of output")
-        px_pred_Mpc_avg = np.zeros((Nz, Ntheta, Nk))
-        if theta_weights is None:
-            theta_weights = theta_fine
-        for iz in range(Nz):
-            for itheta, sepbin in enumerate(theta_binin_Mpc[iz]):
-                in_bin = (theta_fine[iz, :] >= sepbin[0]) & (theta_fine[iz, :] <= sepbin[1]) # boolean 1D array of shape N_theta_fine
-                # average over the results
-                weights_bin = theta_weights[iz, :][in_bin]
-                px_pred_Mpc_avg[iz, itheta, :] = np.average(px_Mpc_fine[iz, in_bin, :], axis=0, weights=weights_bin)
-        print("past averaging")
+        px_pred_Mpc = lyap3d.model_Px(kin_Mpc, theta_in_Mpc)
+        print(px_pred_Mpc.shape, "shape of output Px")
         # move from Mpc to AA
         px_AA = np.zeros((Nz, Ntheta, Nk))
         covars = []
         for iz in range(Nz):
             print("iz =", iz, "of", Nz)
-            px_AA[iz, :, :] = px_pred_Mpc_avg[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
+            px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
             # if return_covar:
             #     if cov_Mpc is None:
             #         covars.append(None)
@@ -763,12 +755,6 @@ class Theory(object):
         #         px_AA[iz, itheta, :] *= cont_syst
 
 
-        # apply window
-        if window_function is not None:
-            for iz in range(Nz):
-                for itheta in range(Ntheta):
-                    if window_function[iz, itheta] is not None:
-                        px_AA[iz, itheta, :] = window_theory(window_function[iz, itheta], px_AA[iz, itheta, :])
         # decide what to return, and return it
         out = [px_AA] # np.asarray([px_kms])
         if return_covar:

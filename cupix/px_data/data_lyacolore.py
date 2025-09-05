@@ -3,7 +3,7 @@ import os
 import h5py
 
 from cupix.px_data.base_px_data import BaseDataPx
-from cupix.window.window import window_matrix_from_fft_weights
+from cupix.likelihood.window_and_rebin import window_matrix_from_fft_weights
 
 class Px_Lyacolore(BaseDataPx):
     """Class containing Px from Lyacolore"""

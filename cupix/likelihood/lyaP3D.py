@@ -44,12 +44,10 @@ class LyaP3D():
             if self.P3D_coeffs[key].shape != (Nz,):
                 raise ValueError(f"Arinyo coefficient {key} must be a 1D array of shape ({Nz},)")
         
+        print("Inputting the arinyo coeffs", self.P3D_coeffs)
         if self.Si_contam:
             Px_pred_Mpc = Px_Mpc_withSiIII(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs, Si_coeffs=self.contam_coeffs, Arinyo=self.arinyo)
         else:
-            print("Sending in the arinyo coeffs", self.P3D_coeffs)
-            # Px_pred_Mpc = self.arinyo.Px_Mpc(self.z, k_Mpc, arinyo_coeffs, **{'rperp_choice':theta_Mpc})
-            print(kpar_Mpc.shape)
             Px_pred_Mpc = pcross.Px_Mpc(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs)
             
         if np.any(np.isnan(Px_pred_Mpc)):
