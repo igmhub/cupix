@@ -75,7 +75,7 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
     c_a = np.sqrt(theta_min * theta_max)
     
     
-    epsilon = 1e-5 * (c_a.max() + c_a.min())/2  # small padding to avoid underflow/overflow
+    epsilon = 1e-3 * (c_a.max() + c_a.min())/2  # small padding to avoid underflow/overflow
     #print('min and max of theta centers:', c_a.min(), c_a.max())
     #print('epsilon:', epsilon)
     lo, hi = c_a.min()-epsilon, c_a.max()+epsilon  # add a bit of padding to the high and low ends to avoid underflow/overflow
