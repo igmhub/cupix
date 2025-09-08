@@ -269,7 +269,7 @@ def bin_window(U_z_amn,B_M_m,W_z_am,R2_m,L):
     num = np.einsum('Mm,zam,zamn->zaMn', B_M_m, V_z_am, U_z_amn, optimize=True)
 
     # Safe divide, broadcasting over n
-    U_z_aMn = np.divide(num, V_z_aM[..., None], out=np.zeros_like(num), where=V_z_aM[..., None] > 0)
+    U_z_aMn = np.divide(num, V_z_aM[..., None]*np.einsum('Mm->M', B_M_m)[...,None], out=np.zeros_like(num), where=V_z_aM[..., None] > 0)
     print('Shape of window matrix after rebinning in k is ',np.shape(U_z_aMn))
 
     return U_z_aMn, V_z_aM, V_z_am
