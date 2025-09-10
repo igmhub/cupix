@@ -20,10 +20,10 @@ config.read(args.config)
 root = config.get('paths', 'root')
 datafile = config.get('paths', 'datafile')
 
-k_bins_ratio = config.get('parameters','k_bins_ratio') # number of k bins after rebinning will be Nk/k_bins_ratio
-k_max_ratio = config.get('parameters','k_max_ratio') # maximum frequency will be max_k/k_max_ratio
+k_bins_ratio = config.getfloat('parameters','k_bins_ratio') # number of k bins after rebinning will be Nk/k_bins_ratio
+k_max_ratio = config.getfloat('parameters','k_max_ratio') # maximum frequency will be max_k/k_max_ratio
 # define rebin parameters
-theta_bins_ratio = config.get('parameters','theta_bins_ratio') # number of theta bins after rebinning will be Ntheta/theta_bins_ratio
+theta_bins_ratio = config.getfloat('parameters','theta_bins_ratio') # number of theta bins after rebinning will be Ntheta/theta_bins_ratio
 
 # Read data from HDF5 files and store px_data object
 
