@@ -64,12 +64,19 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
     N_a = len(theta_min)
     assert len(theta_max) == N_a, "theta_min/max length mismatch"
     print('number of fine theta bins:', N_a)
+    
     # How many coarse bins?
     downsize = int(theta_bins_ratio)
     N_A = N_a // downsize  
     print('number of theta bins:', N_A)
     if N_A < 1:
         raise ValueError("N_A < 1; choose a smaller downsize/theta_bins_ratio.")
+    if N_a % downsize != 0:
+        raise ValueError(
+            f"Cannot downsize {N_a} fine bins by factor {downsize}: "
+            f"not divisible (remainder {N_a % downsize})."
+        )
+
 
     # Use geometric centers for classification (since we are binning in log space)
     c_a = np.sqrt(theta_min * theta_max)  # (N_a,)
@@ -112,6 +119,14 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
     theta_min_rebin = edges_A[:-1]  # left edge of previous bin is right edge of next bin
     theta_max_rebin =  edges_A[1:] # right edge of previous bin is left edge of next bin
     print('shape of B_A_a is ', np.shape(B_A_a))
+
+    # every fine bin is assigned exactly once
+    assert B_A_a.sum(axis=0).min() == 1 and B_A_a.sum(axis=0).max() == 1
+    # no empty coarse bins
+    assert (B_A_a.sum(axis=1) > 0).all()
+    # centers fall within edges
+    assert (c_a >= edges_A[0]).all() and (c_a <= edges_A[-1]).all()
+
 
     return B_A_a, theta_min_rebin, theta_max_rebin
 

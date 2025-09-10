@@ -3,9 +3,22 @@ import configparser
 from cupix.rebin_cov.healpix_px import Px_meas
 from cupix.rebin_cov.lib_funcs import bin_func_k, bin_func_theta, rebin_k, rebin_theta, average_px, compute_covariance, calculate_window_matrix, bin_window, save_to_hdf5, calculate_V_zh_AM, get_sum_over_healpix
 import matplotlib.pyplot as plt 
+import argparse
 #root = './data/px_measurements/raw_mocks/'
-root = '/Users/ssatyavolu/projects/DESI/Y3_Lya_Px/mocks/raw_mocks/'
-datafile = 'px-nhp_41-zbins_4-thetabins_40.hdf5'
+#root = '/Users/ssatyavolu/projects/DESI/Y3_Lya_Px/mocks/raw_mocks/'
+#datafile = 'px-nhp_41-zbins_4-thetabins_40.hdf5'
+
+# take path to config from command line argument with --config option
+parser = argparse.ArgumentParser()
+parser.add_argument("--config", type=str, default="config.ini",help="Path to the configuration file")
+args = parser.parse_args()
+
+# Load from config.ini
+config = configparser.ConfigParser()
+config.read(args.config)
+
+root = config.get('paths', 'root')
+datafile = config.get('paths', 'datafile')
 
 # Read data from HDF5 files and store px_data object
 
