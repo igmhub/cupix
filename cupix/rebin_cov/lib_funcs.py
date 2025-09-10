@@ -72,21 +72,27 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
         raise ValueError("N_A < 1; choose a smaller downsize/theta_bins_ratio.")
 
     # Use geometric centers for classification (since we are binning in log space)
-    c_a = np.sqrt(theta_min * theta_max)
+    c_a = np.sqrt(theta_min * theta_max)  # (N_a,)
     
-    
-    epsilon = 1e-3 * (c_a.max() + c_a.min())/2  # small padding to avoid underflow/overflow
+    epsilon = 1e-5 #* (c_a_max + c_a_min)/2  # small padding to avoid underflow/overflow
     #print('min and max of theta centers:', c_a.min(), c_a.max())
     #print('epsilon:', epsilon)
     lo, hi = c_a.min()-epsilon, c_a.max()+epsilon  # add a bit of padding to the high and low ends to avoid underflow/overflow
     
+    theta_edges = np.concatenate([theta_min, [theta_max[-1]]])  # (N_a+1,)
 
     # Log-spaced coarse edges over the full range of centers
-    edges = np.logspace(np.log10(lo), np.log10(hi), N_A + 1)
+    edges_A = theta_edges[::downsize] #np.logspace(np.log10(lo), np.log10(hi), N_A + 1)
+    # set an offset to avoid underflow/overflow
+   
+    edges_A[0] = edges_A[0]-epsilon
+    edges_A[-1] =edges_A[-1]+epsilon
+    print('bins:', c_a)
+    print(edges_A)
     
     
     # Assign each original bin 'a' to a coarse bin 'A'
-    A_idx = np.digitize(c_a, edges, right=False) - 1   # in [0, N_A-1]
+    A_idx = np.digitize(c_a, edges_A, right=False) - 1   # in [0, N_A-1]
     
     underflows = np.sum(A_idx < 0)  # digitize returns A_idx as -1 for theta values smaller than the first edge 
     overflows  = np.sum(A_idx >= N_A) # digitize returns A_idx as len(edges)-1 = N_A for theta values larger than the last edge
@@ -102,8 +108,9 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
         for a, A in enumerate(A_idx):
             B_A_a[A, a] += 1.0
 
-    theta_min_rebin = edges[:-1]
-    theta_max_rebin = edges[1:]
+    #theta_edges_rebin = theta_edges[::downsize]
+    theta_min_rebin = edges_A[:-1]  # left edge of previous bin is right edge of next bin
+    theta_max_rebin =  edges_A[1:] # right edge of previous bin is left edge of next bin
     print('shape of B_A_a is ', np.shape(B_A_a))
 
     return B_A_a, theta_min_rebin, theta_max_rebin
