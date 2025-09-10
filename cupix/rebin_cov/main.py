@@ -20,6 +20,11 @@ config.read(args.config)
 root = config.get('paths', 'root')
 datafile = config.get('paths', 'datafile')
 
+k_bins_ratio = config.get('parameters',k_bins_ratio) # number of k bins after rebinning will be Nk/k_bins_ratio
+k_max_ratio = config.get('parameters',k_max_ratio) # maximum frequency will be max_k/k_max_ratio
+# define rebin parameters
+theta_bins_ratio = config.get('parameters',theta_bins_ratio) # number of theta bins after rebinning will be Ntheta/theta_bins_ratio
+
 # Read data from HDF5 files and store px_data object
 
 px_data = Px_meas(root+datafile)
@@ -40,12 +45,9 @@ V_zh_am = calculate_V_zh_AM(W_zh_am,R2_m,px_data.L_fft)
 # define rebin parameters 
 bin_info = {} 
 
-k_bins_ratio = 4 # number of k bins after rebinning will be Nk/k_bins_ratio
-max_k = px_data.k_Nyq # maximum frequency to consider, in 1/A
-k_max_ratio = 4 # maximum frequency will be max_k/k_max_ratio
 
 # we will rebin the wavenumbers to make them more independent, and better measured
-
+max_k = px_data.k_Nyq # maximum frequency to consider, in 1/A
 B_M_m, k_M_edges = bin_func_k(k_m,px_data.k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type='top_hat') # B_M_m has shape (NK, Nk) and B_A_a has shape (Ntheta_rebin, Ntheta_bin)
 
 # Rebin in k per healpix
@@ -64,8 +66,7 @@ V_zh_aM = rebin_k(V_zh_am,B_M_m,healpix=True)
     #assert np.isclose(px_data.px[key][nhp,:px_data.N_fft//2],F_zh_am[1,10,nhp,:]).any() # works only if max_k is k_Nyq
     #plt.show()
 
-# define rebin parameters
-theta_bins_ratio = 4
+
 # we need an average over all theta_bins belonging to the new theta_rebins, which will give the array (z,nhp,Nk) for each theta_rebins
 B_A_a, theta_min_A, theta_max_A = bin_func_theta(px_data.theta_bin_min,px_data.theta_bin_max,theta_bins_ratio,bin_func_type='top_hat')
 #plt.plot(px_data.theta_bin_min,B_A_a[8,:])
