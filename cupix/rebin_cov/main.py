@@ -123,7 +123,7 @@ U_z_aMn, V_z_aM, V_z_am = bin_window(U_z_amn,B_M_m,W_z_am,R2_m,px_data.L_fft)
 
 
 # Save to new hdf5 file with metadata and binning information for theory
-outfile= root+'output_data_for_cupix_zbins_4_thetabins_40_nhp41.hdf5'
+outfile= root+ config.get('paths','outfile')
 save_to_hdf5(outfile,P_z_AM,C_z_AMN,U_z_aMn,B_A_a,V_z_aM,k_m,k_M_edges,px_data.theta_bin_min,px_data.theta_bin_max,theta_min_A,theta_max_A,px_data.N_fft,px_data.L_fft,px_data.z_bin_centers)
 
 
