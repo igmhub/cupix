@@ -3,6 +3,7 @@
 import numpy as np
 import h5py
 
+
 def bin_func_k(k_arr,k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type):
     '''
     Generates the binning function 
@@ -28,20 +29,24 @@ def bin_func_k(k_arr,k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type):
     print('k < ',k_max)
 
     k_edges=np.arange(0.01*dk_bin,k_max+dk_bin,dk_bin)
-    
+
     Nk=k_edges.size-1
     N_fft = len(k_arr)
+    if int(k_bins_ratio) == 1 and int(k_max_ratio) == 1 and np.isclose(k_arr[0], 0.0):
+        B_M_m = np.eye(len(k_arr), dtype=float)
+        k_edges = k_arr 
+    else:
+        #define bin function
+        B_M_m=np.zeros([Nk,N_fft]) # includes negative k values
+        if bin_func_type == 'top_hat':
+            for i in range(Nk):
+                inbin=(abs(k_arr)>=k_edges[i]) & (abs(k_arr)<k_edges[i+1]) # left closed, right open edges
+                B_M_m[i,inbin]=1
 
-    #define bin function
-    B_M_m=np.zeros([Nk,N_fft]) # includes negative k values
-    if bin_func_type == 'top_hat':
-        for i in range(Nk):
-            inbin=(abs(k_arr)>=k_edges[i]) & (abs(k_arr)<k_edges[i+1]) # left closed, right open edges
-            B_M_m[i,inbin]=1
-    k_M =0.5*(k_edges[:-1] + k_edges[1:])        
-    print('Done')
-    print('shape of B_M_m is ', np.shape(B_M_m))
+        k_M =0.5*(k_edges[:-1] + k_edges[1:])
     
+    print('Done')
+    print('shape of B_M_m is ', np.shape(B_M_m))    #define bin function
 
     #return B_M_m,k_M
     return B_M_m, k_edges
@@ -204,11 +209,12 @@ def average_px(F_zh_AM,W_zh_am,R2_m,L,B_A_a,B_M_m):
     Average of Px over combined F, V of all healpix pixels
 
     '''
-
+    N_fft = len(R2_m)
     print('Computing average...')
-    W_z_am = np.einsum('zAhM->zAM',W_zh_am)
+    W_z_am = np.einsum('zahm->zam',W_zh_am)
 
     V_z_am = calculate_V_zh_AM(W_z_am,R2_m,L)
+    V_z_am = V_z_am[...,:N_fft//2]
     
     V_z_aM = rebin_k(V_z_am,B_M_m,healpix=False)
     print('done')
@@ -272,7 +278,8 @@ def calculate_window_matrix(W_z_AM, R2_m):
             #window_matrix[:,:,m,n] = W_z_AM[:,:,m-n]*R2[:,:,n] / denom[:,:,m]
             num_k = W_z_AM[:,:,m-n]*R2_m[None,None,n]
             window_matrix[:,:,m,n] = np.divide(num_k,denom[:,:,m], out=np.zeros_like(num_k), where=denom[:,:,m]>0)
-    
+    N_fft = len(R2_m)
+    window_matrix = window_matrix[:,:,:N_fft//2,:N_fft//2]
     print('Shape of window matrix is',np.shape(window_matrix))
     
     return window_matrix
@@ -284,7 +291,9 @@ def bin_window(U_z_amn,B_M_m,W_z_am,R2_m,L):
     '''
     
     V_z_am = calculate_V_zh_AM(W_z_am,R2_m,L)
-
+    N_fft = len(R2_m)
+    V_z_am = V_z_am[...,:N_fft//2]   
+ 
     V_z_aM = rebin_k(V_z_am,B_M_m,healpix=False) #calculate_V_zh_AM(W_z_aM,R2_M,L)
 
     # Numerator: sum over m

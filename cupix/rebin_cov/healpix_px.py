@@ -115,7 +115,7 @@ class Px_meas(object):
         if positive_frequencies:
             half = N_k // 2
             P = P[..., :half]
-            W = W[..., :half]
+            #W = W[..., :half]
             k_out = k_out[:half]
 
         return P, W, k_out

@@ -35,12 +35,16 @@ assert ~np.isnan(F_zh_am).any()
 assert ~np.isnan(W_zh_am).any()
 
 # set average resolution
-R2_m = np.ones_like(k_m)
-sigma = 0.1
-R2_m = np.exp(-(k_m*sigma)**2)
+R2_m = np.ones(px_data.N_fft)
+#sigma = 0.1
+#R2_m = np.exp(-(k_m*sigma)**2)
 
 # compute the normalisation
 V_zh_am = calculate_V_zh_AM(W_zh_am,R2_m,px_data.L_fft)
+# keep only positive 
+V_zh_am = V_zh_am[...,:px_data.N_fft//2]
+
+print('Shape of V is',np.shape(V_zh_am))
 
 # define rebin parameters 
 bin_info = {} 
