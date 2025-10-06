@@ -69,8 +69,8 @@ def rebin_theta(V_aM_in_Theta, P_aM_in_Theta):
     '''
     Pass in an array of the P_aM within this coarse Theta bin
     as well as the weights V_aM within this bin
-    Returns: average P estimate in Theta
+    Returns: average P estimate in ThetaPx_data.theta_min_A
     '''
-    V_AM = np.sum(V_aM_in_Theta)
+    V_AM = np.sum(V_aM_in_Theta, axis=0)
     P_AM = np.sum(V_aM_in_Theta * P_aM_in_Theta, axis=0) # this assumes simple top-hat binning
     return P_AM/V_AM

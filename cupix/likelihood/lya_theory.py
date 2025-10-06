@@ -609,13 +609,10 @@ class Theory(object):
         zs,
         k_AA,
         theta_arcmin,
-        window_function=None,
         like_params=[],
         return_covar=False,
         return_blob=True,
         return_emu_params=False,
-        N_theta_fine=1000,
-        theta_weights=None,
         add_silicon=False
     ):
         """Emulate Px in velocity units, for all redshift bins,
@@ -636,7 +633,6 @@ class Theory(object):
             return_blob=True,
         )
         
-        print("Here 1")
 
         # also apply priors on compressed parameters
         # temporary hack
@@ -656,7 +652,7 @@ class Theory(object):
                     return None
 
 
-        print("Here 2")
+    
         # compute input k, theta to emulator in Mpc
         
         Nk = 0
@@ -684,7 +680,6 @@ class Theory(object):
         for iz in range(Nz):
             kin_Mpc[iz, : len(k_AA[iz])] = k_AA[iz] * M_AA_of_z[iz]
             theta_in_Mpc[iz, : len(theta_deg[iz])] = theta_deg[iz] / M_tdeg_of_z[iz]
-        print("Here 3")
         
         # get the Arinyo coeffs if they're not already being fed in (e.g. if the likelihood parameters don't include them)
         if not self.has_all_arinyo_coeffs(like_params):
@@ -694,16 +689,14 @@ class Theory(object):
             print("Arinyo coefficients found in likelihood parameters, using them")
             arinyo_coeffs = {}
             for par in like_params:
-                if par.name in ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]:
+                if par.name in ["bias", "beta", "q1", "kvav", "av", "bv", "kp"]:
                     if par.value is None:
                         raise ValueError(
                             f"Parameter `{par.name}` was not assigned a value, but is required."
                         )
                     arinyo_coeffs[par.name] = np.atleast_1d(par.value)
-        print("got the arinyo coeffs")
         # activate the arinyo model
         p3d_model = self.emulator.arinyo.P3D_Mpc
-        print("activated the arinyo model")
         si_coeffs = {}
         if add_silicon:
             print("Adding silicon contamination")
@@ -713,47 +706,12 @@ class Theory(object):
                     si_coeffs[par.name] = par.value
 
         lyap3d = LyaP3D(zs, p3d_model, arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, Arinyo=self.emulator.arinyo)
-        print("activated the P3D object")
         px_pred_Mpc = lyap3d.model_Px(kin_Mpc, theta_in_Mpc)
-        print(px_pred_Mpc.shape, "shape of output Px")
         # move from Mpc to AA
         px_AA = np.zeros((Nz, Ntheta, Nk))
         covars = []
         for iz in range(Nz):
-            print("iz =", iz, "of", Nz)
             px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
-            # if return_covar:
-            #     if cov_Mpc is None:
-            #         covars.append(None)
-            #     else:
-            #         covars.append(
-            #             cov_Mpc[iz][: len(k_kms[iz]), : len(k_kms[iz])]
-            #             * M_kms_of_z[iz] ** 2
-            #         )
-        # apply weights
-            
-        print(px_AA.shape, "Px_AA shape after moving to AA")
-        # apply contaminants
-        # syst_total = self.model_syst.get_contamination(
-        #     zs, k_kms, like_params=like_params
-        # )
-        # # cont_total = self.model_cont.get_contamination(
-        # #     zs,
-        # #     k_AA,
-        # #     emu_call["mF"],
-        # #     M_AA_of_z,
-        # #     like_params=like_params,
-        # # )
-        # # print("cont_total", cont_total)
-        # # if cont_total is None:
-        # #     print("No contamination")
-        # #     return None
-
-        # for iz in range(Nz):
-        #     cont_syst = cont_total[iz] # * syst_total[iz] # for now it is only a function of z
-        #     for itheta in range(Ntheta):
-        #         px_AA[iz, itheta, :] *= cont_syst
-
 
         # decide what to return, and return it
         out = [px_AA] # np.asarray([px_kms])
@@ -771,7 +729,7 @@ class Theory(object):
         
     def has_all_arinyo_coeffs(self, likelihood_params):
         """Check if the likelihood parameters have all the Arinyo coefficients"""
-        arinyo_coeffs = ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]
+        arinyo_coeffs = ["bias", "beta", "q1", "kvav", "av", "bv", "kp"] # q2 is optional
         for coeff in arinyo_coeffs:
             if coeff not in [par.name for par in likelihood_params]:
                 return False

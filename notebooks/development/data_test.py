@@ -1,6 +1,7 @@
 # ---
 # jupyter:
 #   jupytext:
+#     formats: ipynb,py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
@@ -96,6 +97,9 @@ for i in range(len(Px_data.thetabin_deg[0])):
     print(f"theta bin {Px_data.thetabin_deg[0][i]}")
     plt.errorbar(Px_data.k_AA[0], Px_data.Pk_AA[0,i], errs/1147, label='data')
 plt.xlim([0,0.8])
+
+# %%
+Set the redshifts and fiducial cosmology
 
 # %%
 theory_AA = set_theory(args, ffemu, free_parameters=['ln_tau_0'], k_unit='iAA')

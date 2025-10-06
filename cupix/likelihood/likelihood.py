@@ -5,7 +5,7 @@ import math
 from scipy.stats.distributions import chi2 as chi2_scipy
 from scipy.optimize import minimize
 from scipy.linalg import block_diag
-
+from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
 import lace
 from lace.cosmo import camb_cosmo
 from cupix.utils.utils import is_number_string
@@ -605,141 +605,108 @@ class Likelihood(object):
                 self.fid["fit"][pname2[par.name]] = blob[pname2[par.name]]
                 self.fid["linP"][pname2[par.name]] = blob[pname2[par.name]]
 
-    def get_px_kms(
-        self,
-        zs=None,
-        _k_kms=None,
-        theta_bin_deg=None,
-        values=None,
-        return_covar=False,
-        return_blob=False,
-        return_emu_params=False,
-        apply_hull=True,
-    ):
-        """Compute theoretical prediction for 1D P(k)"""
 
-        if _k_kms is None:
-            k_kms = self.data.k_kms
+    def get_convolved_Px_AA(self,
+        iz,
+        itheta_A,
+        values=None):
 
-        if zs is None:
-            zs = self.data.z
-
-        if theta_bin_deg is None:
-            theta_bin_deg = self.data.theta_bin_deg
-
-        if self.args["rebin_k"] != 1:
-            k_kms = []
-            zs = np.atleast_1d(zs)
-            for iz in range(len(zs)):
-                ind = np.argmin(np.abs(zs[iz] - self.data.z))
-                k_kms.append(self.rebin["k_kms"][ind])
-        else:
-            k_kms = _k_kms
-
-        # translate sampling point (in unit cube) to parameter values
-        if values is not None:
-            like_params = self.parameters_from_sampling_point(values)
-        else:
-            like_params = []
-
-
-        results = self.theory.get_px_kms(
-            zs,
-            k_kms,
-            theta_bin_deg=theta_bin_deg,
-            like_params=like_params,
-            return_covar=return_covar,
-            return_blob=return_blob,
-            return_emu_params=return_emu_params,
-            apply_hull=apply_hull,
-        )
-
-        if results is None:
-            return None
-        else:
-            if self.args["rebin_k"] == 1:
-                return results
-            else:
-                if return_blob | return_emu_params:
-                    results2 = []
-                    results2.append(self.rebinning(zs, results[0]))
-                    for ii in range(1, len(results)):
-                        results2.append(results[ii])
-                    return results2
-                else:
-                    return self.rebinning(zs, results)
-
-    def get_px_AA(
-        self,
-        zs=None,
-        _k_AA=None,
-        theta_bin_deg=None,
-        values=None,
-        return_covar=False,
-        return_blob=False,
-        return_emu_params=False,
-        apply_hull=True,
-    ):
         """Compute theoretical prediction for Pcross"""
 
-        if _k_AA is None:
-            print("getting k_AA from data")
-            print("self data k_AA has shape", self.data.k_AA.shape)
-            k_AA = self.data.k_AA
-
-        if zs is None:
-            zs = self.data.z
-
-        if theta_bin_deg is None:
-            theta_bin_deg = self.data.theta_bin_deg
-
-        if self.args["rebin_k"] != 1:
-            k_AA = []
-            zs = np.atleast_1d(zs)
-            for iz in range(len(zs)):
-                ind = np.argmin(np.abs(zs[iz] - self.data.z))
-                k_AA.append(self.rebin["k_AA"][ind])
-        else:
-            k_AA = _k_AA
-
-        # translate sampling point (in unit cube) to parameter values
+               # translate sampling point (in unit cube) to parameter values
         if values is not None:
             like_params = self.parameters_from_sampling_point(values)
-        else:
-            like_params = []
-
-        results = self.theory.get_px_AA(
-            zs,
-            k_AA,
-            theta_bin_deg=theta_bin_deg,
-            like_params=like_params,
-            return_covar=return_covar,
-            return_blob=return_blob,
-            return_emu_params=return_emu_params,
-            apply_hull=apply_hull,
+            
+        # loop through the theta bins from the data
+    
+        # get the small-theta indices in this coarse-theta bin
+        ind_in_theta = self.data.B_A_a.astype(bool)[itheta_A,:]
+        theta_a_inds = np.where(ind_in_theta)[0]
+        k_AA_fine = self.data.k_m # includes 0
+        k_AA_binned = (self.data.k_M_edges[:-1] + self.data.k_M_edges[1:]) / 2.
+        zs = np.atleast_1d(self.data.z)
+        Px_aMZ = np.zeros((len(theta_a_inds), len(k_AA_binned)))
+        V_aMZ  = np.zeros((len(theta_a_inds), len(k_AA_binned)))
+        for theta_a in theta_a_inds:
+            theta_a_arcmin = (self.data.theta_min_a[theta_a] + self.data.theta_max_a[theta_a])/2.
+            Px_amZ = self.theory.get_px_AA(
+            zs = [zs[iz]],
+            k_AA=[k_AA_fine],
+            theta_arcmin=[theta_a_arcmin],
+            like_params=like_params
         )
+            # retrieve the window matrix for this small-theta bin
+            U_aMnZ = self.data.get_window_matrix_z_t(zs[iz],theta_a)[0]
+            if U_aMnZ is not None:
+                Px_aMZ = convolve_window(U_aMnZ[:,1:],Px_amZ[0].T)
+            Px_aMZ[theta_a,:] = Px_aMZ.flatten()
+            V_aMZ = self.data.get_V_Z_aM(zs[i],theta_a)[0]
+            V_aMZ[theta_a,:] = V_aMZ.flatten()
+        # rebin in theta
+        Px_AMZ = rebin_theta(V_aMZ, Px_aMZ)
+        return Px_AMZ
+
+
+
+    # def get_px_AA(
+    #     self,
+    #     values=None,
+    #     return_covar=False,
+    #     return_blob=False,
+    #     return_emu_params=False,
+    #     apply_hull=True,
+    # ):
+    #     """Compute theoretical prediction for Pcross"""
+
+        
+    #     if self.args["rebin_k"] != 1:
+    #         k_AA = []
+    #         zs = np.atleast_1d(zs)
+    #         for iz in range(len(zs)):
+    #             ind = np.argmin(np.abs(zs[iz] - self.data.z))
+    #             k_AA.append(self.rebin["k_AA"][ind])
+    #     else:
+    #         k_AA = _k_AA
+
+    #     # translate sampling point (in unit cube) to parameter values
+    #     if values is not None:
+    #         like_params = self.parameters_from_sampling_point(values)
+    #     else:
+    #         like_params = []
+
+    #     results = self.theory.get_px_AA(
+    #         zs,
+    #         k_AA,
+    #         theta_bin_deg=theta_bin_deg,
+    #         like_params=like_params,
+    #         return_covar=return_covar,
+    #         return_blob=return_blob,
+    #         return_emu_params=return_emu_params,
+    #         apply_hull=apply_hull,
+    #     )
         
 
-        if results is None:
-            return None
-        else:
-            if self.args["rebin_k"] == 1:
-                return results
-            else:
-                if return_blob | return_emu_params:
-                    results2 = []
-                    results2.append(self.rebinning(zs, results[0]))
-                    for ii in range(1, len(results)):
-                        results2.append(results[ii])
-                    return results2
-                else:
-                    return self.rebinning(zs, results)
+    #     if results is None:
+    #         return None
+    #     else:
+    #         if self.args["rebin_k"] == 1:
+    #             return results
+    #         else:
+    #             if return_blob | return_emu_params:
+    #                 results2 = []
+    #                 results2.append(self.rebinning(zs, results[0]))
+    #                 for ii in range(1, len(results)):
+    #                     results2.append(results[ii])
+    #                 return results2
+    #             else:
+    #                 return self.rebinning(zs, results)
+
 
 
     def get_chi2(self, values=None, return_all=False, zmask=None):
         """Compute chi2 using data and theory, without adding
         emulator covariance"""
-        # DEALING with LINE BELOW HERE
+        
         log_like, log_like_all = self.get_log_like(
             values, ignore_log_det_cov=True, zmask=zmask
         )
@@ -754,152 +721,57 @@ class Likelihood(object):
     def get_log_like(
         self,
         values=None,
-        ignore_log_det_cov=True,
-        return_blob=False,
-        zmask=None,
+        ignore_log_det_cov=True
     ):
         """Compute log(likelihood), including determinant of covariance
         unless you are setting ignore_log_det_cov=True."""
 
         # what to return if we are out of priors
         null_out = [-np.inf, -np.inf]
-        if return_blob:
-            blob = (0, 0, 0, 0, 0, 0)
-            null_out.append(blob)
+        # if return_blob:
+        #     blob = (0, 0, 0, 0, 0, 0)
+        #     null_out.append(blob)
 
         # check that we are within unit cube
         if values is not None:
             if (values > 1.0).any() | (values < 0.0).any():
                 return null_out
 
-        # ask emulator prediction for Px in each bin
-        if zmask is not None:
-            _res = []
-            for iz in range(len(self.data.z)):
-                ind = np.argwhere(np.abs(zmask - self.data.z[iz]) < 1e-3)
-                if len(ind) == 0:
-                    _res.append(0)
-                else:
-                    _ = self.get_px_AA(
-                        np.atleast_1d(self.data.z[iz]),
-                        np.atleast_2d(self.data.k_AA[iz]),
-                        np.atleast_2d(self.theta_bin_deg[iz]),
-                        values,
-                        return_blob=return_blob,
-                    )
-                    if _ is None:
-                        _res = None
-                        break
-                    else:
-                        _res.append(_[0])
-        else:
-            _res = self.get_px_AA(
-                self.data.z, self.data.k_AA, self.data.thetabin_deg, values, return_blob=return_blob
-            )
 
-        # out of priors
-        if _res is None:
-            return null_out
-
-        if return_blob:
-            emu_px, blob = _res
-        else:
-            emu_px = _res
-
-        # use high-res data
-        if self.extra_data is not None:
-            length = 2
-            nz = np.max([len(self.data.z), len(self.extra_data.z)])
-
-            if zmask is not None:
-                _res = []
-                for iz in range(len(self.extra_data.z)):
-                    ind = np.argwhere(
-                        np.abs(zmask - self.extra_data.z[iz]) < 1e-3
-                    )
-                    if len(ind) == 0:
-                        _res.append(0)
-                    else:
-                        _res = self.get_px_AA(
-                            np.atleast_1d(self.extra_data.z[iz]),
-                            np.atleast_1d(self.extra_data.k_AA[iz]),
-                            values,
-                            return_blob=return_blob,
-                        )
-            else:
-                _res = self.get_px_AA(
-                    self.extra_data.z,
-                    self.extra_data.k_AA,
-                    values,
-                    return_blob=return_blob,
-                )
-
-            emu_px_extra = _res
-            # out of priors
-            if emu_px_extra is None:
-                return null_out
-
-        else:
-            length = 1
-            nz = len(self.data.z)
-            ntheta = len(self.data.thetabin_deg)
-        # compute log like contribution from each redshift bin
-        log_like_all = np.zeros((length, nz, ntheta))
-        log_like = 0
-        # loop over low and high res data
         
-        for ii in range(length):
-            if ii == 0:
-                emu_p1d_use = emu_px
-                data = self.data
-                icov_Pk_AA = self.icov_Pk_AA
-                full_icov_Pk_AA = self.full_icov_Pk_AA
-            else:
-                emu_p1d_use = emu_px_extra
-                data = self.extra_data
-                icov_Pk_AA = self.extra_icov_Pk_AA
-                full_icov_Pk_AA = self.extra_full_icov_Pk_AA
+        nz = len(self.data.z)
+        ntheta = len(self.data.thetabin_deg)
+        # compute log like contribution from each redshift bin
+        log_like_all = np.zeros((nz, ntheta))
+        log_like = 0
+        
+        data = self.data
+        
 
-            # loop over redshift bins
-            for iz in range(len(data.z)):
-                for itheta in range(len(data.thetabin_deg)):
-                    if zmask is not None:
-                        ind = np.argwhere(np.abs(zmask - data.z[iz]) < 1e-3)
-                        if len(ind) == 0:
-                            continue
-                    # compute chi2 for this redshift bin
-                    diff = data.Pk_AA[iz, itheta] - emu_p1d_use[iz, itheta]
-                    chi2_z = np.dot(np.dot(icov_Pk_AA[iz, itheta], diff), diff)
-                    # check whether to add determinant of covariance as well
-                    if ignore_log_det_cov:
-                        log_like_all[ii, iz, itheta] = -0.5 * chi2_z
-                    else:
-                        log_det_cov = np.log(
-                            np.abs(1 / np.linalg.det(icov_Pk_AA[iz, itheta]))
-                        )
-                        log_like_all[ii, iz, itheta] = -0.5 * (chi2_z + log_det_cov)
-            if (full_icov_Pk_AA is None) | (zmask is not None):
-                log_like += np.sum(log_like_all[ii])
-            else:
-                # NOT DOING THIS FOR NOW
-                # compute chi2 using full cov
-                diff = data.full_Pk_AA - np.concatenate(emu_p1d_use)
-                chi2_all = np.dot(np.dot(full_icov_Pk_AA, diff), diff)
+        # loop over redshift bins
+        for iz in range(len(data.z)):
+            for itheta in range(len(data.theta_min_A)):
+                # compute chi2 for this redshift bin
+                icov_Pk_AA = np.linalg.inv(data.get_cov_matrix_z_T(iz, itheta)[0])
+                data_izitheta = data.get_Px_z_T(iz,itheta)[0]
+                model_izitheta = self.get_convolved_Px_AA(iz,itheta,values=values)
+                diff = data_izitheta - model_izitheta
+                chi2_z = np.dot(np.dot(icov_Pk_AA, diff), diff)
+                # check whether to add determinant of covariance as well
                 if ignore_log_det_cov:
-                    log_like += -0.5 * chi2_all
+                    log_like_all[iz, itheta] = -0.5 * chi2_z
                 else:
                     log_det_cov = np.log(
-                        np.abs(1 / np.linalg.det(full_icov_Pk_AA))
+                        np.abs(1 / np.linalg.det(icov_Pk_AA[iz, itheta]))
                     )
-                    log_like += -0.5 * (chi2_all + log_det_cov)
+                    log_like_all[iz, itheta] = -0.5 * (chi2_z + log_det_cov)
+        
+        log_like += np.sum(log_like_all)
 
-        # something went wrong
-        if np.isnan(log_like):
+        if np.any(np.isnan(log_like)):
             return null_out
-
+            
         out = [log_like, log_like_all]
-        if return_blob:
-            out.append(blob)
         return out
 
     def regulate_log_like(self, log_like):

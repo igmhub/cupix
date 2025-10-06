@@ -46,8 +46,10 @@ class LyaP3D():
         
         print("Inputting the arinyo coeffs", self.P3D_coeffs)
         if self.Si_contam:
+            print("Including Si contamination with coeffs", self.contam_coeffs)
             Px_pred_Mpc = Px_Mpc_withSiIII(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs, Si_coeffs=self.contam_coeffs, Arinyo=self.arinyo)
         else:
+            print("No Si contamination")
             Px_pred_Mpc = pcross.Px_Mpc(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs)
             
         if np.any(np.isnan(Px_pred_Mpc)):
