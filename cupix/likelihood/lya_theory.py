@@ -610,9 +610,6 @@ class Theory(object):
         k_AA,
         theta_arcmin,
         like_params=[],
-        return_covar=False,
-        return_blob=True,
-        return_emu_params=False,
         add_silicon=False
     ):
         """Emulate Px in velocity units, for all redshift bins,
@@ -626,33 +623,13 @@ class Theory(object):
         Nz = len(zs)
         theta_deg = np.atleast_1d(theta_arcmin) / 60.0
         # figure out emulator calls
-        emu_call, M_AA_of_z, M_tdeg_of_z, blob = self.get_emulator_calls(
+        emu_call, M_AA_of_z, M_tdeg_of_z = self.get_emulator_calls(
             zs,
             like_params=like_params,
-            return_M_of_z=True,
-            return_blob=True,
+            return_M_of_z=True
         )
-        
-
-        # also apply priors on compressed parameters
-        # temporary hack
-        dict_trans = {
-            "Delta2_star": 0,
-            "n_star": 1,
-            "alpha_star": 2,
-        }
-        if self.star_priors is not None:
-            for key in self.star_priors:
-                _ = np.argwhere(
-                    (blob[dict_trans[key]] > self.star_priors[key][1])
-                    | (blob[dict_trans[key]] < self.star_priors[key][0])
-                )
-                if len(_) > 0:
-                    print("Returning none because star")
-                    return None
-
-
     
+
         # compute input k, theta to emulator in Mpc
         
         Nk = 0
@@ -668,18 +645,21 @@ class Theory(object):
                 k_AA = k_AA[0]
             if len(theta_deg) == 1:
                 theta_deg = theta_deg[0]
-
             Nk = len(k_AA)
             k_AA = [k_AA]
-            Ntheta = len(theta_deg)
+            # if theta is just 1 float
+            if np.isscalar(theta_deg):
+                Ntheta = 1
+            else:
+                Ntheta = len(theta_deg)
             theta_deg = [theta_deg]
         
         kin_Mpc = np.zeros((Nz, Nk))
         theta_in_Mpc = np.zeros((Nz, Ntheta))
         
         for iz in range(Nz):
-            kin_Mpc[iz, : len(k_AA[iz])] = k_AA[iz] * M_AA_of_z[iz]
-            theta_in_Mpc[iz, : len(theta_deg[iz])] = theta_deg[iz] / M_tdeg_of_z[iz]
+            kin_Mpc[iz, : Nk] = k_AA[iz] * M_AA_of_z[iz]
+            theta_in_Mpc[iz, : Ntheta] = theta_deg[iz] / M_tdeg_of_z[iz]
         
         # get the Arinyo coeffs if they're not already being fed in (e.g. if the likelihood parameters don't include them)
         if not self.has_all_arinyo_coeffs(like_params):
@@ -709,18 +689,11 @@ class Theory(object):
         px_pred_Mpc = lyap3d.model_Px(kin_Mpc, theta_in_Mpc)
         # move from Mpc to AA
         px_AA = np.zeros((Nz, Ntheta, Nk))
-        covars = []
         for iz in range(Nz):
             px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
 
         # decide what to return, and return it
-        out = [px_AA] # np.asarray([px_kms])
-        if return_covar:
-            out.append(covars)
-        if return_blob:
-            out.append(blob)
-        if return_emu_params:
-            out.append(emu_call)
+        out = px_AA
 
         if len(out) == 1:
             return out[0]

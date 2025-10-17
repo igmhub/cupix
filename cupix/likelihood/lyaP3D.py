@@ -31,8 +31,10 @@ class LyaP3D():
 
     def model_Px(self, kpar_Mpc, rperp_Mpc):
         # Code won't work if kpar has a zero
-        if 0 in  kpar_Mpc:
-            sys.exit('kpar array must not have a zero')
+        if 0 in kpar_Mpc:
+            # replace zero with a small number
+            print("Warning: kpar_Mpc contains zero. Replacing with 1e-5 to avoid issues.")
+            kpar_Mpc = np.where(kpar_Mpc == 0, 1e-5, kpar_Mpc)
 
         # make sure that k_Mpc, rperp_Mpc have the same length
         Nz = len(self.z)

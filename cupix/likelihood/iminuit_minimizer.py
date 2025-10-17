@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 from iminuit import Minuit
 
 # our own modules
-from cup1d.likelihood import likelihood
+from cupix.likelihood import likelihood
 
 
 class IminuitMinimizer(object):
     """Wrapper around an iminuit minimizer for Lyman alpha likelihood"""
 
-    def __init__(self, like, ini_values=None, error=0.02, verbose=False):
+    def __init__(self, like, like_params, ini_values=None, error=0.02, verbose=False):
         """Setup minimizer from likelihood."""
 
         self.verbose = verbose
@@ -17,10 +17,19 @@ class IminuitMinimizer(object):
 
         # set initial values (for now, center of the unit cube)
         if ini_values is None:
-            ini_values = 0.5 * np.ones(len(self.like.free_params))
+            ini_values = 0.5 * np.ones(len(self.like.free_param_names))
 
         # setup iminuit object (errordef=0.5 if using log-likelihood)
-        self.minimizer = Minuit(like.minus_log_prob, ini_values)
+        values = [param.value for param in like_params]
+        names  = [param.name for param in like_params]
+        free_param_names = like.free_param_names
+        fix_param_names  = [name for name in names if name not in free_param_names]
+        self.minimizer = Minuit(like.minus_log_prob, values, name=names)
+        # fix parameters that are not free
+        for name in fix_param_names:
+            self.minimizer.fixed[name] = True
+        if self.verbose:
+            print("Set the iMinuit params to:\n", self.minimizer.params)
         # self.minimizer = Minuit(like.get_chi2, ini_values)
         self.minimizer.errordef = 0.5
         # error only used to set initial parameter step
@@ -51,8 +60,10 @@ class IminuitMinimizer(object):
             print("best-fit values =", best_fit_values)
 
         # plt.title("iminuit best fit")
-        self.like.plot_p1d(
-            values=best_fit_values,
+        # plot_px(self, z, like_params, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None):    
+
+        self.like.plot_px(
+            like_params=best_fit_values,
             plot_every_iz=plot_every_iz,
             residuals=residuals,
         )

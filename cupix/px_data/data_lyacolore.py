@@ -8,7 +8,7 @@ from cupix.px_data.base_px_data import BaseDataPx
 class Px_Lyacolore(BaseDataPx):
     """Class containing Px from Lyacolore"""
 
-    def __init__(self, filename):
+    def __init__(self, filename, theta_min_cut_arcmin=None, theta_max_cut_arcmin=None):
         """Read measured Px."""
 
         # folder storing P1D measurements
@@ -53,7 +53,9 @@ class Px_Lyacolore(BaseDataPx):
                         B_A_a=B_A_a,
                         U_ZaMn=U_ZaMn,
                         V_ZaM=V_ZaM,
-                        filepath=self.filepath)
+                        filepath=self.filepath,
+                        theta_min_cut_arcmin=theta_min_cut_arcmin,
+                        theta_max_cut_arcmin=theta_max_cut_arcmin)
         return
 
 
