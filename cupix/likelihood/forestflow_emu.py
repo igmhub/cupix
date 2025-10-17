@@ -126,7 +126,10 @@ class FF_emulator():
             "kp",
             "q2"
         ]:
-             arinyo_coeffs[key] = np.zeros(Nz)
+            # special case for optional parameter "q2"
+            if key == "q2" and "q2" not in emu_call.keys():
+                continue
+            arinyo_coeffs[key] = np.zeros(Nz)
         for iz in range(Nz):
             emu_call_iz = {} # make a dictionary just for this z
             for key in emu_call.keys():
