@@ -203,12 +203,12 @@ def calculate_estnorm(W, R, L):
     estnorm = np.absolute(denom/L)
     return estnorm  
 
-def calculate_V_zh_AM(W_zh_AM,R2,L):
+def calculate_V_zh_AM(W_zh_AM,R2_M,L):
     '''
     Calculates the normalisation from given W, R
 
     '''
-    denom = np.absolute(np.fft.ifft(np.fft.fft(W_zh_AM,axis=-1)* np.fft.fft(R2)))    
+    denom = np.absolute(np.fft.ifft(np.fft.fft(W_zh_AM,axis=-1)* np.fft.fft(R2_M)))    
     estnorm = np.absolute(denom/L)
     print(np.shape(estnorm),'denom')
     return estnorm  

@@ -44,7 +44,8 @@ if input_avg_res == True:
     resolution_correction = config.get('paths','resolution_correction') # path to pickle file
     with open(resolution_correction, "rb") as f:
         sigma_l = pickle.load(f) # shape (N_z)
-    R_m = model_resolution(k_m,np.mean(sigma_l))
+    k_full = px_data.k_arr    
+    R_m = model_resolution(k_full,np.mean(sigma_l))
     R2_m = R_m**2
 else:
     R2_m = np.ones(px_data.N_fft)
