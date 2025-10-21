@@ -1,7 +1,7 @@
 import numpy as np
 import configparser
 from cupix.rebin_cov.healpix_px import Px_meas
-from cupix.rebin_cov.lib_funcs import bin_func_k, bin_func_theta, rebin_k, rebin_theta, average_px, compute_covariance, calculate_window_matrix, bin_window, save_to_hdf5, calculate_V_zh_AM, get_sum_over_healpix
+from cupix.rebin_cov.lib_funcs import bin_func_k, bin_func_theta, rebin_k, rebin_theta, average_px, compute_covariance, calculate_window_matrix, bin_window, save_to_hdf5, calculate_V_zh_AM, get_sum_over_healpix, model_resolution
 import matplotlib.pyplot as plt 
 import argparse
 #root = './data/px_measurements/raw_mocks/'
@@ -37,8 +37,18 @@ print('Shape of F is',np.shape(F_zh_am)) # (N_z, N_theta, N_hp, N_k)
 assert ~np.isnan(F_zh_am).any()
 assert ~np.isnan(W_zh_am).any()
 
+input_avg_res = config.getboolean('parameters','input_avg_res') # boolean
 # set average resolution
-R2_m = np.ones(px_data.N_fft)
+if input_avg_res == True:
+    resolution_correction = config.get('paths','resolution_correction') # path to pickle file
+    with open(resolution_correction, "rb") as f:
+        sigma_l = pickle.load(f) # shape (N_z)
+    R_m = model_resolution(k_m,np.mean(sigma_l))
+    R2_m = R_m**2
+else:
+    R2_m = np.ones(px_data.N_fft)
+
+
 #sigma = 0.1
 #R2_m = np.exp(-(k_m*sigma)**2)
 

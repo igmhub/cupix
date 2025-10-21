@@ -3,6 +3,9 @@
 import numpy as np
 import h5py
 
+def model_resolution(k,sigma_l):
+    resolution = np.exp(-0.5 * (k * sigma_l) ** 2) * (np.sin(k * 0.4) / (k * 0.4))
+    return resolution
 
 def bin_func_k(k_arr,k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type):
     '''
