@@ -76,7 +76,7 @@ class Px_meas(object):
         self.k_Nyq = np.pi/self.pw_A
         return None
             
-    def unpack_healpix(self, positive_frequencies: bool = True):
+    def unpack_healpix(self):
         """
         Pack dicts into dense arrays for einsum ops.
         Returns: P, W, k_out with shapes (Nz, Nθ, Nhp, Nk_out)

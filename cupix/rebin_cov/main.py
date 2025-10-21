@@ -24,11 +24,14 @@ k_bins_ratio = config.getfloat('parameters','k_bins_ratio') # number of k bins a
 k_max_ratio = config.getfloat('parameters','k_max_ratio') # maximum frequency will be max_k/k_max_ratio
 # define rebin parameters
 theta_bins_ratio = config.getfloat('parameters','theta_bins_ratio') # number of theta bins after rebinning will be Ntheta/theta_bins_ratio
+input_edges_A = config.get('parameters','input_edges_A') # boolean
+if input_edges_A == 'True':
+    user_theta_edges_A = config.get('parameters','user_theta_edges_A') # comma separated list of theta edges
 
 # Read data from HDF5 files and store px_data object
 
 px_data = Px_meas(root+datafile)
-F_zh_am, W_zh_am, k_m = px_data.unpack_healpix(positive_frequencies=True)
+F_zh_am, W_zh_am, k_m = px_data.unpack_healpix()
 print(k_m)
 print('Shape of F is',np.shape(F_zh_am)) # (N_z, N_theta, N_hp, N_k)
 assert ~np.isnan(F_zh_am).any()
@@ -48,7 +51,6 @@ print('Shape of V is',np.shape(V_zh_am))
 
 # define rebin parameters 
 bin_info = {} 
-
 
 # we will rebin the wavenumbers to make them more independent, and better measured
 max_k = px_data.k_Nyq # maximum frequency to consider, in 1/A
@@ -72,7 +74,12 @@ V_zh_aM = rebin_k(V_zh_am,B_M_m,healpix=True)
 
 
 # we need an average over all theta_bins belonging to the new theta_rebins, which will give the array (z,nhp,Nk) for each theta_rebins
-B_A_a, theta_min_A, theta_max_A = bin_func_theta(px_data.theta_bin_min,px_data.theta_bin_max,theta_bins_ratio,bin_func_type='top_hat')
+if input_edges_A == 'True':
+    theta_edges_A = [float(x) for x in user_theta_edges_A.strip('[]').split(',')]
+    B_A_a, theta_min_A, theta_max_A = bin_func_theta(px_data.theta_bin_min,px_data.theta_bin_max,theta_bins_ratio,bin_func_type='top_hat',input_edges_A=True,user_theta_edges_A=theta_edges_A)
+else:
+    B_A_a, theta_min_A, theta_max_A = bin_func_theta(px_data.theta_bin_min,px_data.theta_bin_max,theta_bins_ratio,bin_func_type='top_hat')
+
 #plt.plot(px_data.theta_bin_min,B_A_a[8,:])
 #plt.xscale('log')
 #plt.show()

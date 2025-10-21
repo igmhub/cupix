@@ -51,7 +51,7 @@ def bin_func_k(k_arr,k_fund,k_bins_ratio,max_k,k_max_ratio,bin_func_type):
     #return B_M_m,k_M
     return B_M_m, k_edges
 
-def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type):
+def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type,input_edges_A=False,user_theta_edges_A=None):
     """
     Rebin theta in log-space by merging original a-bins into N_A coarse bins.
     Args:
@@ -95,6 +95,12 @@ def bin_func_theta(theta_bin_min, theta_bin_max, theta_bins_ratio,bin_func_type)
 
     # Log-spaced coarse edges over the full range of centers
     edges_A = theta_edges[::downsize] #np.logspace(np.log10(lo), np.log10(hi), N_A + 1)
+    if input_edges_A == True:
+        print('Using user-defined coarse theta edges')
+        edges_A = np.array(user_theta_edges_A)
+        N_A = len(edges_A)-1
+        
+
     # set an offset to avoid underflow/overflow
    
     edges_A[0] = edges_A[0]-epsilon
