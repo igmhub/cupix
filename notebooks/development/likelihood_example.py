@@ -1,28 +1,27 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,py:percent
+#     formats: ipynb,py
 #     text_representation:
 #       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.17.2
+#       format_name: light
+#       format_version: '1.5'
+#       jupytext_version: 1.16.2
 #   kernelspec:
 #     display_name: cupix
 #     language: python
 #     name: python3
 # ---
 
-# %% [markdown]
 # ## Likelihood example notebook
 
-# %%
 import sys
 import numpy as np
 from cupix.likelihood.lya_theory import set_theory
 from cupix.likelihood.forestflow_emu import FF_emulator
 from cupix.likelihood.input_pipeline import Args
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
+from cupix.likelihood.likelihood import Likelihood
 # %load_ext autoreload
 # %autoreload 2
 from lace.cosmo import camb_cosmo, fit_linP
@@ -32,10 +31,9 @@ from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
 from cupix.px_data.data_lyacolore import Px_Lyacolore
 import scipy
 
-# %% [markdown]
 # Set the redshifts and fiducial cosmology
 
-# %%
+# +
 
 # Load emulator
 z = np.array([2.2])
@@ -62,34 +60,33 @@ fid_cosmo = {
 }
 sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
 cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
+# -
 
-# %% [markdown]
 # Set up the emulator
 
-# %%
 ffemu = FF_emulator(z, fid_cosmo, cc)
 ffemu.kp_Mpc = 1 # set pivot point
 
-# %% [markdown]
 # Set up the theory with some default parameters (this part inherits some old behavior from cup1d that we may change later)
 
-# %%
 emu_params = Args()
 emu_params.set_baseline()
 print(emu_params)
 
-# %%
 theory_AA = set_theory(emu_params, ffemu, free_parameters=['ln_tau_0'], k_unit='iAA')
 theory_AA.set_fid_cosmo(z)
 theory_AA.emulator = ffemu
 
-# %% [markdown]
 # Set the data
 
-# %%
-MockData = Px_Lyacolore("binned_out_truecont_px-zbins_2-thetabins_9.hdf5")
+MockData = Px_Lyacolore("binned_out_truecont_px-zbins_2-thetabins_9.hdf5", theta_min_cut_arcmin=1)
 
-# %%
+
+MockData.theta_min_A_arcmin
+
+# Set the Likelihood
+
+# +
 # set the likelihood parameters as the Arinyo params with some fiducial values
 
 likelihood_params = []
@@ -168,8 +165,73 @@ likelihood_params.append(LikelihoodParameter(
 #     min_value=-1.0,
 #     max_value=1.0,
 #     ))
+# -
 
-# %%
+Like = Likelihood(MockData, theory_AA, iz_choice=0, like_params = likelihood_params)
+
+chi2_per_param = []
+bias_vals = np.linspace(-0.1135,-0.118,10)
+for i in range(len(bias_vals)):
+    for j, param in enumerate(likelihood_params):
+        if param.name=='bias':
+            # replace the first element of the likelihood_params list
+            likelihood_params[j] = LikelihoodParameter(
+                name='bias',
+                min_value=-2.0,
+                max_value=1.0,
+                value=[bias_vals[i]]
+                )
+    # make sure it worked
+    for param in likelihood_params:
+        print(param.name, param.value)
+
+    chi2_i = Like.get_chi2([lp.value for lp in likelihood_params])
+    chi2_per_param.append(chi2_i)
+    if i==0 or chi2_i < np.min(chi2_per_param[:-1]):
+        best_bias = bias_vals[i]
+        print(f"New best fit found with chi2={chi2_i:.2f} at bias={best_bias:.4f}")
+        best_chi2 = chi2_i
+        
+    # if this is the best-fit so far, save the theory prediction
+
+
+MockData.theta_min_A_arcmin
+
+print("30",best_chi2, best_bias)
+
+print("25",best_chi2, best_bias)
+
+print("15",best_chi2, best_bias)
+
+print("5",best_chi2, best_bias)
+
+print("10",best_chi2, best_bias)
+
+plt.plot([5,10,15,30],[191,73,36,36])
+plt.ylabel(r"Best $\chi^2$")
+plt.xlabel(r"$\theta_{\min}$ [arcmin]")
+
+plt.plot(bias_vals, chi2_per_param-np.amin(chi2_per_param))
+plt.xlabel('bias')
+plt.ylabel('Log likelihood')
+plt.axvline(best_bias, color='grey')
+plt.title('Log likelihood vs Bias')
+
+likelihood_params_best = likelihood_params
+for j, param in enumerate(likelihood_params):
+        if param.name=='bias':
+            # replace the first element of the likelihood_params list
+            likelihood_params_best[j] = LikelihoodParameter(
+                name='bias',
+                min_value=-2.0,
+                max_value=1.0,
+                value=[best_bias]
+                )
+
+MockData.z
+
+Like.plot_px(0, likelihood_params_best, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None)
+
 Px_theory_bestfit = []
 bias_vals = np.linspace(-0.1135,-0.118,20)
 chi2_per_param = []
@@ -247,7 +309,7 @@ for i in range(len(bias_vals)):
         print(f"New best fit found with chi2={chi2_total:.2f} at bias={best_bias:.4f}")
 
 
-# %%
+# +
 delta_chi2 = np.array(chi2_per_param)-min(chi2_per_param)
 plt.plot(bias_vals, delta_chi2, marker='o')
 plt.xlabel("bias")
@@ -265,7 +327,7 @@ plt.axhline(chi_squared_5sig, color='red', linestyle='--', label='5 sigma thresh
 plt.show()
 plt.clf()
 
-# %%
+# +
 # plot the best-fit value
 
 plt.rcParams.update({'font.size': 14})
@@ -292,11 +354,11 @@ handles.append(plt.Line2D([], [], color='black', linestyle='solid', label='Fores
 handles.append(plt.Line2D([], [], color='black', marker='o', linestyle='none', label='IFAE-QL mock data, true-continuum'))
 
 plt.legend(handles=handles, loc='upper right', fontsize='small')
+# -
 
-# %%
 best_bias
 
-# %%
+# +
 # plot the best-fit value
 
 plt.rcParams.update({'font.size': 14})
@@ -319,7 +381,7 @@ handles, labels = plt.gca().get_legend_handles_labels()
 handles.append(plt.Line2D([], [], color='#17becf', linestyle='solid', label='ForestFlow prediction, windowed'))
 plt.legend(handles=handles, loc='upper right', fontsize='small')
 
-# %%
+# +
 import scipy.stats
 import math
 
@@ -348,12 +410,11 @@ print("p-value   \t" + "\t".join(["%1.5f"%(1-ci) for ci in conf_int]))
 for d in dof:
     chi_squared = [ scipy.stats.chi2.ppf( ci, d) for ci in conf_int ]
     print("chi2(k=%d)\t"%d + "\t" .join(["%1.2f" % c for c in chi_squared]))
+# -
 
-# %% [markdown]
 # Do a Silicon test
 #
 
-# %%
 likelihood_params.append(LikelihoodParameter(
     name='bias_SiIII',
     min_value=-1.0,
@@ -373,7 +434,7 @@ likelihood_params.append(LikelihoodParameter(
     value = [0.5740]
     ))
 
-# %%
+# +
 Px_amZ_with_silicon = theory_AA.get_px_AA(
     zs = [z],
     k_AA=[k_AA],
@@ -392,18 +453,16 @@ Px_amZ_without_silicon = theory_AA.get_px_AA(
     add_silicon=False,
     
 )
+# -
 
-# %%
 plt.plot(k_AA, Px_amZ_without_silicon.flatten(), label='without SiIII')
 plt.plot(k_AA, Px_amZ_with_silicon.flatten(), label='with SiIII')
 plt.xlim([0,0.3])
 plt.legend()
 
-# %%
 # check comoving size at this redshift
 from astropy.cosmology import Planck18 as cosmo
 from astropy import units as u
 (cosmo.kpc_comoving_per_arcmin(2.4)*32.5*u.arcmin).to(u.Mpc)
 
-# %% [markdown]
 #
