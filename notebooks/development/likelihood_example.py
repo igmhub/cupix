@@ -28,7 +28,7 @@ from lace.cosmo import camb_cosmo, fit_linP
 import matplotlib.pyplot as plt
 import h5py
 from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
-from cupix.px_data.data_lyacolore import Px_Lyacolore
+from cupix.px_data.data_DESI_DR2 import DESI_DR2
 import scipy
 
 # Set the redshifts and fiducial cosmology
@@ -79,7 +79,7 @@ theory_AA.emulator = ffemu
 
 # Set the data
 
-MockData = Px_Lyacolore("binned_out_truecont_px-zbins_2-thetabins_9.hdf5", theta_min_cut_arcmin=1)
+MockData = DESI_DR2("binned_out_truecont_px-zbins_2-thetabins_9.hdf5", theta_min_cut_arcmin=1)
 
 
 MockData.theta_min_A_arcmin

@@ -1,22 +1,21 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,py
+#     formats: ipynb,py:percent
 #     text_representation:
 #       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.16.2
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.17.2
 #   kernelspec:
 #     display_name: cupix
 #     language: python
 #     name: python3
 # ---
 
-# Minuit minimizer
-#
-
+# %%
 import numpy as np
+from cupix.likelihood.generate_fake_data import FakeData
 from cupix.likelihood.lya_theory import set_theory
 from cupix.likelihood.forestflow_emu import FF_emulator
 from cupix.likelihood.input_pipeline import Args
@@ -31,10 +30,12 @@ from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 # %load_ext autoreload
 # %autoreload 2
 
-# +
+# %%
+MockData = DESI_DR2("/Users/mlokken/research/lyman_alpha/software/cupix/data/px_measurements/Lyacolore/binned_out_trucont_px-zbins_2-thetabins_18.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
 
+# %%
 # Load emulator
-z = np.array([2.2])
+z = MockData.z
 omnuh2 = 0.0006
 mnu = omnuh2 * 93.14
 H0 = 67.36
@@ -58,69 +59,73 @@ fid_cosmo = {
 }
 sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
 cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
-# -
 
 ffemu = FF_emulator(z, fid_cosmo, cc)
 ffemu.kp_Mpc = 1 # set pivot point
 
-emu_params = Args()
-emu_params.set_baseline()
-print(emu_params)
-
-theory_AA = set_theory(emu_params, ffemu, free_parameters=['ln_tau_0'], k_unit='iAA')
+theory_AA = set_theory(ffemu, k_unit='iAA')
 theory_AA.set_fid_cosmo(z)
 theory_AA.emulator = ffemu
 
-MockData = DESI_DR2("binned_out_truecont_px-zbins_2-thetabins_9.hdf5", theta_min_cut_arcmin=10)
-
-
-# +
+# %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
 
 like_params = []
 like_params.append(LikelihoodParameter(
     name='bias',
     min_value=-1.0,
-    max_value=1.0,
-    value=-0.115,
-    Gauss_priors_width=.5
+    max_value=0,
+    ini_value=-0.05,
+    value =-0.115,
+    Gauss_priors_width=.05
     ))
 like_params.append(LikelihoodParameter(
     name='beta',
     min_value=0.0,
     max_value=2.0,    
-    value = 1.55,
-    Gauss_priors_width=1
+    ini_value = 1.2,
+    value=1.55,
+    Gauss_priors_width=.5
     ))
 like_params.append(LikelihoodParameter(
     name='q1',
     min_value=0.0,
     max_value=1.0,
-    value = 0.1112
+    ini_value = 0.04,
+    value=0.1112,
+    Gauss_priors_width=0.111
     ))
 like_params.append(LikelihoodParameter(
     name='kvav',
     min_value=0.0,
     max_value=1.0,
-    value = 0.0001**0.2694
+    ini_value = 0.0003**0.2694,
+    value=0.0001**0.2694,
+    Gauss_priors_width=0.0003**0.2694,
     ))
 like_params.append(LikelihoodParameter(
     name='av',
     min_value=0.0,
     max_value=1.0,
-    value = 0.2694
+    ini_value = 0.7,
+    value=0.2694,
+    Gauss_priors_width=0.27
     ))
 like_params.append(LikelihoodParameter(
     name='bv',
     min_value=0.0,
     max_value=1.0,
-    value = 0.0002
+    ini_value = 0.0004,
+    value=0.0002,
+    Gauss_priors_width=0.0002
     ))
 like_params.append(LikelihoodParameter(
     name='kp',
     min_value=0.0,
     max_value=1.0,
-    value = 0.5740
+    ini_value = 0.33,
+    value=0.5740,
+    Gauss_priors_width=0.5
     ))
 
 
@@ -155,32 +160,32 @@ like_params.append(LikelihoodParameter(
 #     min_value=-1.0,
 #     max_value=1.0,
 #     ))
-# -
 
-like = Likelihood(MockData, theory_AA, free_param_names=["bias","beta"], iz_choice=0, like_params=like_params)
+# %%
+like = Likelihood(MockData, theory_AA, free_param_names=["bias"], iz_choice=[0,1], like_params=like_params, verbose=False)
 
-mini = IminuitMinimizer(like, like_params, verbose=True)
+# %%
+fakedata = FakeData(like)
 
-mini.minimize()
+# %%
+# save the fake data in the same format as the Colore mock measurements
+fakedata.write_to_file("/Users/mlokken/research/lyman_alpha/software/cupix/data/px_measurements/forecast/forecast_binned_out_trucont_px-zbins_2-thetabins_18.hdf5")
 
-mini.best_fit_value("bias")
+# %%
+# read in the fake data to verify
+forecast = DESI_DR2("/Users/mlokken/research/lyman_alpha/software/cupix/data/px_measurements/forecast/forecast_binned_out_trucont_px-zbins_2-thetabins_18.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
 
-mini.minimizer.params
+# %%
+noisy_Px = fakedata.generate_px(iz_choice=0, theta_A_ind=np.arange(len(MockData.theta_centers_arcmin)), like_params=like_params)
 
-mini.minimizer.params
+# %%
+k = (like.data.k_M_edges[:-1]+like.data.k_M_edges[1:])/2.
+for iA in range(0,noisy_Px.shape[0], 1):
+    plt.errorbar(k, noisy_Px[iA,:], yerr=np.sqrt(np.diag(like.data.cov_ZAM[0][iA])), fmt='o', label=f'Theta={like.data.theta_centers_arcmin[iA]:.2f}\', fake data')
+    # compare with the real data
+    plt.errorbar(k, like.data.Px_ZAM[0][iA,:], yerr=np.sqrt(np.diag(like.data.cov_ZAM[0][iA])), fmt='*', color='k', label='Lyacolore Mock Data')
+    plt.legend()
+    plt.show()
+    plt.clf()
 
-import copy
-like_params_to_plot = copy.deepcopy(like_params)
-like_params_to_plot[0].value = -0.1204
-like_params_to_plot[1].value = 1.46
-
-for p in like_params_to_plot:
-    print(f"{p.name}: {p.value}")   
-
-like.plot_px(0, like_params, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None)
-
-
-like.plot_px(0, like_params_to_plot, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None)
-
-
-
+# %%
