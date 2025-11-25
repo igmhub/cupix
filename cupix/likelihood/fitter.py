@@ -27,8 +27,7 @@ class Fitter(object):
         subfolder=None,
         rootdir=None,
         parallel=False,
-        explore=False,
-        fix_cosmology=False,
+        explore=False
     ):
         """Setup sampler from likelihood, or use default.
         If read_chain_file is provided, read pre-computed chain.
@@ -39,7 +38,7 @@ class Fitter(object):
         self.explore = explore
         self.verbose = verbose
         self.burnin_nsteps = nburnin
-
+        print(param_dict)
         self.param_dict = param_dict
         self.param_dict_rev = param_dict_rev
 
@@ -51,13 +50,12 @@ class Fitter(object):
             self.rank = 0
             self.size = 1
 
-        self.fix_cosmology = fix_cosmology
 
         self.print = create_print_function(self.verbose)
 
         self.like = like
         # number of free parameters to sample
-        self.ndim = len(self.like.free_params)
+        self.ndim = len(self.like.free_param_names)
 
         if self.rank == 0:
             self._setup_chain_folder(rootdir, subfolder)
@@ -77,14 +75,13 @@ class Fitter(object):
                 min_walkers = 2 * self.ndim
                 nwalkers = max_walkers // self.size + 1
                 combined_steps = max_walkers * (nsteps + self.burnin_nsteps)
-
+                
                 if nwalkers < min_walkers:
                     nwalkers = min_walkers
                     nsteps = (
                         combined_steps // (nwalkers * self.size)
                         - self.burnin_nsteps
                     )
-
                 for irank in range(1, self.size):
                     self.comm.send(nsteps, dest=irank, tag=irank * 11)
                     self.comm.send(nwalkers, dest=irank, tag=irank * 13)
@@ -116,18 +113,13 @@ class Fitter(object):
 
         ## Set up list of parameter names in tex format for plotting
         self.paramstrings = []
-        for param in self.like.free_params:
-            self.paramstrings.append(param_dict[param.name])
-
-        # when running on simulated data, we can store true cosmo values
-        self.set_truth()
+        for param_name in self.like.free_param_names:
+            self.paramstrings.append(param_dict[param_name])
 
         # Figure out what extra information will be provided as blobs
         self.blobs_dtype = self.like.theory.get_blobs_dtype()
         self.mle = None
 
-        # set blinding
-        self.set_blinding()
 
     def set_truth(self):
         """Set up dictionary with true values of cosmological
@@ -266,9 +258,6 @@ class Fitter(object):
                 ]
                 self.set_mle(map_chain, map_chi2)
 
-                # apply masking (only to star parameters)
-                self.blobs = self.apply_blinding(self.blobs, sample="chains")
-
         return sampler
 
     def run_minimizer(
@@ -276,7 +265,6 @@ class Fitter(object):
         log_func_minimize=None,
         p0=None,
         nsamples=8,
-        zmask=None,
         restart=False,
     ):
         """Minimizer"""
@@ -284,21 +272,19 @@ class Fitter(object):
         if restart:
             self.mle_chi2 = 1e10
 
-        npars = len(self.like.free_params)
+        npars = len(self.like.free_param_names)
 
-        if zmask is not None:
-            _log_func_minimize = lambda x: log_func_minimize(x, zmask=zmask)
-        else:
-            _log_func_minimize = log_func_minimize
+        _log_func_minimize = log_func_minimize
 
         if p0 is not None:
             # start at the initial value
             mle_cube = p0.copy()
         else:
-            # star at the center of the parameter space
+            # start at the center of the parameter space
             mle_cube = np.ones(npars) * 0.5
 
-        chi2 = self.like.get_chi2(mle_cube, zmask=zmask)
+        print(mle_cube)
+        chi2 = self.like.get_chi2(mle_cube)
         chi2_ini = chi2 * 1
 
         # perturbations around starting point
@@ -321,7 +307,7 @@ class Fitter(object):
                 method="Nelder-Mead",
                 bounds=((0.0, 1.0),) * npars,
             )
-            _chi2 = self.like.get_chi2(res.x, zmask=zmask)
+            _chi2 = self.like.get_chi2(res.x)
 
             # if chi2 does not get significantly better after a few it, stop
             if chi2 - _chi2 < 0.5:
@@ -355,8 +341,8 @@ class Fitter(object):
 
         self.mle_cube = mle_cube
         mle_no_cube = mle_cube.copy()
-        for ii, par_i in enumerate(self.like.free_params):
-            scale_i = par_i.max_value - par_i.min_value
+        for ii, par_name in enumerate(self.like.free_param_names):
+            par_i = self.like.like_parameter_by_name(par_name)
             mle_no_cube[ii] = par_i.value_from_cube(mle_cube[ii])
 
         print("Fit params cube:", self.mle_cube, flush=True)
@@ -371,47 +357,17 @@ class Fitter(object):
         # errors from Hessian do not work
         # self.mle_cosmo = self.get_cosmo_err(log_func_minimize)
 
-        # apply blinding
-        self.mle_cosmo = self.apply_blinding(self.mle_cosmo, sample="mle")
-
-        self.lnprop_mle, *blobs = self.like.log_prob_and_blobs(self.mle_cube)
-
+        self.lnprop_mle = self.like.compute_log_prob(self.mle_cube)
+        
         self.mle = {}
         for ii, par in enumerate(self.paramstrings):
             self.mle[par] = mle_no_cube[ii]
         for par in self.mle_cosmo:
             self.mle[par] = self.mle_cosmo[par]
 
-        if "A_s" not in self.paramstrings[0]:
-            return
-        self.mle = self.apply_blinding(self.mle, conv=True)
 
-        for key in self.blind:
-            if self.blind[key] != 0:
-                print("Results are blinded")
-            else:
-                print("Results are not blinded")
+        return
 
-        for par in self.mle_cosmo:
-            if par == "Delta2_star":
-                if self.like.truth is not None:
-                    print("MLE, Truth, MLE/Truth - 1")
-                else:
-                    print("MLE")
-
-            val = np.round(self.mle_cosmo[par], 5)
-            if self.like.truth is not None:
-                if par in self.like.truth["like_params"]:
-                    true = np.round(self.like.truth["like_params"][par], 5)
-                    rat = np.round(
-                        self.mle_cosmo[par]
-                        / self.like.truth["like_params"][par]
-                        - 1,
-                        5,
-                    )
-                    print(par, val, true, rat)
-            else:
-                print(par, val)
 
     def get_cosmo_err(self, fun_minimize):
         """Deprecated
@@ -425,7 +381,8 @@ class Fitter(object):
 
         hess = nd.Hessian(fun_minimize)
         ii = 0
-        for par_i in self.like.free_params:
+        for par_name in self.like.free_param_names:
+            par_i = self.like.like_parameter_by_name(par_name)
             if par_i.name == "As":
                 ii += 1
             elif par_i.name == "ns":
@@ -440,7 +397,8 @@ class Fitter(object):
         mle_cov_cube = np.linalg.inv(cov)
 
         mle_cov = np.zeros((3, 3))
-        for par_i in self.like.free_params:
+        for par_name in self.like.free_param_names:
+            par_i = self.like.like_parameter_by_name(par_name)
             if par_i.name == "As":
                 ii = 0
             elif par_i.name == "ns":
@@ -450,7 +408,8 @@ class Fitter(object):
             else:
                 continue
             scale_i = par_i.max_value - par_i.min_value
-            for par_j in self.like.free_params:
+            for par_name in self.like.free_param_names:
+                par_j = self.like.like_parameter_by_name(par_name)
                 if par_j.name == "As":
                     jj = 0
                 elif par_j.name == "ns":
@@ -543,9 +502,9 @@ class Fitter(object):
         if cube == False:
             cube_values = np.zeros_like(chain)
             for ip in range(chain.shape[-1]):
-                cube_values[..., ip] = self.like.free_params[
-                    ip
-                ].value_from_cube(chain[..., ip])
+                par_name = self.like.free_param_names[ip]
+                par_ip = self.like.like_parameter_by_name(par_name)
+                cube_values[..., ip] = par_ip.value_from_cube(chain[..., ip])
 
             return cube_values, lnprob, blobs
         else:
@@ -645,20 +604,7 @@ class Fitter(object):
 
         return
 
-    def set_blinding(self):
-        """Set the blinding parameters"""
-        blind_prior = {"Delta2_star": 0.05, "n_star": 0.01, "alpha_star": 0.005}
-        if self.like.data.apply_blinding:
-            seed = int.from_bytes(
-                self.like.data.blinding.encode("utf-8"), byteorder="big"
-            )
-            rng = np.random.default_rng(seed)
-        self.blind = {}
-        for key in blind_prior:
-            if self.like.data.apply_blinding:
-                self.blind[key] = rng.normal(0, blind_prior[key])
-            else:
-                self.blind[key] = 0
+
 
     def apply_blinding(self, dict_cosmo, conv=False, sample=None):
         """Apply blinding to the dict_cosmo"""
@@ -745,7 +691,7 @@ class Fitter(object):
         dict_out["like"] = {}
         dict_out["like"]["cosmo_fid_label"] = self.like.fid
         dict_out["like"]["emu_cov_factor"] = self.like.emu_cov_factor
-        dict_out["like"]["free_params"] = self.like.free_param_names
+        dict_out["like"]["free_param_names"] = self.like.free_param_names
 
         # SAMPLER
         if save_chains:
@@ -831,7 +777,9 @@ class Fitter(object):
 
             dict_out["fitter"]["chain_from_cube"] = {}
             for ip in range(self.chain.shape[-1]):
-                param = self.like.free_params[ip]
+                param = self.like.like_parameter_by_name(
+                    self.like.free_param_names[ip]
+                )
                 dict_out["fitter"]["chain_from_cube"][param.name] = np.zeros(2)
                 dict_out["fitter"]["chain_from_cube"][param.name][
                     0
@@ -927,6 +875,14 @@ param_dict = {
     "ombh2": "$\omega_b$",
     "omch2": "$\omega_c$",
     "cosmomc_theta": "$\\theta_{MC}$",
+    "bias": "$b$",
+    "beta": "$\\beta$",
+    "q1": "$q_1$",
+    "q2": "$q_2$",
+    "kvav": "$k_v^{av}$",
+    "kp": "$k_p$",
+    "av": "$a_v$",
+    "bv": "$b_v$"
 }
 
 metal_lines = [

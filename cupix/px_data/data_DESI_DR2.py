@@ -5,15 +5,14 @@ import h5py
 from cupix.px_data.base_px_data import BaseDataPx
 
 
-class Px_Lyacolore(BaseDataPx):
-    """Class containing Px from Lyacolore"""
+class DESI_DR2(BaseDataPx):
+    """Class containing Px in format of DESI DR2-style analysis.
+    This can include Colore mock data, real data, or forecasts."""
 
-    def __init__(self, filename, theta_min_cut_arcmin=None, theta_max_cut_arcmin=None):
+    def __init__(self, filepath, theta_min_cut_arcmin=None, theta_max_cut_arcmin=None, kmin_cut_AA=None, kmax_cut_AA=None):
         """Read measured Px."""
-
         # folder storing P1D measurements
-        datadir = BaseDataPx.BASEDIR + "/Lyacolore/"
-        self.filepath = os.path.join(datadir, filename)
+        self.filepath = filepath
         # read redshifts, wavenumbers, power spectra and covariance matrices
         k_m, k_M_edges, theta_min_a, theta_max_a, theta_min_A, theta_max_A, zbin_centers, N_fft, L_fft, B_A_a = self.read_from_file()
         Nz = len(zbin_centers)
@@ -23,6 +22,7 @@ class Px_Lyacolore(BaseDataPx):
         # store the data as a 3D array of (Nz, Ntheta, Nk)
         Px_ZAM = np.zeros((Nz, Ntheta_A, Nk_M))
         cov_ZAM = np.zeros((Nz, Ntheta_A, Nk_M, Nk_M))
+        
         for iz in range(Nz):
             for A in range(Ntheta_A):
                 Px_ZAM[iz, A, :] = self.get_Px_z_T(iz, A)
@@ -55,7 +55,9 @@ class Px_Lyacolore(BaseDataPx):
                         V_ZaM=V_ZaM,
                         filepath=self.filepath,
                         theta_min_cut_arcmin=theta_min_cut_arcmin,
-                        theta_max_cut_arcmin=theta_max_cut_arcmin)
+                        theta_max_cut_arcmin=theta_max_cut_arcmin,
+                        kmin_cut_AA=kmin_cut_AA,
+                        kmax_cut_AA=kmax_cut_AA)
         return
 
 

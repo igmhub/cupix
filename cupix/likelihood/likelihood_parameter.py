@@ -9,6 +9,7 @@ class LikelihoodParameter(object):
         name,
         min_value,
         max_value,
+        ini_value=None,
         value=None,
         Gauss_priors_width=None,
         fixed=False,
@@ -20,6 +21,8 @@ class LikelihoodParameter(object):
         self.value = value
         self.Gauss_priors_width = Gauss_priors_width
         self.fixed = False
+        if ini_value is not None:
+            self.ini_value = ini_value
         return
 
     def value_in_cube(self):

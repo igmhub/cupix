@@ -15,9 +15,10 @@ class LyaP3D():
             Si_contam=False,
             contam_coeffs={},
             Arinyo=None,
+            verbose=False
 
     ):
-        
+        self.verbose = verbose
         self.z = z
         self.Si_contam = Si_contam
         self.kp_Mpc = kp_Mpc
@@ -33,7 +34,8 @@ class LyaP3D():
         # Code won't work if kpar has a zero
         if 0 in kpar_Mpc:
             # replace zero with a small number
-            print("Warning: kpar_Mpc contains zero. Replacing with 1e-5 to avoid issues.")
+            if self.verbose:
+                print("Warning: kpar_Mpc contains zero. Replacing with 1e-5 to avoid issues.")
             kpar_Mpc = np.where(kpar_Mpc == 0, 1e-5, kpar_Mpc)
 
         # make sure that k_Mpc, rperp_Mpc have the same length
@@ -45,13 +47,15 @@ class LyaP3D():
         for key in self.P3D_coeffs.keys():
             if self.P3D_coeffs[key].shape != (Nz,):
                 raise ValueError(f"Arinyo coefficient {key} must be a 1D array of shape ({Nz},)")
-        
-        print("Inputting the arinyo coeffs", self.P3D_coeffs)
+        if self.verbose:
+            print("Inputting the arinyo coeffs", self.P3D_coeffs)
         if self.Si_contam:
-            print("Including Si contamination with coeffs", self.contam_coeffs)
+            if self.verbose:
+                print("Including Si contamination with coeffs", self.contam_coeffs)
             Px_pred_Mpc = Px_Mpc_withSiIII(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs, Si_coeffs=self.contam_coeffs, Arinyo=self.arinyo)
         else:
-            print("No Si contamination")
+            if self.verbose:
+                print("No Si contamination")
             Px_pred_Mpc = pcross.Px_Mpc(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs)
             
         if np.any(np.isnan(Px_pred_Mpc)):

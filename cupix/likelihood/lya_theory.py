@@ -17,49 +17,14 @@ from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
 
 def set_theory(
-    args, emulator, free_parameters=None, use_hull=True, fid_or_true="fid", k_unit='iAA'
+    emulator, k_unit='iAA'
 ):
     """Set theory"""
 
 
-    if fid_or_true == "fid":
-        pars_igm = args.fid_igm
-        pars_cont = args.fid_cont
-        pars_syst = args.fid_syst
-    elif fid_or_true == "true":
-        pars_igm = args.true_igm
-        pars_cont = args.true_cont
-        pars_syst = args.true_syst
-    else:
-        raise ValueError("fid_or_true must be 'fid' or 'true'")
-    args.pars_igm = pars_igm
-
-    # set igm model
-    model_igm = IGM(free_param_names=free_parameters, pars_igm=pars_igm)
-    
-    # set contaminants
-    model_cont = Contaminants(
-        free_param_names=free_parameters,
-        pars_cont=pars_cont,
-        ic_correction=args.ic_correction,
-    )
-    # set systematics
-    model_syst = Systematics(
-        free_param_names=free_parameters, pars_syst=pars_syst
-    )
-
-    
-
     # set theory
     theory = Theory(
         emulator=emulator,
-        model_igm=model_igm,
-        model_cont=model_cont,
-        model_syst=model_syst,
-        use_hull=use_hull,
-        use_star_priors=args.use_star_priors,
-        z_star=args.z_star,
-        kp_kms=args.kp_kms,
         k_unit = k_unit
     )
 
@@ -74,10 +39,6 @@ class Theory(object):
     def __init__(
         self,
         emulator=None,
-        model_igm=None,
-        model_cont=None,
-        model_syst=None,
-        use_hull=True,
         verbose=False,
         z_star=3.0,
         kp_kms=0.009,
@@ -104,7 +65,6 @@ class Theory(object):
         # specify pivot point used in compressed parameters
         self.z_star = z_star
         self.kp_kms = kp_kms
-        self.use_hull = use_hull
         self.use_star_priors = use_star_priors
         self.k_unit = k_unit
         # setup emulator
@@ -119,25 +79,6 @@ class Theory(object):
         self.emu_cosmo_all = res[2]
         self.emu_igm_all = res[3]
 
-        # setup model_igm
-        if model_igm is None:
-            print("Model_IGM is None, this isn't implemented yet.")
-            self.model_igm = IGM() # should add some default behavior here
-        else: 
-            self.model_igm = model_igm
-            print("Using input IGM model.")
-
-        # setup model_cont
-        if model_cont is None:
-            self.model_cont = Contaminants()
-        else:
-            self.model_cont = model_cont
-
-        # setup model_syst
-        if model_syst is None:
-            self.model_syst = Systematics()
-        else:
-            self.model_syst = model_syst
 
     def set_fid_cosmo(
         self, zs, zs_hires=None, input_cosmo=None, extra_factor=1.15
@@ -147,23 +88,6 @@ class Theory(object):
         self.zs = zs
         self.zs_hires = zs_hires
 
-        if self.use_hull:
-            self.hull = Hull(
-                zs=zs,
-                data_hull=self.hc_points,
-                suite="mpg",
-                extra_factor=extra_factor,
-            )
-            if zs_hires is not None:
-                if len(zs) == len(zs_hires):
-                    self.hull_hires = self.hull
-                else:
-                    self.hull_hires = Hull(
-                        zs=zs_hires,
-                        data_hull=self.hc_points,
-                        suite=self.emulator.list_sim_cube[0][:3],
-                        extra_factor=extra_factor,
-                    )
 
         # setup fiducial cosmology (used for fitting)
         if input_cosmo is None:
@@ -421,7 +345,8 @@ class Theory(object):
 
         for key in self.emulator.emu_params:
             if key in [par.name for par in like_params]: # if this parameter will be used in the likelihood
-                print("Found parameter", key, "in likelihood parameters")
+                if self.verbose:
+                    print("Found parameter", key, "in likelihood parameters")
 
                 if (key == "Delta2_p") | (key == "n_p") | (key == "alpha_p"):
                     emu_call[key] = np.zeros(len(zs))
@@ -610,7 +535,8 @@ class Theory(object):
         k_AA,
         theta_arcmin,
         like_params=[],
-        add_silicon=False
+        add_silicon=False,
+        verbose=None
     ):
         """Emulate Px in velocity units, for all redshift bins,
         as a function of input likelihood parameters.
@@ -618,6 +544,8 @@ class Theory(object):
         It might also return a covariance from the emulator,
         or a blob with extra information for the fitter."""
         
+        if verbose is None:
+            verbose = self.verbose
 
         zs = np.atleast_1d(zs)
         Nz = len(zs)
@@ -663,10 +591,12 @@ class Theory(object):
         
         # get the Arinyo coeffs if they're not already being fed in (e.g. if the likelihood parameters don't include them)
         if not self.has_all_arinyo_coeffs(like_params):
-            print("Arinyo coefficients not found in likelihood parameters, using emulator to get them")
+            if verbose:
+                print("Arinyo coefficients not found in likelihood parameters, using emulator to get them")
             arinyo_coeffs = self.emulator.emulate_P3D_params(emu_call)
         else:
-            print("Arinyo coefficients found in likelihood parameters, using them")
+            if verbose:
+                print("Arinyo coefficients found in likelihood parameters, using them")
             arinyo_coeffs = {}
             for par in like_params:
                 if par.name in ["bias", "beta", "q1", "kvav", "av", "bv", "kp"]:
@@ -679,13 +609,14 @@ class Theory(object):
         p3d_model = self.emulator.arinyo.P3D_Mpc
         si_coeffs = {}
         if add_silicon:
-            print("Adding silicon contamination")
+            if verbose:
+                print("Adding silicon contamination")
             # add silicon contamination
             for par in like_params:
                 if par.name in ["bias_SiIII", "beta_SiIII", "k_p_SiIII"]:
                     si_coeffs[par.name] = par.value
 
-        lyap3d = LyaP3D(zs, p3d_model, arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, Arinyo=self.emulator.arinyo)
+        lyap3d = LyaP3D(zs, p3d_model, arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, Arinyo=self.emulator.arinyo, verbose=verbose)
         px_pred_Mpc = lyap3d.model_Px(kin_Mpc, theta_in_Mpc)
         # move from Mpc to AA
         px_AA = np.zeros((Nz, Ntheta, Nk))

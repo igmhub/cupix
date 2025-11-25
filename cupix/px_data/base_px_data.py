@@ -32,7 +32,9 @@ class BaseDataPx(object):
         V_ZaM=None,
         filepath=None,
         theta_min_cut_arcmin=None,
-        theta_max_cut_arcmin=None
+        theta_max_cut_arcmin=None,
+        kmin_cut_AA=None,
+        kmax_cut_AA=None
     ):
         """Construct base Px class, from measured power and covariance"""
 
@@ -45,8 +47,6 @@ class BaseDataPx(object):
         self.N_fft = N_fft
         self.L_fft = L_fft
 
-        # set theta centers
-        self.theta_centers_arcmin = 0.5 * (self.theta_min_A_arcmin + self.theta_max_A_arcmin)
 
         if filepath is not None:
             self.filepath = filepath
@@ -72,6 +72,11 @@ class BaseDataPx(object):
 
         if theta_min_cut_arcmin is not None or theta_max_cut_arcmin is not None:
             self.limit_theta_range(theta_min_arcmin=theta_min_cut_arcmin, theta_max_arcmin=theta_max_cut_arcmin)
+        if kmin_cut_AA is not None or kmax_cut_AA is not None:
+            self.limit_k_range(k_min_AA=kmin_cut_AA, k_max_AA=kmax_cut_AA)
+        # set theta centers
+        self.theta_centers_arcmin = 0.5 * (self.theta_min_A_arcmin + self.theta_max_A_arcmin)
+
         return
     
 
@@ -87,8 +92,6 @@ class BaseDataPx(object):
         if theta_max_arcmin is None:
             theta_max_arcmin = self.theta_max_A_arcmin[-1]
 
-        if (theta_min_arcmin < self.theta_min_A_arcmin[0]) or (theta_max_arcmin > self.theta_max_A_arcmin[-1]):
-            raise ValueError("Provided theta limits are out of bounds of the current data.")
 
         # find indices of theta bins within the specified range
         indices_A = np.where((self.theta_min_A_arcmin >= theta_min_arcmin) & (self.theta_max_A_arcmin <= theta_max_arcmin))[0]
@@ -115,5 +118,36 @@ class BaseDataPx(object):
         # update Px_ZAM and cov_ZAM
         self.Px_ZAM = self.Px_ZAM[:, indices_A, :]
         self.cov_ZAM = self.cov_ZAM[:, indices_A, :, :]
+
+        return
+    
+    def limit_k_range(self, k_min_AA=None, k_max_AA=None):
+        """Limit the k range of the data to [k_min_AA, k_max_AA]"""
+
+        if (k_min_AA is None) and (k_max_AA is None):
+            warn("No k limits provided. No changes made.")
+            return
+
+        if k_min_AA is None:
+            k_min_AA = self.k_M_edges[0]
+        if k_max_AA is None:
+            k_max_AA = self.k_M_edges[-1]
+
+        # find indices of k bins within the specified range
+        indices_M = np.where((self.k_M_edges[:-1] >= k_min_AA) & (self.k_M_edges[1:] <= k_max_AA))[0]
+        if len(indices_M) == 0:
+            raise ValueError("No k bins found within the specified range.")
+
+        # update k bin edges
+        self.k_M_edges = self.k_M_edges[np.concatenate(([indices_M[0]], indices_M + 1))]
+
+        # update Px_ZAM and cov_ZAM
+        self.Px_ZAM = self.Px_ZAM[:, :, indices_M]
+        self.cov_ZAM = self.cov_ZAM[:, :, indices_M, :][:, :, :, indices_M]
+        
+        if self.has_theta_rebinning:
+            # update U_ZaMn
+            self.U_ZaMn = self.U_ZaMn[:, :, indices_M, :]
+            self.V_ZaM = self.V_ZaM[:, :, indices_M]
 
         return

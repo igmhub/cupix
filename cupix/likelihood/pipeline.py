@@ -14,7 +14,7 @@ from cupix.likelihood.model_igm import IGM
 from cupix.likelihood.fitter import Fitter
 from cupix.likelihood.plotter import Plotter # need to change to cupix later
 from cupix.px_data import (
-    data_lyacolore
+    data_DESI_DR2
 )
 
 def set_free_like_parameters(params, emulator_label):
@@ -102,7 +102,7 @@ def set_Px(
     if (
         (data_label.startswith("lyacolore"))
     ):        
-        data = data_lyacolore.Px_Lyacolore(
+        data = data_DESI_DR2.DESI_DR2(
         )
     else:
         raise ValueError(f"data_label {data_label} not implemented")
