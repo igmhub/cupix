@@ -1,0 +1,35 @@
+axes.titlesize: 14
+axes.labelsize: 12
+xtick.labelsize: 8
+ytick.labelsize: 8
+
+axes.labelweight: bold
+font.family: Sans-serif
+font.size: 12
+figure.figsize: 4, 3
+figure.dpi: 300
+lines.linewidth: 1.5
+lines.markersize: 6
+axes.grid: False
+grid.linestyle: --
+grid.color: gray
+# Tick direction settings
+xtick.direction: in    # Ticks on the x-axis point both in and out
+ytick.direction: in    # Ticks on the y-axis point both in and out
+# Tick size and width
+xtick.major.size: 5
+ytick.major.size: 5
+xtick.minor.size: 2.5
+ytick.minor.size: 2.5
+xtick.major.width: 1
+ytick.major.width: 1
+
+# Customize tick direction for top and right axes
+xtick.top: False           # Show ticks on the top axis
+ytick.right: False         # Show ticks on the right axis
+# Legend settings
+legend.frameon: True  # Removes the border (frame) around the legend box
+legend.fontsize: 10     # Font size for legend text
+legend.loc: best        # Legend location (e.g., "best", "upper left", etc.)
+
+image.cmap: tab10

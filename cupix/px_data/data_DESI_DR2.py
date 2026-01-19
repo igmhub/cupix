@@ -16,13 +16,12 @@ class DESI_DR2(BaseDataPx):
         # read redshifts, wavenumbers, power spectra and covariance matrices
         k_m, k_M_edges, theta_min_a, theta_max_a, theta_min_A, theta_max_A, zbin_centers, N_fft, L_fft, B_A_a = self.read_from_file()
         Nz = len(zbin_centers)
-        Nk_M = len(k_M_edges)-1
+        Nk_M = len(k_M_edges)-1 # assume all same k_M_edges for different z, although we will expand this to a 2D array for flexibility in kmin / kmax cut with z
         Ntheta_A = len(theta_min_A)
         Ntheta_a = len(theta_min_a)
         # store the data as a 3D array of (Nz, Ntheta, Nk)
         Px_ZAM = np.zeros((Nz, Ntheta_A, Nk_M))
         cov_ZAM = np.zeros((Nz, Ntheta_A, Nk_M, Nk_M))
-        
         for iz in range(Nz):
             for A in range(Ntheta_A):
                 Px_ZAM[iz, A, :] = self.get_Px_z_T(iz, A)

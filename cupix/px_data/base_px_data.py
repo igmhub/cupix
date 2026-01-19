@@ -39,14 +39,12 @@ class BaseDataPx(object):
         """Construct base Px class, from measured power and covariance"""
 
         self.z = np.array(z)
-        self.k_M_edges = k_M_edges_AA
         self.theta_min_a_arcmin = theta_min_a_arcmin
         self.theta_min_A_arcmin = theta_min_A_arcmin
         self.theta_max_A_arcmin = theta_max_A_arcmin
-        self.z = z
         self.N_fft = N_fft
         self.L_fft = L_fft
-
+        self.Nz = len(self.z)
 
         if filepath is not None:
             self.filepath = filepath
@@ -55,7 +53,17 @@ class BaseDataPx(object):
 
         if has_k_rebinning:
             assert k_m_AA is not None, "k_m_AA must be provided if has_k_rebinning is True"
-            self.k_m = k_m_AA
+            if self.Nz>1 and k_m_AA.shape[0]!=self.Nz:
+                # duplicate to make 1 k for each z
+                self.k_m = np.tile(k_m_AA,(self.Nz,1))
+                self.k_M_edges = np.tile(k_M_edges_AA,(self.Nz,1))
+            elif Nz==1:
+                self.k_m = [k_m_AA]
+                self.k_M_edges = [k_M_edges_AA]
+            else:
+                self.k_m = k_m_AA
+                self.k_M_edges = k_M_edges_AA
+                
             self.has_k_rebinning = True
         if has_theta_rebinning:
             assert theta_min_a_arcmin is not None, "theta_min_a_arcmin must be provided if has_theta_rebinning is True"
@@ -123,31 +131,40 @@ class BaseDataPx(object):
     
     def limit_k_range(self, k_min_AA=None, k_max_AA=None):
         """Limit the k range of the data to [k_min_AA, k_max_AA]"""
+        """Eventually, I can have this more flexible to allow different k limits for each redshift"""
 
         if (k_min_AA is None) and (k_max_AA is None):
             warn("No k limits provided. No changes made.")
             return
-
-        if k_min_AA is None:
-            k_min_AA = self.k_M_edges[0]
-        if k_max_AA is None:
-            k_max_AA = self.k_M_edges[-1]
-
-        # find indices of k bins within the specified range
-        indices_M = np.where((self.k_M_edges[:-1] >= k_min_AA) & (self.k_M_edges[1:] <= k_max_AA))[0]
-        if len(indices_M) == 0:
-            raise ValueError("No k bins found within the specified range.")
-
-        # update k bin edges
-        self.k_M_edges = self.k_M_edges[np.concatenate(([indices_M[0]], indices_M + 1))]
-
-        # update Px_ZAM and cov_ZAM
-        self.Px_ZAM = self.Px_ZAM[:, :, indices_M]
-        self.cov_ZAM = self.cov_ZAM[:, :, indices_M, :][:, :, :, indices_M]
-        
-        if self.has_theta_rebinning:
-            # update U_ZaMn
-            self.U_ZaMn = self.U_ZaMn[:, :, indices_M, :]
-            self.V_ZaM = self.V_ZaM[:, :, indices_M]
+        new_k_M_edges = []
+        new_Px_ZAM = []
+        new_cov_ZAM = []
+        new_U_ZaMn = []
+        new_V_ZaM = []
+        for iz in range(self.Nz):
+            if k_min_AA is None:
+                indices_M = np.where(self.k_M_edges[iz][:-1] <= k_max_AA)[0]
+            elif k_max_AA is None:
+                indices_M = np.where(self.k_M_edges[iz][:-1] >= k_min_AA)[0]
+            else:
+                indices_M = np.where((self.k_M_edges[iz][:-1] >= k_min_AA) & (self.k_M_edges[iz][1:] <= k_max_AA))[0]
+            if len(indices_M) == 0:
+                raise ValueError("No k bins found within the specified range.")        
+            new_k_M_edges.append(self.k_M_edges[iz][np.concatenate(([indices_M[0]], indices_M + 1))])
+            # update Px_ZAM and cov_ZAM
+            new_Px_ZAM.append(np.take(self.Px_ZAM[iz], indices_M, axis=1))
+            tmp = np.take(self.cov_ZAM[iz], indices_M, axis=1)
+            tmp = np.take(tmp, indices_M, axis=2)
+            new_cov_ZAM.append(tmp)
+            if self.has_theta_rebinning:
+                # update U_ZaMn
+                new_U_ZaMn.append(np.take(self.U_ZaMn[iz], indices_M, axis=1))
+                new_V_ZaM.append(np.take(self.V_ZaM[iz], indices_M, axis=1))
+                # new_V_ZaM.append(self.V_ZaM[iz, :, indices_M])
+        self.k_M_edges = np.array(new_k_M_edges)
+        self.Px_ZAM = np.array(new_Px_ZAM)
+        self.cov_ZAM = np.array(new_cov_ZAM)
+        self.U_ZaMn = np.array(new_U_ZaMn)
+        self.V_ZaM = np.array(new_V_ZaM)
 
         return

@@ -348,40 +348,41 @@ class Theory(object):
                 if self.verbose:
                     print("Found parameter", key, "in likelihood parameters")
 
-                if (key == "Delta2_p") | (key == "n_p") | (key == "alpha_p"):
-                    emu_call[key] = np.zeros(len(zs))
-                    for ii in range(len(linP_Mpc_params)):
-                        emu_call[key][ii] = linP_Mpc_params[ii][key]
-                elif key == "mF":
-                    emu_call[key] = self.model_igm.models["F_model"].get_mean_flux(
-                        zs, like_params=like_params
-                    )
-                elif key == "gamma":
-                    emu_call[key] = self.model_igm.models["T_model"].get_gamma(
-                        zs, like_params=like_params
-                    )
-                elif key == "sigT_Mpc":
-                    emu_call[key] = (
-                        self.model_igm.models["T_model"].get_sigT_kms(
-                            zs, like_params=like_params
-                        )
-                        / M_kms_of_zs
-                    )
-                elif key == "kF_Mpc":
-                    emu_call[key] = (
-                        self.model_igm.models["P_model"].get_kF_kms(
-                            zs, like_params=like_params
-                        )
-                        * M_kms_of_zs
-                    )
-                elif key == "lambda_P":
-                    emu_call[key] = 1000 / (
-                        self.model_igm.models["P_model"].get_kF_kms(
-                            zs, like_params=like_params
-                        )
-                        * M_kms_of_zs
-                    )
-                elif key in ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]:
+                # if (key == "Delta2_p") | (key == "n_p") | (key == "alpha_p"):
+                #     emu_call[key] = np.zeros(len(zs))
+                #     for ii in range(len(linP_Mpc_params)):
+                #         emu_call[key][ii] = linP_Mpc_params[ii][key]
+                #         print(emu_call[key][ii])
+                # elif key == "mF":
+                #     emu_call[key] = self.model_igm.models["F_model"].get_mean_flux(
+                #         zs, like_params=like_params
+                #     )
+                # elif key == "gamma":
+                #     emu_call[key] = self.model_igm.models["T_model"].get_gamma(
+                #         zs, like_params=like_params
+                #     )
+                # elif key == "sigT_Mpc":
+                #     emu_call[key] = (
+                #         self.model_igm.models["T_model"].get_sigT_kms(
+                #             zs, like_params=like_params
+                #         )
+                #         / M_kms_of_zs
+                #     )
+                # elif key == "kF_Mpc":
+                #     emu_call[key] = (
+                #         self.model_igm.models["P_model"].get_kF_kms(
+                #             zs, like_params=like_params
+                #         )
+                #         * M_kms_of_zs
+                #     )
+                # elif key == "lambda_P":
+                #     emu_call[key] = 1000 / (
+                #         self.model_igm.models["P_model"].get_kF_kms(
+                #             zs, like_params=like_params
+                #         )
+                #         * M_kms_of_zs
+                #     )
+                if key in ["mF", "gamma", "sigT_Mpc", "kF_Mpc", "lambda_P", "Delta2_p", "n_p"]: # "bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2", 
                     # feed in the direct Arinyo model input parameters
                     for par in like_params:
                         if par.name==key:
@@ -393,7 +394,8 @@ class Theory(object):
                                 )
                             else:
                                 emu_call[key] = np.atleast_1d(par.value) # if the likelihood params are stored as lists per z (emu_call[key] should be a list /array per z (shape 0 is Nz))
-                    # print("Found parameter", key, "in likelihood parameters, setting it to", emu_call[key])
+                                print(f"Adding {key} to emu_call with value {emu_call[key]}")
+                    print("Found parameter", key, "in likelihood parameters, setting it to", emu_call[key])
                 else:
                     raise ValueError(
                         "Not a theory model for emulator parameter", key
@@ -543,7 +545,7 @@ class Theory(object):
         theta_arcmin is a list of theta bins.
         It might also return a covariance from the emulator,
         or a blob with extra information for the fitter."""
-        
+
         if verbose is None:
             verbose = self.verbose
 
@@ -556,8 +558,8 @@ class Theory(object):
             like_params=like_params,
             return_M_of_z=True
         )
-    
-
+        
+        
         # compute input k, theta to emulator in Mpc
         
         Nk = 0
@@ -569,6 +571,7 @@ class Theory(object):
                 if len(theta_deg[iz]) > Ntheta:
                     Ntheta = len(theta_deg[iz])
         else:
+            
             if len(k_AA) == 1:
                 k_AA = k_AA[0]
             if len(theta_deg) == 1:
@@ -581,10 +584,9 @@ class Theory(object):
             else:
                 Ntheta = len(theta_deg)
             theta_deg = [theta_deg]
-        
+
         kin_Mpc = np.zeros((Nz, Nk))
         theta_in_Mpc = np.zeros((Nz, Ntheta))
-        
         for iz in range(Nz):
             kin_Mpc[iz, : Nk] = k_AA[iz] * M_AA_of_z[iz]
             theta_in_Mpc[iz, : Ntheta] = theta_deg[iz] / M_tdeg_of_z[iz]
@@ -605,7 +607,10 @@ class Theory(object):
                             f"Parameter `{par.name}` was not assigned a value, but is required."
                         )
                     arinyo_coeffs[par.name] = np.atleast_1d(par.value)
+                if par.name == "q2": # not a required parameter
+                    arinyo_coeffs[par.name] = np.atleast_1d(par.value)
         # activate the arinyo model
+        
         p3d_model = self.emulator.arinyo.P3D_Mpc
         si_coeffs = {}
         if add_silicon:
@@ -622,14 +627,13 @@ class Theory(object):
         px_AA = np.zeros((Nz, Ntheta, Nk))
         for iz in range(Nz):
             px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
-
         # decide what to return, and return it
         out = px_AA
 
-        if len(out) == 1:
-            return out[0]
-        else:
-            return out
+        # if len(out) == 1:
+        #     return out[0]
+        # else:
+        return out
         
     def has_all_arinyo_coeffs(self, likelihood_params):
         """Check if the likelihood parameters have all the Arinyo coefficients"""

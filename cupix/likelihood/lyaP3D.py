@@ -36,8 +36,8 @@ class LyaP3D():
             # replace zero with a small number
             if self.verbose:
                 print("Warning: kpar_Mpc contains zero. Replacing with 1e-5 to avoid issues.")
-            kpar_Mpc = np.where(kpar_Mpc == 0, 1e-5, kpar_Mpc)
-
+            kpar_Mpc = np.where(kpar_Mpc == 0, 1e-4, kpar_Mpc)
+        
         # make sure that k_Mpc, rperp_Mpc have the same length
         Nz = len(self.z)
         assert kpar_Mpc.shape[0] == Nz, "kpar_Mpc must have length (Nz)"

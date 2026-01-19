@@ -17,6 +17,7 @@ class FF_emulator():
             cosmo_param_dict,
             camb_cosmo_results,
             kp_Mpc=0.7,
+            Nrealizations=1000
         ):
 
         self.emu_params = [
@@ -34,7 +35,7 @@ class FF_emulator():
         self.kp_Mpc = kp_Mpc
         self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
         
-        self._load_emu()
+        self._load_emu(Nrealizations=Nrealizations)
         self._load_arinyo()
 
     def _load_emu(self, Nrealizations=1000):
@@ -126,9 +127,9 @@ class FF_emulator():
             "kp",
             "q2"
         ]:
-            # special case for optional parameter "q2"
-            if key == "q2" and "q2" not in emu_call.keys():
-                continue
+            # # special case for optional parameter "q2"
+            # if key == "q2" and "q2" not in emu_call.keys():
+            #     continue
             arinyo_coeffs[key] = np.zeros(Nz)
         for iz in range(Nz):
             emu_call_iz = {} # make a dictionary just for this z
@@ -137,6 +138,7 @@ class FF_emulator():
                     emu_call_iz[key] = emu_call[key][iz]
                 else:
                     print(f"Warning: {key} is not a valid emu parameter. It will not be used in the emulation.")
+            print("emu_call is now", emu_call_iz)
             # make sure emu_call contains all the required parameters
             for key in self.emu_params:
                 if key not in emu_call_iz:

@@ -6,7 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.17.2
+#       jupytext_version: 1.16.4
+#   kernelspec:
+#     display_name: forestflow
+#     language: python
+#     name: forestflow
 # ---
 
 # %%
@@ -27,7 +31,8 @@ from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 # %autoreload 2
 
 # %%
-forecast = DESI_DR2("/Users/mlokken/research/lyman_alpha/software/cupix/data/px_measurements/forecast/forecast_binned_out_trucont_px-zbins_2-thetabins_18.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
+forecast = DESI_DR2("../../data/px_measurements/forecast/forecast_px-zbins_2-thetabins_5_noiseless.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
+# forecast = DESI_DR2("../../data/px_measurements/forecast/forecast_binned_out_trucont_px-zbins_2-thetabins_18.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
 
 # %%
 # Load emulator
@@ -64,6 +69,12 @@ theory_AA.set_fid_cosmo(z)
 theory_AA.emulator = ffemu
 
 # %%
+# compute linear power parameters at each z (in Mpc units)
+linP_zs = fit_linP.get_linP_Mpc_zs(
+    sim_cosmo, z, 0.7
+)
+
+# %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
 
 like_params = []
@@ -88,7 +99,7 @@ like_params.append(LikelihoodParameter(
     min_value=0.0,
     max_value=2.0,
     ini_value = 1.0,
-    value=0.1112,
+    value = 1.0, # 0.1112,
     Gauss_priors_width=0.111
     ))
 like_params.append(LikelihoodParameter(
@@ -104,7 +115,7 @@ like_params.append(LikelihoodParameter(
     min_value=0.0,
     max_value=1.0,
     ini_value = 0.3,
-    value=0.2694,
+    value=0.8, #0.2694,
     Gauss_priors_width=0.27
     ))
 like_params.append(LikelihoodParameter(
@@ -113,7 +124,7 @@ like_params.append(LikelihoodParameter(
     max_value=1.0,
     ini_value = 0.2,
     value=0.0002,
-    Gauss_priors_width=0.0002
+    Gauss_priors_width=0.0002 
     ))
 like_params.append(LikelihoodParameter(
     name='kp',
@@ -161,6 +172,10 @@ like_params.append(LikelihoodParameter(
 like = Likelihood(forecast, theory_AA, free_param_names=["bias", "beta", "q1", "av"], iz_choice=0, like_params=like_params, verbose=False)
 
 # %%
+like.plot_px(0, like_params, multiply_by_k=False, ylim2=[-1,1], ylim=[-.005,0.08], every_other_theta=False, show=True, title=f"Redshift 2.2", theorylabel='Theory: P18 (cosmo)\n + Chaves-Montero+25 (IGM)', datalabel=f'DR2 measurement', xlim=[0,.7], residual_to_theory=True)
+
+
+# %%
 mini = IminuitMinimizer(like, verbose=False)
 
 # %%
@@ -177,12 +192,15 @@ prob = like.fit_probability(mini.minimizer.values)
 prob
 
 # %%
-mini.plot_best_fit(multiply_by_k=False, every_other_theta=True, xlim=[-.01, .4], datalabel="Mock Data", show=True)
+mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, xlim=[-.01, .4], ylim2 = [-3,3], datalabel="Mock ``Forecast'' Data", show=True)
 
 # %%
 mini.plot_ellipses("bias", "beta", nsig=2, cube_values=False, true_vals={'bias': -0.115, 'beta': 1.55, 'q1': 0.1112, 'av':0.2694})
 
 # %%
-mini.plot_ellipses("av", "q1", nsig=2, cube_values=False, true_vals={'bias': -0.115, 'beta': 1.55, 'q1': 0.1112, 'av':0.2694})
+mini.best_fit_value('q1')
+
+# %%
+mini.plot_ellipses("av", "q1", nsig=2, cube_values=False, true_vals={'q1': 0.1112, 'av':0.2694})
 
 # %%

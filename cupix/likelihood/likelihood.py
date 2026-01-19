@@ -10,18 +10,7 @@ import lace
 from lace.cosmo import camb_cosmo
 from cupix.utils.utils import is_number_string
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
-
-def get_bin_coverage(xmin_o, xmax_o, xmin_n, xmax_n):
-    """Trick to accelerate rebinning"""
-    # check out https://stcorp.github.io/harp/doc/html/algorithms/regridding.html
-    cover = np.zeros((len(xmin_n), len(xmin_o)))
-    for jj in range(len(xmin_n)):
-        cover[jj] = np.fmax(
-            (np.fmin(xmax_o, xmax_n[jj]) - np.fmax(xmin_o, xmin_n[jj]))
-            / (xmax_o - xmin_o),
-            0,
-        )
-    return cover
+import warnings
 
 
 class Likelihood(object):
@@ -88,54 +77,64 @@ class Likelihood(object):
         Px_ZAM (np.ndarray): array of shape (len(theta_A), len(k_AA_binned))
             with convolved Pcross for each coarse-theta_A bin
         """
-
         squeeze_result = False
         if type(theta_A) is not list and type(theta_A) is not np.ndarray:
             theta_A = [theta_A]
             squeeze_result = True
         zs = np.atleast_1d(self.data.z)
         k_AA_fine = self.data.k_m
+        # make sure the likelihood params match the iz
+        
+        for ip, par in enumerate(like_params):
+            if type(par.value) in [list, np.ndarray] and len(par.value)>1:
+                like_params[ip].value = par.value[np.array(iz)]
         # Compute Px in vectorized way (all theta at once)
-        theta_a_arcmin = (self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2.
+        if len(np.atleast_1d(iz))>1:
+            theta_a_arcmin = [(self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2. for i in iz] # simply replicate one Nz times; could make it flexible for different thetas per z bin if needed
+        else:
+            theta_a_arcmin = (self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2.
         if self.verbose:
             print("Computing Px simultaneously for", theta_a_arcmin)
+        
         Px_Zam = self.theory.get_px_AA(
             zs = zs[iz],
-            k_AA=k_AA_fine,
+            k_AA=k_AA_fine[iz],
             theta_arcmin=theta_a_arcmin,
             like_params=like_params,
             verbose=self.verbose
         )
-
+        
         # loop through the large-theta bins from the data
-        Px_ZAM_all = []
-        for itheta_A in theta_A:
-            # get the small-theta indices in this coarse-theta bin
-            ind_in_theta = self.data.B_A_a.astype(bool)[itheta_A,:]
-            theta_a_inds = np.where(ind_in_theta)[0]
+        Px_ZAM_allz = []
+        for iiz in iz:
+            Px_ZAM_all = []
             
-            k_AA_binned = (self.data.k_M_edges[:-1] + self.data.k_M_edges[1:]) / 2.
-            
-            Px_ZaM_all = np.zeros((len(theta_a_inds), len(k_AA_binned)))
-            V_ZaM_all  = np.zeros((len(theta_a_inds), len(k_AA_binned)))
-            
-
-            for save_index, a in enumerate(theta_a_inds):
-                # retrieve the window matrix for this small-theta bin
-                if self.data.U_ZaMn is not None:
-                    U_ZaMn = self.data.U_ZaMn[iz,a]
-                    Px_ZaM = convolve_window(U_ZaMn,Px_Zam[a].T) # check later if the window convolution can also be vectorized
-
-                Px_ZaM_all[save_index,:] = Px_ZaM
-                V_ZaM = self.data.V_ZaM[iz,a]
-                V_ZaM_all[save_index,:] = V_ZaM
-            # rebin in theta
-            Px_ZAM = rebin_theta(V_ZaM_all, Px_ZaM_all)
-            Px_ZAM_all.append(Px_ZAM)
+            for itheta_A in theta_A:
+                # get the small-theta indices in this coarse-theta bin
+                ind_in_theta = self.data.B_A_a.astype(bool)[itheta_A,:] # generally this could be different with redshift; assume it's not for now
+                theta_a_inds = np.where(ind_in_theta)[0]
+                k_AA_binned = (self.data.k_M_edges[iiz][:-1] + self.data.k_M_edges[iiz][1:]) / 2.
+                Px_ZaM_all = np.zeros((len(theta_a_inds), len(k_AA_binned)))
+                V_ZaM_all  = np.zeros((len(theta_a_inds), len(k_AA_binned)))
+                
+    
+                for save_index, a in enumerate(theta_a_inds):
+                    # retrieve the window matrix for this small-theta bin
+                    if self.data.U_ZaMn is not None:
+                        U_ZaMn = self.data.U_ZaMn[iiz,a]
+                        Px_ZaM = convolve_window(U_ZaMn,Px_Zam[iiz,a].T) # check later if the window convolution can also be vectorized
+                    Px_ZaM_all[save_index,:] = Px_ZaM
+                    V_ZaM = self.data.V_ZaM[iiz,a]
+                    V_ZaM_all[save_index,:] = V_ZaM
+                # rebin in theta
+                Px_ZAM = rebin_theta(V_ZaM_all, Px_ZaM_all)
+                Px_ZAM_all.append(Px_ZAM)
+            Px_ZAM_allz.append(np.asarray(Px_ZAM_all))
+        
         if squeeze_result:
-            return np.squeeze(np.asarray(Px_ZAM_all))
+            return np.squeeze(np.asarray(Px_ZAM_allz))
         else:
-            return np.asarray(Px_ZAM_all)
+            return np.asarray(Px_ZAM_allz)
 
 
 
@@ -147,7 +146,7 @@ class Likelihood(object):
             values=values,
             ignore_log_det_cov=True
         )
-
+        
         # print(-2 * log_like, -2 * log_like_all, -2 * np.sum(log_like_all))
 
         if return_all:
@@ -163,6 +162,8 @@ class Likelihood(object):
         """Compute log(likelihood), including determinant of covariance
         unless you are setting ignore_log_det_cov=True."""
         iz = self.iz_choice
+        if len(iz)>1:
+            raise ValueError("Likelihood computation not implemented for more than one redshift at once.")
         # what to return if we are out of priors
         null_out = [-np.inf, -np.inf]
         data = self.data
@@ -190,16 +191,17 @@ class Likelihood(object):
             print(p.name, p.value)
         
         theta_A = np.arange(ntheta)
-        model_iz = self.get_convolved_Px_AA(iz,theta_A,params)
+        model_iz = self.get_convolved_Px_AA(iz,theta_A,params)[0]
         for itheta in range(ntheta):
             # compute chi2 for this redshift bin
             det_cov = np.linalg.det(self.data.cov_ZAM[iz,itheta,:,:])
-            assert det_cov != 0, "Singular covariance matrix!"
+            if det_cov == 0:
+                # make a warning
+                warnings.warn("Det(cov) appears to be 0: could be a singular covariance matrix!")
             icov_ZAM = np.linalg.inv(self.data.cov_ZAM[iz,itheta,:,:])
             data_izitheta  = data.Px_ZAM[iz,itheta,:]
-            
-            diff = data_izitheta - model_iz[itheta]
-            chi2_z = np.dot(np.dot(icov_ZAM, diff), diff)
+            diff = np.squeeze(data_izitheta - model_iz[itheta])
+            chi2_z = np.dot(np.dot(np.squeeze(icov_ZAM), diff), diff)
             # check whether to add determinant of covariance as well
             if ignore_log_det_cov:
                 log_like_all[iz, itheta] = -0.5 * chi2_z
@@ -214,7 +216,7 @@ class Likelihood(object):
 
         if np.any(np.isnan(log_like)):
             return null_out
-            
+        
         out = [log_like, log_like_all]
         return out
 
@@ -303,7 +305,7 @@ class Likelihood(object):
         )
 
 
-    def plot_px(self, z, like_params, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, xlim=None):
+    def plot_px(self, z, like_params, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False):
         """Plot the Px data and theory.
         
         Args:
@@ -315,7 +317,7 @@ class Likelihood(object):
         # plot all theta on one, easily distinguishable colors
         colors = plt.cm.tab10(np.linspace(0,1,len(self.data.theta_min_A_arcmin)))
         fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
-        k = (self.data.k_M_edges[:-1]+self.data.k_M_edges[1:])/2.
+        
         skip = 1
         if every_other_theta:
             skip = 2
@@ -325,44 +327,49 @@ class Likelihood(object):
         else:
             factor = 1.0
             ylabel = r'$P_\times$ [$\AA$]'
-        if (type(z) is list or type(z) is np.ndarray) and len(z)!=1:
-            assert(len(z)<5), "Too many redshifts passed. Plot fewer."
-            # set a linestyle for every z
-            linestyles = ["solid", "dashed", "dotted", "dashdot"]
-
-            for iz in z:
-                for itheta in range(0,len(self.data.theta_min_A_arcmin),skip):
-                    errors = np.diag(self.data.cov_ZAM[iz, itheta, :, :])**0.5
-                    ax[0].errorbar(k, self.data.Px_ZAM[iz, itheta, :]*factor, errors*factor, label=r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[itheta]), color=colors[itheta], marker='o', linestyle=linestyles[itheta])
-                    theory_iA_iz = self.get_convolved_Px_AA(iz,itheta,like_params)
-                    ax[0].plot(k, theory_iA_iz*factor, color=colors[itheta], linestyle='solid')
-                    ax[1].set_xlabel(r'$k [\AA^{-1}]$')
-                    ax[1].plot(k, (self.data.Px_ZAM[iz, itheta, :]-theory_iA_iz)/errors, color=colors[itheta], marker='o', linestyle=linestyles[itheta])
-        else:
+        
+        # if (type(z) is list or type(z) is np.ndarray) and len(z)!=1:
+        assert(len(z)<5), "Too many redshifts passed. Plot fewer."
+        # set a linestyle for every z
+        linestyles = ["solid", "dashed", "dotted", "dashdot"]
+        theory = self.get_convolved_Px_AA(np.atleast_1d(z),np.arange(len(self.data.theta_min_A_arcmin)),like_params)
+        
+        for iz in z:
+            k = (self.data.k_M_edges[iz][:-1]+self.data.k_M_edges[iz][1:])/2.
             for itheta in range(0,len(self.data.theta_min_A_arcmin),skip):
-                errors = np.diag(self.data.cov_ZAM[z, itheta, :, :])**0.5
-                ax[0].errorbar(k, self.data.Px_ZAM[z, itheta, :]*factor, errors*factor, label=r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[itheta]), color=colors[itheta], linestyle='none', marker='o')
-                theory_iA_iz = self.get_convolved_Px_AA(z,itheta,like_params)
-                ax[0].plot(k, theory_iA_iz*factor, color=colors[itheta], linestyle='solid')
-                ax[1].plot(k, (self.data.Px_ZAM[z, itheta, :]-theory_iA_iz)/errors, color=colors[itheta], marker='o', linestyle='none')
-            ax[1].axhline(0, color='black', linestyle='dashed', linewidth=1)
-            ax[1].set_xlabel(r'$k [\AA^{-1}]$')
-            ax[0].set_ylabel(ylabel)
-            ax[0].legend()
-            ax[1].set_ylabel('(Data-Theory)/error')
-            # ax[1].legend()
+                errors = np.diag(np.squeeze(self.data.cov_ZAM[iz, itheta, :, :]))**0.5
+                div = errors
+                divname = 'errors'
+                ax[0].errorbar(k, self.data.Px_ZAM[iz, itheta, :]*factor, errors*factor, label=r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[itheta]), color=colors[itheta], marker='o', linestyle='none')
+                theory_iz_iA = theory[iz,itheta]
+                if residual_to_theory:
+                    div = theory_iz_iA
+                    divname = 'theory'
+                ax[0].plot(k, theory_iz_iA*factor, color=colors[itheta], linestyle='solid')
+                ax[1].set_xlabel(r'$k [\AA^{-1}]$')
+                ax[1].plot(k, (self.data.Px_ZAM[iz, itheta, :]-theory_iz_iA)/div, color=colors[itheta], marker='o', linestyle='none')
+        ax[1].axhline(0, color='black', linestyle='dashed', linewidth=1)
+        ax[1].set_xlabel(r'$k [\AA^{-1}]$')
+        ax[0].set_ylabel(ylabel)
+        ax[0].legend()
+        ax[1].set_ylabel(f'(Data-Theory)/{divname}')
+        # ax[1].legend()
+        if ylim2 is None:
             ax[1].set_ylim([-3,3])
-            if ylim is not None:
-                ax[0].set_ylim(ylim)
-            if xlim is not None:
-                ax[1].set_xlim(xlim)
+        else:
+            ax[1].set_ylim(ylim2)
+        if ylim is not None:
+            ax[0].set_ylim(ylim)
+        if xlim is not None:
+            ax[1].set_xlim(xlim)
         
         handles, labels = ax[0].get_legend_handles_labels()
         if theorylabel is None:
             theorylabel = 'Theory prediction, windowed'
         if datalabel is None:
             datalabel='Data'
-        
+        if title is not None:
+            plt.suptitle(title)
         handles.append(plt.Line2D([], [], color='black', linestyle='solid', label=theorylabel))
         handles.append(plt.Line2D([], [], color='black', marker='o', linestyle='none', label=datalabel))
         ax[0].legend(handles=handles, loc='upper right', fontsize='small')
@@ -384,6 +391,7 @@ class Likelihood(object):
         if Z is None:
             Z = self.iz_choice
         ndeg = self.ndeg(Z)
+        print(ndeg, "ndeg", chi2,"chi2", n_free_p, "n_free_p")
         prob = chi2_scipy.sf(chi2, ndeg - n_free_p)
         return prob
 
@@ -426,7 +434,7 @@ class Likelihood(object):
         fig.supxlabel(r"$k\,[\mathrm{km}^{-1}\mathrm{s}]$")
         fig.supylabel(r"$\sigma^2_x/\sigma^2_\mathrm{total}$")
         plt.tight_layout()
-
+        
         if save_directory is not None:
             name = os.path.join(save_directory, "cov_terms")
             plt.savefig(name + ".pdf")
@@ -546,7 +554,6 @@ class Likelihood(object):
 
     def like_parameter_by_name(self, pname):
         """Find parameter in list of likelihood free parameters"""
-
         return [p for p in self.like_params if p.name == pname][0]
 
     def index_by_name(self, pname):
@@ -581,3 +588,6 @@ class Likelihood(object):
             like_params.append(par)
 
         return like_params
+
+
+

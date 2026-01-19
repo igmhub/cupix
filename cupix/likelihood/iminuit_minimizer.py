@@ -52,7 +52,7 @@ class IminuitMinimizer(object):
 
         return
 
-    def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, xlim=None):
+    def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False):
         """Plot best-fit P1D vs data."""
 
         # get best-fit values from minimizer (should check that it was run)
@@ -79,8 +79,13 @@ class IminuitMinimizer(object):
             show=show,
             theorylabel=theorylabel,
             datalabel=datalabel,
-            plot_fname=plot_fname
+            plot_fname=plot_fname,
+            ylim2=ylim2,
+            title=title,
+            residual_to_theory=residual_to_theory
         )
+
+        
         return
 
 
@@ -105,6 +110,7 @@ class IminuitMinimizer(object):
             return par_value, par_error
         else:
             return par_value
+
         
 
     def plot_ellipses(self, pname_x, pname_y, nsig=2, cube_values=False, true_vals=None, true_val_label="true value"):
@@ -157,7 +163,7 @@ class IminuitMinimizer(object):
         # semi-major and semi-minor axis of ellipse
         a = np.sqrt(w[0])
         b = np.sqrt(w[1])
-
+        print("a, b", a, b)
         # figure out inclination angle of ellipse
         alpha = np.arccos(v[0, 0])
         if v[1, 0] < 0:
@@ -174,10 +180,20 @@ class IminuitMinimizer(object):
             ell.set_alpha(0.6 / isig)
             fig.add_artist(ell)
         if true_vals is not None:
-            plt.plot(true_vals[pname_x], true_vals[pname_y], "rx", label=true_val_label, markersize=10)
+            plt.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
+            plt.axhline(true_vals[pname_y], color='grey', linestyle='--')
+                        
             plt.legend()
         plt.xlabel(pname_x)
         plt.ylabel(pname_y)
-        plt.xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
-        plt.ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
-        
+        if true_vals is None:
+            plt.xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
+            plt.ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
+        else:
+            minx = min(val_x - (nsig + 1) * sig_x, true_vals[pname_x]-.1*abs(true_vals[pname_x]))
+            maxx = max(val_x + (nsig + 1) * sig_x, true_vals[pname_x]+.1*abs(true_vals[pname_x]))
+            miny = min(val_y - (nsig + 1) * sig_y, true_vals[pname_y]-.1*abs(true_vals[pname_y]))
+            maxy = max(val_y + (nsig + 1) * sig_y, true_vals[pname_y]+.1*abs(true_vals[pname_y]))
+            plt.ylim([miny,maxy])
+            plt.xlim([minx,maxx])
+
