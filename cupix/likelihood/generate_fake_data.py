@@ -60,13 +60,13 @@ class FakeData(object):
             metadata.attrs['N_fft'] = self.like.data.N_fft
             metadata.attrs['L_fft'] = self.like.data.L_fft
             metadata['B_A_a'] = self.like.data.B_A_a
-            
+            metadata.attrs['z_centers'] = self.like.theory.zs
             pxgroup = f.create_group('P_Z_AM')
             covgroup = f.create_group('C_Z_AMN')
             Ugroup = f.create_group('U_Z_aMn')
             Vgroup = f.create_group('V_Z_aM')
 
-            
+            params_group = f.create_group('like_params')
             if like_params is None:
                 Px = self.generate_px(self.like.iz_choice, np.arange(len(self.like.data.theta_min_A_arcmin)), self.like.like_params, add_noise=add_noise)
             else:
@@ -96,5 +96,11 @@ class FakeData(object):
                     Vweights = self.like.data.V_ZaM[zbin_ind, theta_bin_ind]
                     Vgroup_z[f'theta_{theta_bin_ind}/'] = Vweights
                 print("Made it past the small theta bin writing in generate_fake_data")
+            if like_params is None:
+                for key in self.like.like_params.keys():
+                    params_group.attrs[key] = self.like.like_params[key]
+            else:
+                for key in like_params.keys():
+                    params_group.attrs[key] = like_params[key]
         return
     

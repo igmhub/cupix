@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: forestflow
+#     display_name: Python 3
 #     language: python
-#     name: forestflow
+#     name: python3
 # ---
 
 # %%
@@ -29,25 +29,46 @@ import scipy
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 from cupix.likelihood.lya_theory import Theory
+import forestflow
+from forestflow.archive import GadgetArchive3D
+
 # %load_ext autoreload
 # %autoreload 2
+import os
 
 # %%
 MockData = DESI_DR2("/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_20_w_res.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
 
 # %%
-MockData.theta_max_a_arcmin.shape
+# Figure out the ForestFlow training central simulation
+path_program = os.path.dirname(forestflow.__path__[0]) + '/'
+path_program
+folder_lya_data = path_program + "/data/best_arinyo/"
+
+Archive3D = GadgetArchive3D(
+    base_folder=path_program[:-1],
+    folder_data=folder_lya_data,
+    average="both",
+)
+training_data = Archive3D.training_data
 
 # %%
-MockData.U_ZaMn.shape, MockData.V_ZaM.shape, MockData.Px_ZAM.shape
+zs = []
+sim_dict =  Archive3D.get_testing_data("mpg_central")
+for sim_z in sim_dict:
+    if (sim_z['z'] < 3.2) & (sim_z['z'] > 2.0):
+        zs.append(sim_z['z'])
 
 # %%
-MockData.k_M_edges.shape
+# manually overwrite MockData zs with ForestFlow zs
+MockData.z = zs
+print(MockData.z)
 
 # %%
 # Load emulator
-z = MockData.z[0:2]
-print(z)
+# z = MockData.z[0:4]
+zs = np.sort(np.array(zs))
+print(zs)
 omnuh2 = 0.0006
 mnu = omnuh2 * 93.14
 H0 = 67.36
@@ -70,15 +91,47 @@ fid_cosmo = {
     'w': w
 }
 sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
-cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
+cc = camb_cosmo.get_camb_results(sim_cosmo, zs=zs, camb_kmax_Mpc=1000)
 
-ffemu = FF_emulator(z, fid_cosmo, cc)
+ffemu = FF_emulator(zs, fid_cosmo, cc)
 ffemu.kp_Mpc = 1 # set pivot point
 
 theory_AA = set_theory(ffemu, k_unit='iAA')
-theory_AA.set_fid_cosmo(z)
+theory_AA.set_fid_cosmo(zs)
 theory_AA.emulator = ffemu
 dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(z))
+
+# %% [markdown]
+# ## Generate it at the center of the original training simulation
+
+# %%
+like_params = []
+
+sim_dict =  Archive3D.get_testing_data("mpg_central")
+for par in ['sigT_Mpc', 'gamma', 'mF', 'Delta2_p', 'n_p', 'kF_Mpc', 'lambda_P']:
+    thispar_values = []
+    for iz,zz in enumerate(zs):
+        for sim_z in sim_dict:
+            if abs(sim_z['z']-zz)<0.01:
+                print(sim_z['z'])
+                for par2 in sim_z.keys():
+                    if par2 == par:
+                        thispar_values.append(sim_z[par])
+    thispar_values = np.asarray(thispar_values)
+    like_params.append(LikelihoodParameter(name=par, min_value=-20, max_value=20, value=thispar_values))
+
+# %%
+for par in like_params:
+    print(par.name, par.value)
+
+# %%
+like = Likelihood(MockData, theory_AA, free_param_names=["bias"], iz_choice=[0,1,2,3], like_params=like_params, verbose=True)
+
+# %%
+fakedata = FakeData(like)
+
+# %%
+fakedata.write_to_file("../../data/px_measurements/forecast/forecast_centralsim_binned_px-zbins_4-thetabins_20_noiseless.hdf5", add_noise=False)
 
 # %%
 # Walther+ constriaints

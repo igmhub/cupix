@@ -17,7 +17,7 @@ from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
 
 def set_theory(
-    emulator, k_unit='iAA'
+    emulator, k_unit='iAA', verbose=False
 ):
     """Set theory"""
 
@@ -25,7 +25,8 @@ def set_theory(
     # set theory
     theory = Theory(
         emulator=emulator,
-        k_unit = k_unit
+        k_unit = k_unit,
+        verbose=verbose
     )
 
     return theory
@@ -620,7 +621,6 @@ class Theory(object):
             for par in like_params:
                 if par.name in ["bias_SiIII", "beta_SiIII", "k_p_SiIII"]:
                     si_coeffs[par.name] = par.value
-
         lyap3d = LyaP3D(zs, p3d_model, arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, Arinyo=self.emulator.arinyo, verbose=verbose)
         px_pred_Mpc = lyap3d.model_Px(kin_Mpc, theta_in_Mpc)
         # move from Mpc to AA
@@ -629,7 +629,6 @@ class Theory(object):
             px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
         # decide what to return, and return it
         out = px_AA
-
         # if len(out) == 1:
         #     return out[0]
         # else:

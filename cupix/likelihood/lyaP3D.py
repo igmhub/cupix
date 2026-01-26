@@ -230,7 +230,6 @@ def Px_Mpc_withSiIII(
     
     nkpar = kpar_iMpc.shape[1]
     
-    print("Here")
     
     # understand what is passed to P3D_params. Turn P3D_params into a list of dictionaries if it is not already
     if P3D_params:

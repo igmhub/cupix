@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.17.3
 #   kernelspec:
-#     display_name: forestflow
+#     display_name: Python 3
 #     language: python
-#     name: forestflow
+#     name: python3
 # ---
 
 # %%
@@ -82,9 +82,7 @@ if analysis_type == 'stack':
     # MockData.cov_ZAM *= np.sqrt(50)
 elif analysis_type == 'single':
     MockData = DESI_DR2(f"/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/analysis-0/{mock_type}/{bin_type}_out_px-zbins_2-thetabins_{ntheta}_w_res.hdf5", theta_min_cut_arcmin=14, kmax_cut_AA=1)
-# choose a redshift bin to analyse
-iz_choice = 0
-z = np.array([MockData.z[iz_choice]])
+zs = np.array(MockData.z)
 
 
 # %%
@@ -94,25 +92,33 @@ theory_AA=None
 # Load emulator
 if theory_AA is None: # only do this once per notebook
     sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
-    cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
-    ffemu = FF_emulator(z, fid_cosmo, cc)
+    cc = camb_cosmo.get_camb_results(sim_cosmo, zs=zs, camb_kmax_Mpc=1000)
+    ffemu = FF_emulator(zs, fid_cosmo, cc)
     ffemu.kp_Mpc = 1 # set pivot point
 
     theory_AA = set_theory(ffemu, k_unit='iAA')
-    theory_AA.set_fid_cosmo(z)
+    theory_AA.set_fid_cosmo(zs)
     theory_AA.emulator = ffemu
 
 # %%
-# Load Laura's CF fits
-with fits.open(f"/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-0/jura-124/raw_bao_unblinding/fits/output_fitter-z-bins/bin_{z[0]}/lyaxlya.fits") as zbin_cf_file:
-    zbin_cf_fit = zbin_cf_file[1].header
-    cf_bias = zbin_cf_fit['bias_LYA']
-    cf_beta = zbin_cf_fit['beta_LYA']
-    cf_q1   = zbin_cf_fit['dnl_arinyo_q1']
-    cf_kv   = zbin_cf_fit['dnl_arinyo_kv']
-    cf_av   = zbin_cf_fit['dnl_arinyo_av']
-    cf_bv   = zbin_cf_fit['dnl_arinyo_bv']
-    cf_kp   = zbin_cf_fit['dnl_arinyo_kp']
+# Load Laura's CF fits for all redshifts
+cf_bias = np.zeros(len(MockData.z))
+cf_beta = np.zeros(len(MockData.z))
+cf_q1 = np.zeros(len(MockData.z))
+cf_kv = np.zeros(len(MockData.z))
+cf_av = np.zeros(len(MockData.z))
+cf_bv = np.zeros(len(MockData.z))
+cf_kp = np.zeros(len(MockData.z))
+for iz, z in enumerate(MockData.z):
+    with fits.open(f"/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-0/jura-124/raw_bao_unblinding/fits/output_fitter-z-bins/bin_{z}/lyaxlya.fits") as zbin_cf_file:
+        zbin_cf_fit = zbin_cf_file[1].header
+        cf_bias[iz] = zbin_cf_fit['bias_LYA']
+        cf_beta[iz] = zbin_cf_fit['beta_LYA']
+        cf_q1[iz]   = zbin_cf_fit['dnl_arinyo_q1']
+        cf_kv[iz]   = zbin_cf_fit['dnl_arinyo_kv']
+        cf_av[iz]   = zbin_cf_fit['dnl_arinyo_av']
+        cf_bv[iz]   = zbin_cf_fit['dnl_arinyo_bv']
+        cf_kp[iz]   = zbin_cf_fit['dnl_arinyo_kp']
 
 # %%
 # # original Laura fits
@@ -229,17 +235,14 @@ like_params.append(LikelihoodParameter(
     ))
 
 # %%
+iz_choice = [1]
 like = Likelihood(MockData, theory_AA, free_param_names=["bias", "beta"], iz_choice=iz_choice, like_params=like_params)
 
 # %% [markdown]
 # First, plot the CF best-fit theory model on top of the stack
 
 # %%
-MockData.theta_centers_arcmin
-
-# %%
 like.plot_px(iz_choice, like_params, multiply_by_k=True, ylim2=[-1,6], every_other_theta=False, show=True,  title=f"Redshift {MockData.z[iz_choice]}, {mock_type}, {analysis_type}", theorylabel=rf'Model from IFAE-QL best-fit $\xi$', datalabel=f'{analysis_type} measurement', xlim=[0,.5], residual_to_theory=False)
-
 
 # %%
 mini = IminuitMinimizer(like, verbose=True)
@@ -250,7 +253,7 @@ for p in like_params:
     if p.name in like.free_param_names:
         print(mini.minimizer.limits[p.name])
         print(p.value_from_cube(np.asarray(mini.minimizer.limits[p.name])))
-    
+
 
 # %%
 final_values = np.asarray([mini.best_fit_value(pname) for pname in like.free_param_names])
