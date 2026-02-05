@@ -97,7 +97,7 @@ class FF_emulator():
         self.arinyo = arinyo
 
 
-    def emulate_P3D_params(self, emu_call):
+    def emulate_P3D_params(self, emu_call, zs):
         """ This function predicts P3D parameters (the 'arinyo coefficients') from forestflow given the IGM and cosmo parameters of the input.
         Arguments:
         ----------
@@ -110,13 +110,12 @@ class FF_emulator():
         """
         
         # make sure that emu_call has a value for every z
-        Nz = len(self.z)
-        
+        Nz = len(zs)
+        print("Forestflow emulator thinks Nz is", Nz)
         for key in emu_call.keys():
             assert len(emu_call[key]) == Nz, f"Parameter {key} has {len(emu_call[key])} values but should have {Nz} values for each redshift z."
         
         # prepare an Arinyo dictionary
-        Nz = len(self.z)
         arinyo_coeffs = {}
         for key in ["bias",
             "beta",

@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# ## Step 1: Import a noiseless forecast
+# ## Version 1: Read the outputs from the script validate_pipeline.py
 
 # %%
 import numpy as np
@@ -29,18 +29,140 @@ import matplotlib.pyplot as plt
 from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 import scipy
-from lace.cosmo.thermal_broadening import thermal_broadening_kms
+import os
+from forestflow.archive import GadgetArchive3D
 
+import forestflow
+from lace.cosmo.thermal_broadening import thermal_broadening_kms
+import h5py as h5
 from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 # %load_ext autoreload
 # %autoreload 2
 
 # %%
-forecast = DESI_DR2("../../data/px_measurements/forecast/forecast_binned_out_px-zbins_4-thetabins_20_noiseless.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
+def get_params(data):
+    bias, beta, bias_err, beta_err = data['bias'], data['beta'], data['bias_err'], data['beta_err']
+    return(bias,beta,bias_err,beta_err)
+    
+def get_chi2_prob(data):
+    chi2, prob = data['chi2'], data['prob']
+    return(chi2,prob)
+def plot_ellipses(pname_x, pname_y, val_x, val_y, sig_x, sig_y, cov, r, nsig=2, true_vals=None, true_val_label="true value"):
+        """Plot Gaussian contours for parameters (pname_x,pname_y)
+        - nsig: number of sigma contours to plot
+        - cube_values: if True, will use unit cube values."""
+
+        from matplotlib.patches import Ellipse
+        from numpy import linalg as LA
+        print(r)
+
+        # shape of ellipse from eigenvalue decomposition of covariance
+        w, v = LA.eig(
+            np.array(
+                [
+                    [sig_x**2, sig_x * sig_y * r],
+                    [sig_x * sig_y * r, sig_y**2],
+                ]
+            )
+        )
+
+        # semi-major and semi-minor axis of ellipse
+        a = np.sqrt(w[0])
+        b = np.sqrt(w[1])
+        print(a,b)
+        # figure out inclination angle of ellipse
+        alpha = np.arccos(v[0, 0])
+        if v[1, 0] < 0:
+            alpha = -alpha
+        # compute angle in degrees (expected by matplotlib)
+        alpha_deg = alpha * 180 / np.pi
+
+        # make plot
+        fig = plt.subplot(111)
+        for isig in range(1, nsig + 1):
+            ell = Ellipse(
+                (val_x, val_y), 2 * isig * a, 2 * isig * b, angle=alpha_deg
+            )
+            ell.set_alpha(0.6 / isig)
+            fig.add_artist(ell)
+        if true_vals is not None:
+            plt.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
+            plt.axhline(true_vals[pname_y], color='grey', linestyle='--')
+                        
+            plt.legend()
+        plt.xlabel(pname_x)
+        plt.ylabel(pname_y)
+        if true_vals is None:
+            plt.xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
+            plt.ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
+        else:
+            minx = min(val_x - (nsig + 1) * sig_x, true_vals[pname_x]-.1*abs(true_vals[pname_x]))
+            maxx = max(val_x + (nsig + 1) * sig_x, true_vals[pname_x]+.1*abs(true_vals[pname_x]))
+            miny = min(val_y - (nsig + 1) * sig_y, true_vals[pname_y]-.1*abs(true_vals[pname_y]))
+            maxy = max(val_y + (nsig + 1) * sig_y, true_vals[pname_y]+.1*abs(true_vals[pname_y]))
+            plt.ylim([miny,maxy])
+            plt.xlim([minx,maxx])
+
+
+# %%
+fit_results = np.load("/pscratch/sd/m/mlokken/desi-lya/px/data/fitter_results/validation_forecast_results_random_982_noiseless_z225.npz")
+bias,beta,bias_err,beta_err = get_params(fit_results)
+chi2,prob = get_chi2_prob(fit_results)
+cov = fit_results['cov']
+r   = fit_results['r']
+
+# %%
+iz_choice = 0
+# read the forecast data to get the truth
+# forecast_file = "/pscratch/sd/m/mlokken/desi-lya/px/data/px_measurements/forecast/forecast_ffcentral_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+forecast_file = "/pscratch/sd/m/mlokken/desi-lya/px/data/px_measurements/forecast/forecast_ffrandom_982_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+f = h5.File(forecast_file)
+true_vals = {
+    'bias': f['like_params'].attrs['bias'][iz_choice],
+    'beta': f['like_params'].attrs['beta'][iz_choice]
+}
+f.close()
+forecast = DESI_DR2(forecast_file)
+
+# %%
+
+for itheta in range(len(forecast.theta_max_A_arcmin)):
+    errors = np.diag(np.squeeze(forecast.cov_ZAM[iz_choice, itheta, :, :]))**0.5
+    plt.errorbar(forecast.k_M_edges[iz_choice,1:], forecast.Px_ZAM[0, itheta, :], errors, label=f'theta={forecast.theta_max_A_arcmin[itheta]:.1f}')
+
+
+# %%
+true_vals
+
+# %%
+plt.rc('font', size=16) 
+plot_ellipses('bias','beta',bias,beta,bias_err,beta_err, cov, r, true_vals=true_vals, true_val_label="Input truth") # 
+plt.plot(bias,beta,'*', label='best fit')
+# plt.ylabel(r"$\beta$")
+# plt.xlim([-.15,-.10])
+# plt.ylim([1.3,1.9])
+plt.legend()
+
+# %% [markdown]
+# ## Step 1: Import a noiseless forecast
+
+# %%
+# forecast = DESI_DR2("../../data/px_measurements/forecast/forecast_binned_out_px-zbins_4-thetabins_20_noiseless.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
+forecast_file = "../../data/px_measurements/forecast/forecast_ffcentral_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+forecast = DESI_DR2(forecast_file, kmax_cut_AA=1)
+
+# %%
+f = h5.File(forecast_file)
+for attr in f['like_params'].attrs.keys():
+    print(attr, f['like_params'].attrs[attr])
+f.close()
+
+# %%
+iz_choice = np.array([0])
 
 # %%
 # Load emulator
-z = forecast.z[0:1]
+z = forecast.z[iz_choice]
 print(z)
 omnuh2 = 0.0006
 mnu = omnuh2 * 93.14
@@ -72,7 +194,176 @@ ffemu.kp_Mpc = 1 # set pivot point
 theory_AA = set_theory(ffemu, k_unit='iAA')
 theory_AA.set_fid_cosmo(z)
 theory_AA.emulator = ffemu
-dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(z))
+dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(z), camb_results=cc)
+
+# %%
+# get the minimum and maximium parameter values from original simulations for emulator
+# Figure out the ForestFlow training range
+path_program = os.path.dirname(forestflow.__path__[0]) + '/'
+path_program
+folder_lya_data = path_program + "/data/best_arinyo/"
+
+Archive3D = GadgetArchive3D(
+    base_folder=path_program[:-1],
+    folder_data=folder_lya_data,
+    average="both",
+)
+print(len(Archive3D.training_data))
+training_data = Archive3D.training_data
+
+
+# %%
+training_data[i]['Arinyo'].keys()
+
+# %%
+param_names = ["bias","beta","q1","kvav","av","bv","kp","q2"]
+par_training_vals = {par:[] for par in param_names}
+
+for i in range(len(training_data)):
+    if training_data[i]['z']==z:
+        for par in training_data[i]['Arinyo'].keys():
+            if par in param_names:
+                par_training_vals[par].append(training_data[i]['Arinyo'][par])
+
+for par in param_names:
+    par_training_vals[par] = np.array(par_training_vals[par])
+    plt.hist(par_training_vals[par], bins=10)
+    plt.title(par)
+    plt.show()
+    plt.clf()
+
+
+# %% [markdown]
+# ## Step 2: Run this through the minimizer pipeline for first z bin with arinyo values
+
+# %%
+# read the likelihood params from forecast file
+like_params = []
+with h5.File(forecast_file, "r") as f:
+    params = f['like_params']
+    attrs = params.attrs
+    for key in param_names: # important to get the sorting right
+        if key in attrs:
+            val = attrs[key][:]
+            if len(val)>0:
+                min_training = np.amin(par_training_vals[key])
+                max_training = np.amax(par_training_vals[key])
+                like_params.append(LikelihoodParameter(
+                    name=key,
+                    value=val[iz_choice],
+                    ini_value= np.random.uniform(min_training, max_training), # random initial value within training range
+                    min_value=min_training,
+                    max_value=max_training,
+                    # Gauss_priors_width=(max_training - min_training) # broad priors
+                ))
+                print(key,max_training - min_training)
+# check the parameters
+for p in like_params:
+    print(p.name, p.value)
+
+# %%
+like = Likelihood(forecast, theory_AA, free_param_names=["bias", "beta"], iz_choice=iz_choice, like_params=like_params, verbose=True)
+
+# %%
+like.plot_px([0], like_params, multiply_by_k=False, ylim2=[-.05,.05], ylim=[-.005,0.25], every_other_theta=False, show=True, title=f"Redshift 2.2", theorylabel='Theory: central sim', datalabel=f'Forecast at central sim', xlim=[0,.7], residual_to_theory=True)
+
+# %%
+mini = IminuitMinimizer(like, verbose=False)
+
+# %%
+# %%time
+mini.minimize()
+
+# %%
+true_vals={par.name:par.value for par in like_params}
+if true_vals['bias']>0:
+    true_vals['bias'] *= -1
+
+# %%
+bias_index = [i for i, p in enumerate(like_params) if p.name=='bias'][0]
+beta_index = [i for i, p in enumerate(like_params) if p.name=='beta'][0]
+mini.plot_ellipses("bias", "beta", nsig=2, cube_values=False, true_vals=true_vals)
+plt.axvline(x=like_params[bias_index].ini_value, color='orange', linestyle=':')
+plt.axhline(y=like_params[beta_index].ini_value, color='orange', linestyle=':')
+# add true value label
+plt.ylim([1.35, 1.8])
+plt.xlim([-0.145, -0.105])
+plt.text(like_params[bias_index].ini_value, like_params[beta_index].ini_value, 'Initial Value', color='orange')
+plt.savefig(f"../../plots/forecast_bias_beta_contours_inibias_{like_params[bias_index].ini_value:.3f}_inibeta_{like_params[beta_index].ini_value:.3f}.pdf")
+
+# %%
+# mini.minimizer.params
+# like.fit_probability(values=[like_params[bias_index].value_in_cube(), like_params[beta_index].value_in_cube()])
+# like_params[bias_index].value_from_cube(mini.minimizer.params['bias'].value), like_params[beta_index].value_from_cube(mini.minimizer.params['beta'].value)
+# like_params[bias_index].ini_value
+
+# %% [markdown]
+# ## Repeat for IGM parameters
+
+# %%
+param_names = ["Delta2_p", "n_p", "mF", "sigT_Mpc", "gamma", "kF_Mpc"]
+par_training_vals = {par:[] for par in param_names}
+
+for i in range(len(training_data)):
+    if training_data[i]['z']==z:
+        for par in training_data[i].keys():
+            if par in param_names:
+                par_training_vals[par].append(training_data[i][par])
+
+for par in param_names:
+    par_training_vals[par] = np.array(par_training_vals[par])
+    plt.hist(par_training_vals[par], bins=10)
+    plt.title(par)
+    plt.show()
+    plt.clf()
+
+
+# %%
+# read the likelihood params from forecast file
+like_params = []
+with h5.File(forecast_file, "r") as f:
+    params = f['like_params']
+    attrs = params.attrs
+    for key in param_names: # important to get the sorting right
+        if key in attrs:
+            val = attrs[key][:]
+            if len(val)>0:
+                min_training = np.amin(par_training_vals[key])
+                max_training = np.amax(par_training_vals[key])
+                like_params.append(LikelihoodParameter(
+                    name=key,
+                    value=val[iz_choice],
+                    ini_value= np.random.uniform(min_training, max_training), # random initial value within training range
+                    min_value=min_training,
+                    max_value=max_training,
+                    # Gauss_priors_width=(max_training - min_training) # broad priors
+                ))
+                print(key,max_training - min_training)
+# check the parameters
+for p in like_params:
+    print(p.name, p.value)
+
+# %%
+like = Likelihood(forecast, theory_AA, free_param_names=["mF", "gamma"], iz_choice=iz_choice, like_params=like_params, verbose=True)
+like.plot_px([0], like_params, multiply_by_k=False, ylim2=[-.05,.05], ylim=[-.005,0.25], every_other_theta=False, show=True, title=f"Redshift 2.2", theorylabel='Theory: central sim', datalabel=f'Forecast at central sim', xlim=[0,.7], residual_to_theory=True)
+
+# %%
+# %%time
+mini = IminuitMinimizer(like, verbose=False)
+mini.minimize()
+
+# %%
+true_vals={par.name:par.value for par in like_params}
+mF_index = [i for i, p in enumerate(like_params) if p.name=='bias'][0]
+gamma_index = [i for i, p in enumerate(like_params) if p.name=='beta'][0]
+mini.plot_ellipses("mF", "gamma", nsig=2, cube_values=False, true_vals=true_vals)
+plt.axvline(x=like_params[mF_index].ini_value, color='orange', linestyle=':')
+plt.axhline(y=like_params[gamma_index].ini_value, color='orange', linestyle=':')
+# add true value label
+# plt.ylim([1.35, 1.8])
+# plt.xlim([-0.145, -0.105])
+plt.text(like_params[mF_index].ini_value, like_params[gamma_index].ini_value, 'Initial Value', color='orange')
+plt.savefig(f"../../plots/forecast_mF_gamma_contours_inimF_{like_params[mF_index].ini_value:.3f}_inigamma_{like_params[gamma_index].ini_value:.3f}.pdf")
 
 # %%
 # Walther+ constriaints

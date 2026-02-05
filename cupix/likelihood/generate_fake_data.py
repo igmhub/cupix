@@ -20,6 +20,7 @@ class FakeData(object):
 
 
     def generate_px(self, iz_choice, theta_A_ind, like_params=None, add_noise=True):
+        print("Generating")
         # set up the Arinyo P3D model
         # do we want to apply the noise before or after the window convolution?
         # has to be after because I have the covariance matrix for the post-rebinned data
@@ -27,7 +28,6 @@ class FakeData(object):
             # use the default parameters from the likelihood
             Px_theory = self.like.get_convolved_Px_AA(iz_choice, theta_A_ind, self.like.like_params)
         else:
-            
             Px_theory = self.like.get_convolved_Px_AA(iz_choice, theta_A_ind, like_params)
         # add noise
         if add_noise:
@@ -47,6 +47,9 @@ class FakeData(object):
         return Px_out
     
     def write_to_file(self, filepath, like_params=None, add_noise=True):
+        if like_params is None:
+            like_params = self.like.like_params
+        
         with h5py.File(filepath,'w') as f:
             metadata = f.create_group('metadata')
             # Reproduce metadata from data file
@@ -56,21 +59,21 @@ class FakeData(object):
             metadata.attrs['theta_max_a'] = self.like.data.theta_max_a_arcmin
             metadata.attrs['theta_min_A'] = self.like.data.theta_min_A_arcmin
             metadata.attrs['theta_max_A'] = self.like.data.theta_max_A_arcmin
+            print(self.like.data.z, self.like.iz_choice)
             metadata.attrs['z_centers'] = self.like.data.z[self.like.iz_choice]
             metadata.attrs['N_fft'] = self.like.data.N_fft
             metadata.attrs['L_fft'] = self.like.data.L_fft
+            
             metadata['B_A_a'] = self.like.data.B_A_a
             metadata.attrs['z_centers'] = self.like.theory.zs
             pxgroup = f.create_group('P_Z_AM')
             covgroup = f.create_group('C_Z_AMN')
             Ugroup = f.create_group('U_Z_aMn')
             Vgroup = f.create_group('V_Z_aM')
-
             params_group = f.create_group('like_params')
-            if like_params is None:
-                Px = self.generate_px(self.like.iz_choice, np.arange(len(self.like.data.theta_min_A_arcmin)), self.like.like_params, add_noise=add_noise)
-            else:
-                Px = self.generate_px(self.like.iz_choice, np.arange((self.like.data.theta_min_A_arcmin)), like_params, add_noise=add_noise)
+            
+            print("arguments going in", self.like.iz_choice, np.arange(len(self.like.data.theta_min_A_arcmin)), like_params, add_noise)
+            Px = self.generate_px(self.like.iz_choice, np.arange(len(self.like.data.theta_min_A_arcmin)), like_params, add_noise=add_noise)
             print("checkpoint in generate fake data")
             if Px.ndim == 3:
                 Nz = Px.shape[0]
@@ -96,11 +99,9 @@ class FakeData(object):
                     Vweights = self.like.data.V_ZaM[zbin_ind, theta_bin_ind]
                     Vgroup_z[f'theta_{theta_bin_ind}/'] = Vweights
                 print("Made it past the small theta bin writing in generate_fake_data")
-            if like_params is None:
-                for key in self.like.like_params.keys():
-                    params_group.attrs[key] = self.like.like_params[key]
-            else:
-                for key in like_params.keys():
-                    params_group.attrs[key] = like_params[key]
+            
+            for lp in like_params:
+                print(lp.name)
+                params_group.attrs[lp.name] = lp.value
         return
     

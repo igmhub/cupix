@@ -31,13 +31,20 @@ from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 from cupix.likelihood.lya_theory import Theory
 import forestflow
 from forestflow.archive import GadgetArchive3D
-
+import os
+from pathlib import Path
+import h5py 
 # %load_ext autoreload
 # %autoreload 2
-import os
+
 
 # %%
-MockData = DESI_DR2("/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_20_w_res.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
+# realdata = DESI_DR2("/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_20_w_res.hdf5")
+mockdata_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/analysis-0/tru_cont/binned_out_px-zbins_2-thetabins_18.hdf5"
+mockdata = DESI_DR2(mockdata_file)
+
+# %%
+mockdata.k_M_edges[0][1]-mockdata.k_M_edges[0][0]
 
 # %%
 # Figure out the ForestFlow training central simulation
@@ -56,19 +63,19 @@ training_data = Archive3D.training_data
 zs = []
 sim_dict =  Archive3D.get_testing_data("mpg_central")
 for sim_z in sim_dict:
-    if (sim_z['z'] < 3.2) & (sim_z['z'] > 2.0):
+    if (sim_z['z'] < 2.7) & (sim_z['z'] > 2.2):
         zs.append(sim_z['z'])
+zs = np.sort(np.array(zs))
 
 # %%
 # manually overwrite MockData zs with ForestFlow zs
-MockData.z = zs
-print(MockData.z)
+mockdata.z = zs
+print(mockdata.z)
 
 # %%
 # Load emulator
 # z = MockData.z[0:4]
-zs = np.sort(np.array(zs))
-print(zs)
+
 omnuh2 = 0.0006
 mnu = omnuh2 * 93.14
 H0 = 67.36
@@ -99,7 +106,7 @@ ffemu.kp_Mpc = 1 # set pivot point
 theory_AA = set_theory(ffemu, k_unit='iAA')
 theory_AA.set_fid_cosmo(zs)
 theory_AA.emulator = ffemu
-dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(z))
+dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(zs), camb_results=cc)
 
 # %% [markdown]
 # ## Generate it at the center of the original training simulation
@@ -108,7 +115,7 @@ dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(z))
 like_params = []
 
 sim_dict =  Archive3D.get_testing_data("mpg_central")
-for par in ['sigT_Mpc', 'gamma', 'mF', 'Delta2_p', 'n_p', 'kF_Mpc', 'lambda_P']:
+for par in ['sigT_Mpc', 'gamma', 'mF', 'Delta2_p', 'n_p', 'kF_Mpc']:
     thispar_values = []
     for iz,zz in enumerate(zs):
         for sim_z in sim_dict:
@@ -125,13 +132,36 @@ for par in like_params:
     print(par.name, par.value)
 
 # %%
-like = Likelihood(MockData, theory_AA, free_param_names=["bias"], iz_choice=[0,1,2,3], like_params=like_params, verbose=True)
+like = Likelihood(mockdata, theory_AA, free_param_names=["bias"], iz_choice=np.asarray([0,1]), like_params=like_params, verbose=True)
 
 # %%
 fakedata = FakeData(like)
 
 # %%
-fakedata.write_to_file("../../data/px_measurements/forecast/forecast_centralsim_binned_px-zbins_4-thetabins_20_noiseless.hdf5", add_noise=False)
+savestr
+
+# %%
+add_noise = False
+if add_noise:
+    noise_str = 'noisy'
+else:
+    noise_str = 'noiseless'
+savestr = f"../../data/px_measurements/forecast/forecast_ffcentral_{Path(mockdata_file).stem}_{noise_str}.hdf5"
+print("Save to...", savestr)
+fakedata.write_to_file(savestr, add_noise=False)
+
+# %%
+# just copying and pasting from the previous output
+arinyo_dict = {'bias': np.array([0.11810589, 0.14949374]), 'beta': np.array([1.52642012, 1.4411819 ]), 'q1': np.array([0.29296646, 0.31081784]), 'kvav': np.array([0.51745933, 0.54350346]), 'av': np.array([0.32345456, 0.37763417]), 'bv': np.array([1.6457237 , 1.69155955]), 'kp': np.array([12.90727806, 13.73200226]), 'q2': np.array([0.26116902, 0.28188545])}
+
+
+# %%
+# add the Arinyo parameters to the attributes
+loaded_file = h5py.File(savestr, 'a')
+print(loaded_file.keys()) 
+for par in arinyo_dict:
+    loaded_file['like_params'].attrs[par] = arinyo_dict[par]
+loaded_file.close()
 
 # %%
 # Walther+ constriaints

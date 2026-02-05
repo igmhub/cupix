@@ -160,14 +160,14 @@ class Likelihood(object):
         """Compute log(likelihood), including determinant of covariance
         unless you are setting ignore_log_det_cov=True."""
         iz = self.iz_choice
-        if len(np.atleast1d(iz))>1:
+        if len(np.atleast_1d(iz))>1:
             raise ValueError("Likelihood computation not implemented for more than one redshift at once.")
         # what to return if we are out of priors
         null_out = [-np.inf, -np.inf]
         data = self.data
         ntheta = len(data.theta_max_A_arcmin)
-        # compute log like contribution from each redshift bin
-        log_like_all = np.zeros((1, ntheta))
+        # compute log like contribution from this redshift bin
+        log_like_all = np.zeros(ntheta)
         log_like = 0
         # get the parameters for this iteration
         params = self.like_params.copy()
@@ -202,14 +202,14 @@ class Likelihood(object):
             chi2_z = np.dot(np.dot(np.squeeze(icov_ZAM), diff), diff)
             # check whether to add determinant of covariance as well
             if ignore_log_det_cov:
-                log_like_all[iz, itheta] = -0.5 * chi2_z
+                log_like_all[itheta] = -0.5 * chi2_z
             else:
                 det_icov = np.linalg.det(icov_ZAM)
                 assert np.isfinite(det_icov), "Non-finite determinant of inverse covariance!"
                 log_det_cov = np.log(
                     np.abs(1 / np.linalg.det(icov_ZAM))
                 )
-                log_like_all[iz, itheta] = -0.5 * (chi2_z + log_det_cov)
+                log_like_all[itheta] = -0.5 * (chi2_z + log_det_cov)
         log_like += np.sum(log_like_all)
 
         if np.any(np.isnan(log_like)):
@@ -231,11 +231,14 @@ class Likelihood(object):
         """Compute log likelihood plus log priors for input values"""
 
         # Always force parameter to be within range (for now)
-        # if (max(values) > 1.0) or (min(values) < 0.0):
-        #     return self.min_log_like
+        if (max(values) > 1.0) or (min(values) < 0.0):
+            return self.min_log_like
 
         # compute log_prior
-        log_prior = self.get_log_prior(values)
+        if self.Gauss_priors is not None:
+            log_prior = self.get_log_prior(values)
+        else:
+            log_prior = 0
         # compute log_like (option to ignore emulator covariance)
         
         log_like, chi2_all = self.get_log_like(
@@ -329,6 +332,9 @@ class Likelihood(object):
         markers    = ["o", "s", "^", "D"]
         theory = self.get_convolved_Px_AA(np.atleast_1d(z),np.arange(len(self.data.theta_min_A_arcmin)),like_params)
         
+        # make iz array in any case
+        if type(z) in [int, np.integer]:
+            z = [z]
         for theory_redshift_element, iz in enumerate(z):
             k = (self.data.k_M_edges[iz][:-1]+self.data.k_M_edges[iz][1:])/2.
             if multiply_by_k:
@@ -354,6 +360,7 @@ class Likelihood(object):
                 ax[0].plot(k, theory_iz_iA*factor, color=colors[itheta], linestyle=linestyles[theory_redshift_element], linewidth=2)
                 ax[1].set_xlabel(r'$k [\AA^{-1}]$')
                 ax[1].plot(k, (self.data.Px_ZAM[iz, itheta, :]-theory_iz_iA)/div, color=colors[itheta], marker='o', linestyle='none')
+                print(k.shape, self.data.Px_ZAM[iz,itheta,:].shape)
         # if more than 1 z plotted, add custom legend for the redshifts: "--, square: z=.., -., diamond: z=.." etc
         ax[0].legend()
         handles, labels = ax[0].get_legend_handles_labels()

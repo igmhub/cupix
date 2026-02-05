@@ -596,7 +596,7 @@ class Theory(object):
         if not self.has_all_arinyo_coeffs(like_params):
             if verbose:
                 print("Arinyo coefficients not found in likelihood parameters, using emulator to get them")
-            arinyo_coeffs = self.emulator.emulate_P3D_params(emu_call)
+            arinyo_coeffs = self.emulator.emulate_P3D_params(emu_call, zs)
         else:
             if verbose:
                 print("Arinyo coefficients found in likelihood parameters, using them")

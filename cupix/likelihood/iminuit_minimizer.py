@@ -179,11 +179,13 @@ class IminuitMinimizer(object):
             )
             ell.set_alpha(0.6 / isig)
             fig.add_artist(ell)
+        # plot a marker at the central value
+        plt.plot(val_x, val_y, "ro", label="best fit")
         if true_vals is not None:
             plt.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
             plt.axhline(true_vals[pname_y], color='grey', linestyle='--')
                         
-            plt.legend()
+            
         plt.xlabel(pname_x)
         plt.ylabel(pname_y)
         if true_vals is None:
@@ -196,4 +198,47 @@ class IminuitMinimizer(object):
             maxy = max(val_y + (nsig + 1) * sig_y, true_vals[pname_y]+.1*abs(true_vals[pname_y]))
             plt.ylim([miny,maxy])
             plt.xlim([minx,maxx])
+        plt.legend()
 
+    def results_dict_2par(self):
+        """Return dictionary with best-fit results and covariance matrix."""
+        results_dict = {}
+        for parname in self.like.free_param_names:
+            bestfit, err = self.best_fit_value(parname, return_hesse=True)
+            results_dict[parname] = bestfit
+            results_dict[parname+'_err'] = err
+        covariance = self.minimizer.covariance
+        results_dict['cov'] = covariance
+
+        ## save the following for the sake of plotting ellipses:
+        ix = self.like.index_by_name(self.like.free_param_names[0])
+        iy = self.like.index_by_name(self.like.free_param_names[1])
+
+        # find out best-fit values, errors and covariance for parameters
+        sig_x = self.minimizer.errors[ix]
+        sig_y = self.minimizer.errors[iy]
+        r = self.minimizer.covariance[ix, iy] / sig_x / sig_y
+        results_dict['r']=r
+        results_dict['par_x']=parname[0]
+        results_dict['par_y']=parname[1]
+        prob = self.like.fit_probability(self.minimizer.values)
+        results_dict['prob'] = prob
+        chi2 = self.like.get_chi2(self.minimizer.values)
+        results_dict['chi2'] = chi2
+        return results_dict
+
+def save_analysis_npz(results, filename="analysis_results.npz"):
+    """
+    results: list or dict of per-analysis dictionaries
+    """
+    out = {}
+
+    if isinstance(results, list):
+        for i, r in enumerate(results):
+            out[f'analysis-{i}'] = r
+    else:  # dict
+        for k, r in results.items():
+            out[str(k)] = r
+
+    # Save each dict as an object
+    np.savez(filename, **out, allow_pickle=True)
