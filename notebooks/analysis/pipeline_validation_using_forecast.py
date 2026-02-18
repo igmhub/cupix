@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.17.3
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %% [markdown]
@@ -40,9 +40,16 @@ from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 # %autoreload 2
 
 # %%
-def get_params(data):
-    bias, beta, bias_err, beta_err = data['bias'], data['beta'], data['bias_err'], data['beta_err']
-    return(bias,beta,bias_err,beta_err)
+def get_pars(data, parnamelist):
+    # bias, beta, bias_err, beta_err = data['bias'], data['beta'], data['bias_err'], data['beta_err']
+    print(data.keys())
+    parlist = []
+    parerrlist = []
+    for par in parnamelist:
+        parlist.append(data[par])
+        parerrlist.append(data[par+'_err'])
+    return(parlist, parerrlist)
+
     
 def get_chi2_prob(data):
     chi2, prob = data['chi2'], data['prob']
@@ -105,8 +112,9 @@ def plot_ellipses(pname_x, pname_y, val_x, val_y, sig_x, sig_y, cov, r, nsig=2, 
 
 
 # %%
-fit_results = np.load("/pscratch/sd/m/mlokken/desi-lya/px/data/fitter_results/validation_forecast_results_random_982_noiseless_z225.npz")
-bias,beta,bias_err,beta_err = get_params(fit_results)
+fit_results = np.load("/pscratch/sd/m/mlokken/desi-lya/px/data/fitter_results/validation_forecast_results_central_noiseless_z225.npz")
+pars_varied = ['mF', 'gamma']
+[par1,par2],[par1_err,par2_err] = get_pars(fit_results, pars_varied)
 chi2,prob = get_chi2_prob(fit_results)
 cov = fit_results['cov']
 r   = fit_results['r']
@@ -114,13 +122,17 @@ r   = fit_results['r']
 # %%
 iz_choice = 0
 # read the forecast data to get the truth
-# forecast_file = "/pscratch/sd/m/mlokken/desi-lya/px/data/px_measurements/forecast/forecast_ffcentral_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
-forecast_file = "/pscratch/sd/m/mlokken/desi-lya/px/data/px_measurements/forecast/forecast_ffrandom_982_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+forecast_file = "/pscratch/sd/m/mlokken/desi-lya/px/data/px_measurements/forecast/forecast_ffcentral_cosmo_igm_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+# forecast_file = "/pscratch/sd/m/mlokken/desi-lya/px/data/px_measurements/forecast/forecast_ffrandom_982_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
 f = h5.File(forecast_file)
-true_vals = {
-    'bias': f['like_params'].attrs['bias'][iz_choice],
-    'beta': f['like_params'].attrs['beta'][iz_choice]
-}
+# true_vals = {
+#     'bias': f['like_params'].attrs['bias'][iz_choice],
+#     'beta': f['like_params'].attrs['beta'][iz_choice]
+# }\
+true_vals = {}
+for par in pars_varied:
+    true_vals[par] = f['like_params'].attrs[par][iz_choice]
+
 f.close()
 forecast = DESI_DR2(forecast_file)
 
@@ -135,6 +147,22 @@ for itheta in range(len(forecast.theta_max_A_arcmin)):
 true_vals
 
 # %%
+par1_err, par2_err
+
+# %%
+plot_ellipses('mF','gamma',par1,par2,par1_err,par2_err, cov, r) # 
+
+
+# %%
+plt.rc('font', size=16) 
+plot_ellipses('mF','gamma',par1,par2,par1_err,par2_err, cov, r, true_vals=true_vals, true_val_label="Input truth") # 
+plt.plot(par1,par2,'*', label='best fit')
+# plt.ylabel(r"$\beta$")
+# plt.xlim([-.15,-.10])
+# plt.ylim([1.3,1.9])
+plt.legend()
+
+# %%
 plt.rc('font', size=16) 
 plot_ellipses('bias','beta',bias,beta,bias_err,beta_err, cov, r, true_vals=true_vals, true_val_label="Input truth") # 
 plt.plot(bias,beta,'*', label='best fit')
@@ -144,11 +172,12 @@ plt.plot(bias,beta,'*', label='best fit')
 plt.legend()
 
 # %% [markdown]
+# # Version 2: run a forecast in a notebook.
 # ## Step 1: Import a noiseless forecast
 
 # %%
 # forecast = DESI_DR2("../../data/px_measurements/forecast/forecast_binned_out_px-zbins_4-thetabins_20_noiseless.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
-forecast_file = "../../data/px_measurements/forecast/forecast_ffcentral_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+forecast_file = "/global/common/software/desi/users/mlokken/cupix/data/px_measurements/forecast//forecast_ffcentral_arinyo_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
 forecast = DESI_DR2(forecast_file, kmax_cut_AA=1)
 
 # %%
@@ -162,7 +191,7 @@ iz_choice = np.array([0])
 
 # %%
 # Load emulator
-z = forecast.z[iz_choice]
+z = forecast.z
 print(z)
 omnuh2 = 0.0006
 mnu = omnuh2 * 93.14
@@ -191,7 +220,7 @@ cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
 ffemu = FF_emulator(z, fid_cosmo, cc)
 ffemu.kp_Mpc = 1 # set pivot point
 
-theory_AA = set_theory(ffemu, k_unit='iAA')
+theory_AA = set_theory(ffemu, k_unit='iAA', verbose=True)
 theory_AA.set_fid_cosmo(z)
 theory_AA.emulator = ffemu
 dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(z), camb_results=cc)
@@ -211,16 +240,23 @@ Archive3D = GadgetArchive3D(
 print(len(Archive3D.training_data))
 training_data = Archive3D.training_data
 
+# this info is also saved in the file below:
+import pandas as pd
+info_sims = pd.read_csv("../../data/emulator/ff_training_info.csv")
 
 # %%
-training_data[i]['Arinyo'].keys()
+import pandas as pd
+info_sims = pd.read_csv("/pscratch/sd/m/mlokken/desi-lya/px/data/emulator/ff_training_info.csv")
+
+# %%
+info_sims['mF_min'], info_sims['mF_max'], info_sims['z']
 
 # %%
 param_names = ["bias","beta","q1","kvav","av","bv","kp","q2"]
 par_training_vals = {par:[] for par in param_names}
 
 for i in range(len(training_data)):
-    if training_data[i]['z']==z:
+    if training_data[i]['z']==z[iz_choice]:
         for par in training_data[i]['Arinyo'].keys():
             if par in param_names:
                 par_training_vals[par].append(training_data[i]['Arinyo'][par])
@@ -262,17 +298,24 @@ for p in like_params:
     print(p.name, p.value)
 
 # %%
-like = Likelihood(forecast, theory_AA, free_param_names=["bias", "beta"], iz_choice=iz_choice, like_params=like_params, verbose=True)
+like = Likelihood(forecast, theory_AA, free_param_names=["bias"], iz_choice=iz_choice, like_params=like_params, verbose=True)
 
 # %%
-like.plot_px([0], like_params, multiply_by_k=False, ylim2=[-.05,.05], ylim=[-.005,0.25], every_other_theta=False, show=True, title=f"Redshift 2.2", theorylabel='Theory: central sim', datalabel=f'Forecast at central sim', xlim=[0,.7], residual_to_theory=True)
+like.plot_px(iz_choice, like_params, multiply_by_k=False, ylim2=[-.05,.05], ylim=[-.005,0.25], every_other_theta=False, show=True, title=f"Redshift 2.2", theorylabel='Theory: central sim', datalabel=f'Forecast at central sim', xlim=[0,.7], residual_to_theory=True)
 
 # %%
 mini = IminuitMinimizer(like, verbose=False)
 
 # %%
 # %%time
-mini.minimize()
+mini.minimize(compute_hesse=False)
+
+# %%
+mini.minimizer.nfcn
+
+# %%
+# %%time
+mini.minimizer.hesse()
 
 # %%
 true_vals={par.name:par.value for par in like_params}
@@ -301,11 +344,14 @@ plt.savefig(f"../../plots/forecast_bias_beta_contours_inibias_{like_params[bias_
 # ## Repeat for IGM parameters
 
 # %%
+iz_choice = np.array([0])
+
+# %%
 param_names = ["Delta2_p", "n_p", "mF", "sigT_Mpc", "gamma", "kF_Mpc"]
 par_training_vals = {par:[] for par in param_names}
 
 for i in range(len(training_data)):
-    if training_data[i]['z']==z:
+    if training_data[i]['z']==z[iz_choice]:
         for par in training_data[i].keys():
             if par in param_names:
                 par_training_vals[par].append(training_data[i][par])
@@ -317,6 +363,10 @@ for par in param_names:
     plt.show()
     plt.clf()
 
+
+# %%
+forecast_file = "/global/common/software/desi/users/mlokken/cupix/data/px_measurements/forecast//forecast_ffcentral_cosmo_igm_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+forecast = DESI_DR2(forecast_file, kmax_cut_AA=1)
 
 # %%
 # read the likelihood params from forecast file
@@ -338,19 +388,50 @@ with h5.File(forecast_file, "r") as f:
                     max_value=max_training,
                     # Gauss_priors_width=(max_training - min_training) # broad priors
                 ))
-                print(key,max_training - min_training)
 # check the parameters
 for p in like_params:
-    print(p.name, p.value)
+    print(p.name, p.value, p.min_value, p.max_value)
 
 # %%
-like = Likelihood(forecast, theory_AA, free_param_names=["mF", "gamma"], iz_choice=iz_choice, like_params=like_params, verbose=True)
-like.plot_px([0], like_params, multiply_by_k=False, ylim2=[-.05,.05], ylim=[-.005,0.25], every_other_theta=False, show=True, title=f"Redshift 2.2", theorylabel='Theory: central sim', datalabel=f'Forecast at central sim', xlim=[0,.7], residual_to_theory=True)
+like = Likelihood(forecast, theory_AA, free_param_names=["mF"], iz_choice=iz_choice, like_params=like_params, verbose=True)
+like.plot_px(iz_choice, like_params, multiply_by_k=False, ylim2=[-.05,.05], ylim=[-.005,0.25], every_other_theta=False, show=True, title=f"Redshift 2.2", theorylabel='Theory: central sim', datalabel=f'Forecast at central sim', xlim=[0,.7], residual_to_theory=True)
 
 # %%
 # %%time
-mini = IminuitMinimizer(like, verbose=False)
-mini.minimize()
+mini = IminuitMinimizer(like, verbose=True)
+mini.minimize(compute_hesse=False)
+
+# %%
+mini.minimizer.nfcn
+
+# %%
+mini.minimizer.nfcn * 1.5
+
+# %%
+60*60/mini.minimizer.nfcn # average time per function evaluation in seconds
+
+# %%
+# %load_ext line_profiler
+
+# %%
+# %lprun -f mini.minimize mini.minimize(compute_hesse=True)
+
+# %%
+# %%time
+mini.minimizer.hesse()
+
+# %%
+forestflow.__path__
+
+# %%
+mini.minimizer.nfcn
+
+# %%
+mF_bestfit,err = mini.best_fit_value("mF", return_hesse=True)
+plt.errorbar("mF", mF_bestfit, yerr=err, fmt='o', label='best fit')
+plt.plot("mF", like_params[2].value, color='k', marker='*',ms=20, label='Truth')
+# plt.plot("bias", like_params[0].ini_value, color='orange', marker='^',ms=10, label='initial value')
+plt.legend()
 
 # %%
 true_vals={par.name:par.value for par in like_params}
@@ -363,7 +444,7 @@ plt.axhline(y=like_params[gamma_index].ini_value, color='orange', linestyle=':')
 # plt.ylim([1.35, 1.8])
 # plt.xlim([-0.145, -0.105])
 plt.text(like_params[mF_index].ini_value, like_params[gamma_index].ini_value, 'Initial Value', color='orange')
-plt.savefig(f"../../plots/forecast_mF_gamma_contours_inimF_{like_params[mF_index].ini_value:.3f}_inigamma_{like_params[gamma_index].ini_value:.3f}.pdf")
+# plt.savefig(f"../../plots/forecast_mF_gamma_contours_inimF_{like_params[mF_index].ini_value:.3f}_inigamma_{like_params[gamma_index].ini_value:.3f}.pdf")
 
 # %%
 # Walther+ constriaints

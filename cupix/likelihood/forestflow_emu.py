@@ -17,7 +17,7 @@ class FF_emulator():
             cosmo_param_dict,
             camb_cosmo_results,
             kp_Mpc=0.7,
-            Nrealizations=1000
+            Nrealizations=3000
         ):
 
         self.emu_params = [
@@ -38,40 +38,14 @@ class FF_emulator():
         self._load_emu(Nrealizations=Nrealizations)
         self._load_arinyo()
 
-    def _load_emu(self, Nrealizations=1000):
+    def _load_emu(self, Nrealizations=3000):
         """ This function loads the emulator and doesn't require any input """
 
         path_program = forestflow.__path__[0][:-10]
 
-        # LOAD P3D ARCHIVE
-        folder_lya_data = path_program + "/data/best_arinyo/"
-
-        Archive3D = GadgetArchive3D(
-            base_folder=path_program[:-1],
-            folder_data=folder_lya_data,
-            force_recompute_plin=False,
-            average="both",
-        )
-
-        # Load emulator
-        training_type = "Arinyo_min"
-        model_path=path_program+"/data/emulator_models/mpg_hypercube.pt"
-
         emulator = P3DEmulator(
-            Archive3D.training_data,
-            Archive3D.emu_params,
-            nepochs=300,
-            lr=0.001,  # 0.005
-            batch_size=20,
-            step_size=200,
-            gamma=0.1,
-            weight_decay=0,
-            adamw=True,
-            nLayers_inn=12,  # 15
-            Archive=Archive3D,
-            training_type=training_type,
-            model_path=model_path,
-            Nrealizations=Nrealizations,
+        model_path=path_program+"/data/emulator_models/new_emu",
+        Nrealizations=Nrealizations
         )
 
         self.emu = emulator

@@ -310,9 +310,6 @@ class Theory(object):
             # use background and transfer functions from fiducial cosmology
             if self.verbose:
                 print("recycle transfer function")
-            linP_Mpc_params = self.get_linP_Mpc_params_from_fiducial(
-                zs, like_params
-            )
             M_kms_of_zs  = []
             M_tdeg_of_zs = []
             M_AA_of_zs   = []
@@ -331,9 +328,6 @@ class Theory(object):
             if self.verbose:
                 print("create new CAMB_model")
             camb_model = self.fid_cosmo["cosmo"].get_new_model(zs, like_params)
-            linP_Mpc_params = camb_model.get_linP_Mpc_params(
-                kp_Mpc=self.emu_kp_Mpc
-            )
             M_kms_of_zs = camb_model.get_M_kms_of_zs()
             M_AA_of_zs = camb_model.get_M_AA_of_zs()
             M_tdeg_of_zs = camb_model.get_M_tdeg_of_zs()
@@ -395,8 +389,8 @@ class Theory(object):
                                 )
                             else:
                                 emu_call[key] = np.atleast_1d(par.value) # if the likelihood params are stored as lists per z (emu_call[key] should be a list /array per z (shape 0 is Nz))
-                                print(f"Adding {key} to emu_call with value {emu_call[key]}")
-                    print("Found parameter", key, "in likelihood parameters, setting it to", emu_call[key])
+                                # print(f"Adding {key} to emu_call with value {emu_call[key]}")
+                    # print("Found parameter", key, "in likelihood parameters, setting it to", emu_call[key])
                 else:
                     raise ValueError(
                         "Not a theory model for emulator parameter", key

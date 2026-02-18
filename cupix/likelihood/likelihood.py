@@ -12,7 +12,7 @@ from lace.cosmo import camb_cosmo
 from cupix.utils.utils import is_number_string
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 import warnings
-
+import time
 
 class Likelihood(object):
     """Likelihood class, holds data, theory, and knows about parameters"""
@@ -159,6 +159,7 @@ class Likelihood(object):
     ):
         """Compute log(likelihood), including determinant of covariance
         unless you are setting ignore_log_det_cov=True."""
+        start = time.time()
         iz = self.iz_choice
         if len(np.atleast_1d(iz))>1:
             raise ValueError("Likelihood computation not implemented for more than one redshift at once.")
@@ -212,10 +213,13 @@ class Likelihood(object):
                 log_like_all[itheta] = -0.5 * (chi2_z + log_det_cov)
         log_like += np.sum(log_like_all)
 
+        end = time.time()
+        print(f"Log-likelihood computed in {end - start:.2f} seconds")
         if np.any(np.isnan(log_like)):
             return null_out
         
         out = [log_like, log_like_all]
+        
         return out
 
     def regulate_log_like(self, log_like):
@@ -239,8 +243,7 @@ class Likelihood(object):
             log_prior = self.get_log_prior(values)
         else:
             log_prior = 0
-        # compute log_like (option to ignore emulator covariance)
-        
+        # compute log_like
         log_like, chi2_all = self.get_log_like(
             values,
             ignore_log_det_cov=ignore_log_det_cov
@@ -287,11 +290,13 @@ class Likelihood(object):
 
     def minus_log_prob(self, values):
         """Return minus log_prob (needed to maximise posterior)"""
-        print("values at beginning are", values)
-        if not np.isfinite(self.log_prob(values)):
-            print("Non-finite value detected:", values, self.log_prob(values))
-
-        return -1.0 * self.log_prob(values)
+        if self.verbose:
+            print("values at beginning are", values)
+        log_prob = self.log_prob(values)
+        if not np.isfinite(log_prob):
+            print("Non-finite value detected:", values, log_prob)
+        print("log prob is", log_prob)
+        return -1.0 * log_prob
 
     def maximise_posterior(
         self, initial_values=None, method="nelder-mead", tol=1e-4
