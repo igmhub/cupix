@@ -21,18 +21,14 @@ import numpy as np
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.lya_theory import set_theory
 from cupix.likelihood.forestflow_emu import FF_emulator
-from lace.cosmo import camb_cosmo, fit_linP
+from lace.cosmo import camb_cosmo
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-import os
 import h5py as h5
-from lace.cosmo.thermal_broadening import thermal_broadening_kms
-from forestflow.archive import GadgetArchive3D
-import forestflow
-import copy
-# %load_ext autoreload
-# %autoreload 2
+import cupix
+import pandas as pd
+cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 
 # %% [markdown]
 # ### Step 1: Import a noiseless forecast
@@ -77,28 +73,13 @@ fid_cosmo = {
 sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
 cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
 
-ffemu = FF_emulator(z, fid_cosmo, cc, Nrealizations=1000)
+ffemu = FF_emulator(z, fid_cosmo, cc, Nrealizations=5000)
 theory_AA = set_theory(ffemu, k_unit='iAA')
 theory_AA.set_fid_cosmo(z)
 theory_AA.emulator = ffemu
-dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(z), camb_results=cc)
 
 # %% [markdown]
 # ### Step 3: Setup up the likelihood parameters
-
-# %%
-# Figure out the ForestFlow training range
-path_program = os.path.dirname(forestflow.__path__[0]) + '/'
-path_program
-folder_lya_data = path_program + "/data/best_arinyo/"
-
-Archive3D = GadgetArchive3D(
-    base_folder=path_program[:-1],
-    folder_data=folder_lya_data,
-    average="both",
-)
-print(len(Archive3D.training_data))
-training_data = Archive3D.training_data
 
 # %%
 # read the likelihood params from forecast file
@@ -137,17 +118,19 @@ print(like.fit_probability(values=None))
 # %%
 like.get_chi2(values=None)
 
-# %%
-like_with_freepar = Likelihood(forecast, theory_AA, free_param_names=['mF'], iz_choice=iz_choice, like_params=like_params, verbose=False)
-
-# %%
-like.fit_probability(values = [])
-
 # %% [markdown]
 # ## Choose the parameter you want to test
 
 # %%
-par_to_test = 'mF'
+par_to_test = 'sigT_Mpc'
+
+# %%
+like_with_freepar = Likelihood(forecast, theory_AA, free_param_names=[par_to_test], iz_choice=iz_choice, like_params=like_params, verbose=False)
+
+# %%
+like.fit_probability(values = [])
+
+# %%
 par_index = [i for i, lp in enumerate(like_params) if lp.name==par_to_test][0]
 
 # %% [markdown]
@@ -160,42 +143,37 @@ like_with_freepar.fit_probability(values=like_params[par_index].get_value_in_cub
 like_with_freepar.get_chi2(values=like_params[par_index].get_value_in_cube(like_params[par_index].value[iz_choice]))
 
 # %%
+# get the min/ max values of parameters from the training simulations
+gadget_short_info_file = cupixpath + '/data/emulator/ff_training_info.csv'
+train_test_info = pd.read_csv(gadget_short_info_file)
+train_test_z = np.where(z[iz_choice][0]==train_test_info["z"])[0][0]
+print("Found min/max values at z=", train_test_info.iloc[train_test_z]['z'])
+min_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_min']
+max_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_max']
+print(f"Min/max values of {par_to_test} in training sims at this z: {min_par_val}, {max_par_val}")
+
+# %%
 chi2_per_param = []
 
-par_vals = np.linspace(like_params[par_index].value[iz_choice]-0.15, like_params[par_index].value[iz_choice]+0.15, 30)
+par_vals = np.linspace(min_par_val, max_par_val, 30)
 print(par_vals)
 for i in range(len(par_vals)):
-    # make a deep copy of like_params
-    # like_params_copy = copy.deepcopy(like_params)
-    # for j, param in enumerate(like_params):
-    #     if param.name=='mF':
-    #         # replace the first element of the likelihood_params list
-    #         like_params_copy[j] = LikelihoodParameter(
-    #             name='mF',
-    #             min_value=min_mF,
-    #             max_value=max_mF,
-    #             value=[mF_vals[i]]
-    #             )
-    # make a new likelihood
-    # like_test = Likelihood(forecast, theory_AA, free_param_names=[], iz_choice=iz_choice, like_params=like_params_copy, verbose=False)
     chi2_i = like_with_freepar.get_chi2(values=[like_params[par_index].get_value_in_cube(par_vals[i])])
     chi2_per_param.append(chi2_i)
     if i==0 or chi2_i < np.min(chi2_per_param[:-1]):
         best = par_vals[i]
         print(f"New best fit found with chi2={chi2_i} at mF={best}")
         best_chi2 = chi2_i
-    # # make sure it worked
-    # for param in like_params:
-    #     print(param.name, param.value)
+    
 
 # %%
 plt.plot(par_vals, chi2_per_param - np.amin(chi2_per_param))
-plt.xlabel('mF')
+plt.xlabel(par_to_test)
 
-plt.ylabel(' chi2')
+plt.ylabel(r'$\Delta \chi^2$')
 plt.axvline(best, color='grey', label='best')
 plt.axvline(like_params[par_index].value[iz_choice], color='red', label='truth')
-plt.title(f'Log likelihood vs {par_to_test}')
+plt.title(f'chi2 vs {par_to_test}')
 # plt.ylim([0,1000000000])
 plt.legend()
 
