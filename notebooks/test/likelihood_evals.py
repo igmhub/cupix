@@ -1,11 +1,12 @@
 # ---
 # jupyter:
 #   jupytext:
+#     formats: ipynb,py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.17.3
+#       jupytext_version: 1.19.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -37,8 +38,12 @@ import copy
 # ### Step 1: Import a noiseless forecast
 
 # %%
-# forecast_file = "../../data/px_measurements/forecast/forecast_centralsim_binned_px-zbins_4-thetabins_20_noiseless.hdf5"
-forecast_file = "../../data/px_measurements/forecast/forecast_ffcentral_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+# choose the mode
+mode = 'cosmo_igm' # if the parameters you want to test are mean-flux, etc
+# mode = 'arinyo' # if the parameters you want to test are Arinyo params
+
+# %%
+forecast_file = f"../../data/px_measurements/forecast/forecast_ffcentral_{mode}_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
 forecast = DESI_DR2(forecast_file, kmax_cut_AA=1)
 
 # %% [markdown]
@@ -73,8 +78,6 @@ sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
 cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
 
 ffemu = FF_emulator(z, fid_cosmo, cc, Nrealizations=1000)
-ffemu.kp_Mpc = 1 # set pivot point
-
 theory_AA = set_theory(ffemu, k_unit='iAA')
 theory_AA.set_fid_cosmo(z)
 theory_AA.emulator = ffemu
@@ -140,24 +143,28 @@ like_with_freepar = Likelihood(forecast, theory_AA, free_param_names=['mF'], iz_
 # %%
 like.fit_probability(values = [])
 
-# %%
-like_params[mf_index].value
+# %% [markdown]
+# ## Choose the parameter you want to test
 
 # %%
-like_with_freepar.fit_probability(values=like_params[mf_index].get_value_in_cube(like_params[mf_index].value[iz_choice]))
+par_to_test = 'mF'
+par_index = [i for i, lp in enumerate(like_params) if lp.name==par_to_test][0]
+
+# %% [markdown]
+# Make sure the probability is high / chi2 is low if we input the truth for that parameter 
 
 # %%
-like_with_freepar.get_chi2(values=like_params[mf_index].get_value_in_cube(like_params[mf_index].value[iz_choice]))
+like_with_freepar.fit_probability(values=like_params[par_index].get_value_in_cube(like_params[par_index].value[iz_choice]))
 
 # %%
-like_params[mf_index].value[iz_choice]
+like_with_freepar.get_chi2(values=like_params[par_index].get_value_in_cube(like_params[par_index].value[iz_choice]))
 
 # %%
 chi2_per_param = []
-mf_index = [i for i, lp in enumerate(like_params) if lp.name=='mF'][0]
-mF_vals = np.linspace(like_params[mf_index].value[iz_choice]-0.15, like_params[mf_index].value[iz_choice]+0.15, 30)
-print(mF_vals)
-for i in range(len(mF_vals)):
+
+par_vals = np.linspace(like_params[par_index].value[iz_choice]-0.15, like_params[par_index].value[iz_choice]+0.15, 30)
+print(par_vals)
+for i in range(len(par_vals)):
     # make a deep copy of like_params
     # like_params_copy = copy.deepcopy(like_params)
     # for j, param in enumerate(like_params):
@@ -171,10 +178,10 @@ for i in range(len(mF_vals)):
     #             )
     # make a new likelihood
     # like_test = Likelihood(forecast, theory_AA, free_param_names=[], iz_choice=iz_choice, like_params=like_params_copy, verbose=False)
-    chi2_i = like_with_freepar.get_chi2(values=[like_params[mf_index].get_value_in_cube(mF_vals[i])])
+    chi2_i = like_with_freepar.get_chi2(values=[like_params[par_index].get_value_in_cube(par_vals[i])])
     chi2_per_param.append(chi2_i)
     if i==0 or chi2_i < np.min(chi2_per_param[:-1]):
-        best = mF_vals[i]
+        best = par_vals[i]
         print(f"New best fit found with chi2={chi2_i} at mF={best}")
         best_chi2 = chi2_i
     # # make sure it worked
@@ -182,13 +189,13 @@ for i in range(len(mF_vals)):
     #     print(param.name, param.value)
 
 # %%
-plt.plot(mF_vals, chi2_per_param - np.amin(chi2_per_param))
+plt.plot(par_vals, chi2_per_param - np.amin(chi2_per_param))
 plt.xlabel('mF')
 
 plt.ylabel(' chi2')
 plt.axvline(best, color='grey', label='best')
-plt.axvline(like_params[mf_index].value[iz_choice], color='red', label='truth')
-plt.title('Log likelihood vs mF')
+plt.axvline(like_params[par_index].value[iz_choice], color='red', label='truth')
+plt.title(f'Log likelihood vs {par_to_test}')
 # plt.ylim([0,1000000000])
 plt.legend()
 
