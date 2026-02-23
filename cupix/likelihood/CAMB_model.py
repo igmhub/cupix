@@ -118,8 +118,9 @@ class CAMBModel(object):
         It returns a CAMB.results object."""
 
         if self.cached_camb_results is None:
+            print("Calling get_camb_results")
             self.cached_camb_results = camb_cosmo.get_camb_results(
-                self.cosmo, zs=self.zs, fast_camb=True
+                self.cosmo, zs=self.zs, camb_kmax_Mpc=600 #, fast_camb=True
             )
 
         return self.cached_camb_results

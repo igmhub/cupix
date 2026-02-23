@@ -29,6 +29,8 @@ import h5py as h5
 import cupix
 import pandas as pd
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
+# %load_ext autoreload
+# %autoreload 2
 
 # %% [markdown]
 # ### Step 1: Import a noiseless forecast
@@ -40,6 +42,7 @@ mode = 'cosmo_igm' # if the parameters you want to test are mean-flux, etc
 
 # %%
 forecast_file = f"../../data/px_measurements/forecast/forecast_ffcentral_{mode}_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+# forecast_file = f"../../data/px_measurements/forecast/forecast_ffcentral_{mode}_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
 forecast = DESI_DR2(forecast_file, kmax_cut_AA=1)
 
 # %% [markdown]
@@ -70,16 +73,18 @@ fid_cosmo = {
     'nrun': nrun,
     'w': w
 }
-sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
-cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
+# sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
+# cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
 
-ffemu = FF_emulator(z, fid_cosmo, cc, Nrealizations=5000)
-theory_AA = set_theory(ffemu, k_unit='iAA')
-theory_AA.set_fid_cosmo(z)
-theory_AA.emulator = ffemu
+# ffemu = FF_emulator(z, fid_cosmo, cc, Nrealizations=5000)
+theory_AA = set_theory(z, fid_cosmo=fid_cosmo, emulator_label='forestflow_emu', k_unit='iAA', verbose=False)
+# theory_AA.set_fid_cosmo(z)
 
 # %% [markdown]
 # ### Step 3: Setup up the likelihood parameters
+
+# %%
+iz_choice = np.array([0])#  np.array([0,3])
 
 # %%
 # read the likelihood params from forecast file
@@ -92,7 +97,7 @@ with h5.File(forecast_file, "r") as f:
         if len(val)>0:
             like_params.append(LikelihoodParameter(
                 name=key,
-                value=val,
+                value=np.array(val[iz_choice]),
                 min_value=-10., # arbitrary for now
                 max_value=10.
             ))
@@ -104,12 +109,11 @@ for p in like_params:
 # ### Step 4: Profile likelihood
 
 # %%
-iz_choice = np.array([0])#  np.array([0,3])
 like = Likelihood(forecast, theory_AA, free_param_names=[], iz_choice=iz_choice, like_params=like_params, verbose=False)
 
 # %%
 # make sure theory matches forecast data at central value
-like.plot_px(iz_choice, like_params, multiply_by_k=False, ylim=[-0.00025,0.3], ylim2=[-10,10], every_other_theta=True, show=True,  title=f"Redshift {forecast.z[iz_choice]}", theorylabel=f'Model from best-fit $\chi$', datalabel='Stack on true-continuum mocks')
+like.plot_px(iz_choice, like_params, multiply_by_k=False, ylim=[-0.00025,0.3], ylim2=[-10,10], every_other_theta=True, show=True,  title=f"Redshift {forecast.z[iz_choice]}", theorylabel=f'Model', datalabel='Forecast')
 
 
 # %%
@@ -128,19 +132,17 @@ par_to_test = 'sigT_Mpc'
 like_with_freepar = Likelihood(forecast, theory_AA, free_param_names=[par_to_test], iz_choice=iz_choice, like_params=like_params, verbose=False)
 
 # %%
-like.fit_probability(values = [])
-
-# %%
 par_index = [i for i, lp in enumerate(like_params) if lp.name==par_to_test][0]
+par_index
 
 # %% [markdown]
 # Make sure the probability is high / chi2 is low if we input the truth for that parameter 
 
 # %%
-like_with_freepar.fit_probability(values=like_params[par_index].get_value_in_cube(like_params[par_index].value[iz_choice]))
+like_with_freepar.fit_probability(values=like_params[par_index].get_value_in_cube(like_params[par_index].value))
 
 # %%
-like_with_freepar.get_chi2(values=like_params[par_index].get_value_in_cube(like_params[par_index].value[iz_choice]))
+like_with_freepar.get_chi2(values=like_params[par_index].get_value_in_cube(like_params[par_index].value))
 
 # %%
 # get the min/ max values of parameters from the training simulations
@@ -155,7 +157,7 @@ print(f"Min/max values of {par_to_test} in training sims at this z: {min_par_val
 # %%
 chi2_per_param = []
 
-par_vals = np.linspace(min_par_val, max_par_val, 30)
+par_vals = np.linspace(1.1*min_par_val, .9*max_par_val, 15)
 print(par_vals)
 for i in range(len(par_vals)):
     chi2_i = like_with_freepar.get_chi2(values=[like_params[par_index].get_value_in_cube(par_vals[i])])
@@ -172,9 +174,9 @@ plt.xlabel(par_to_test)
 
 plt.ylabel(r'$\Delta \chi^2$')
 plt.axvline(best, color='grey', label='best')
-plt.axvline(like_params[par_index].value[iz_choice], color='red', label='truth')
+plt.axvline(like_params[par_index].value, color='red', label='truth')
 plt.title(f'chi2 vs {par_to_test}')
-# plt.ylim([0,1000000000])
+plt.ylim([0,25])
 plt.legend()
 
 # %%

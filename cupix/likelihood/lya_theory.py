@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from lace.cosmo import camb_cosmo
 from lace.cosmo import fit_linP
 from lace.emulator import gp_emulator
-
+from cupix.likelihood.forestflow_emu import FF_emulator
 from cupix.likelihood import CAMB_model
 from cupix.likelihood.model_contaminants import Contaminants
 from cupix.likelihood.model_systematics import Systematics
@@ -15,16 +15,19 @@ from cupix.utils.hull import Hull
 from cupix.utils.utils import is_number_string
 from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
+import sys
 
 def set_theory(
-    emulator, k_unit='iAA', verbose=False
+    zs, fid_cosmo, emulator_label, k_unit='iAA', verbose=False
 ):
     """Set theory"""
 
 
     # set theory
     theory = Theory(
-        emulator=emulator,
+        zs = zs,
+        fid_cosmo= fid_cosmo,
+        emulator_label = emulator_label,
         k_unit = k_unit,
         verbose=verbose
     )
@@ -39,7 +42,9 @@ class Theory(object):
 
     def __init__(
         self,
-        emulator=None,
+        zs,
+        fid_cosmo=None,
+        emulator_label=None,
         verbose=False,
         z_star=3.0,
         kp_kms=0.009,
@@ -68,17 +73,27 @@ class Theory(object):
         self.kp_kms = kp_kms
         self.use_star_priors = use_star_priors
         self.k_unit = k_unit
-        # setup emulator
-        if emulator is None:
-            raise ValueError("Emulator not specified")
+        if fid_cosmo is not None:
+            input_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
         else:
-            self.emulator = emulator
-        self.emu_kp_Mpc = self.emulator.kp_Mpc
+            input_cosmo = None
+        if emulator_label == "forestflow_emu": # not really sure what this does
+            self.emu_kp_Mpc = 0.7  # not really sure what this does
+
+        # I don't know what this part does either but it is necessary for set_fid_cosmo
         res = get_training_hc("mpg")
         self.emu_pars = res[0]
         self.hc_points = res[1]
         self.emu_cosmo_all = res[2]
         self.emu_igm_all = res[3]
+        ###
+        self.set_fid_cosmo(zs, input_cosmo=input_cosmo)
+        # setup emulator
+        if emulator_label == "forestflow_emu":
+            self.emulator = FF_emulator(zs, fid_cosmo, self.fid_cosmo["cosmo"].get_camb_results(), Nrealizations=5000, kp_Mpc = self.emu_kp_Mpc)
+        else:
+            print("Warning: no emulator specified, theory will not be able to make predictions")
+
 
 
     def set_fid_cosmo(
