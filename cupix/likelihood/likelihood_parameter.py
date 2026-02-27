@@ -80,3 +80,5 @@ class LikelihoodParameter(object):
         par.set_from_cube(value_in_cube)
 
         return par
+
+# def set_like_params():

@@ -88,9 +88,13 @@ class Theory(object):
         self.emu_igm_all = res[3]
         ###
         self.set_fid_cosmo(zs, input_cosmo=input_cosmo)
+        
+        pk_interp = self.fid_cosmo["cosmo"].get_linP_interp(fid_cosmo)
+        # self.fid_cosmo["cosmo"].get_camb_results().get_matter_power_interpolator()
+        print(pk_interp)
         # setup emulator
         if emulator_label == "forestflow_emu":
-            self.emulator = FF_emulator(zs, fid_cosmo, self.fid_cosmo["cosmo"].get_camb_results(), Nrealizations=5000, kp_Mpc = self.emu_kp_Mpc)
+            self.emulator = FF_emulator(zs, fid_cosmo, pk_interp=pk_interp, Nrealizations=5000, kp_Mpc = self.emu_kp_Mpc)
         else:
             print("Warning: no emulator specified, theory will not be able to make predictions")
 
@@ -621,7 +625,7 @@ class Theory(object):
                     arinyo_coeffs[par.name] = np.atleast_1d(par.value)
         # activate the arinyo model
         
-        p3d_model = self.emulator.arinyo.P3D_Mpc
+        p3d_model = self.emulator.arinyo.P3D_Mpc_k_mu
         si_coeffs = {}
         if add_silicon:
             if verbose:

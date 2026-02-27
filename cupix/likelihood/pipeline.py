@@ -311,18 +311,6 @@ class Pipeline(object):
                 data["Px"].z,
             )
 
-            # # set hires Px
-            # if args.data_label_hires is not None:
-            #     data["extra_Px"] = set_Px(
-            #         args,
-            #         archive=archive,
-            #         true_cosmo=true_cosmo,
-            #         emulator=emulator,
-            #     )
-            #     fprint(
-            #         "Set " + str(len(data["extra_P1Ds"].z)) + " P1Ds at z = ",
-            #         data["extra_P1Ds"].z,
-            #     )
             # distribute data to all tasks
             for irank in range(1, size):
                 comm.send(data, dest=irank, tag=(irank + 1) * 11)
@@ -340,21 +328,18 @@ class Pipeline(object):
 
         # check if data is blinded
         fprint("----------")
-        fprint("Is the data blinded: ", data["Px"].apply_blinding)
-        if data["Px"].apply_blinding:
-            fprint("Type of blinding: ", data["Px"].blinding)
+        
+        # if rank == 0:
+            # # TBD save to file!
+            # if make_plots:
+            #     data["P1Ds"].plot_p1d()
+            #     if args.data_label_hires is not None:
+            #         data["extra_P1Ds"].plot_p1d()
 
-        if rank == 0:
-            # TBD save to file!
-            if make_plots:
-                data["P1Ds"].plot_p1d()
-                if args.data_label_hires is not None:
-                    data["extra_P1Ds"].plot_p1d()
-
-                try:
-                    data["P1Ds"].plot_igm()
-                except:
-                    print("Real data, no true IGM history")
+            #     try:
+            #         data["P1Ds"].plot_igm()
+            #     except:
+            #         print("Real data, no true IGM history")
 
         #######################
 

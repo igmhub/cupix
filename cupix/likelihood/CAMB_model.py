@@ -4,6 +4,7 @@ import camb
 from lace.cosmo import camb_cosmo
 from lace.cosmo import fit_linP
 from cupix.likelihood import likelihood_parameter
+import types
 
 
 class CAMBModel(object):
@@ -120,7 +121,7 @@ class CAMBModel(object):
         if self.cached_camb_results is None:
             print("Calling get_camb_results")
             self.cached_camb_results = camb_cosmo.get_camb_results(
-                self.cosmo, zs=self.zs, camb_kmax_Mpc=600 #, fast_camb=True
+                self.cosmo, zs=self.zs, camb_kmax_Mpc=200 #, fast_camb=True
             )
 
         return self.cached_camb_results
@@ -231,3 +232,77 @@ class CAMBModel(object):
         )
 
         return CAMBModel(zs=zs, cosmo=new_cosmo)
+
+
+        
+    def get_linP_interp(self, zmin=0, zmax=10, nz=256, camb_kmax_Mpc=200.0):
+        """
+        Obtain an interpolator of the linear power spectrum from CAMB.
+        Copied from ForestFlow
+
+        Parameters:
+            cosmo (Cosmology): Cosmology object representing the cosmological parameters.
+            zmin (float, optional): Minimum redshift for the linear power spectrum interpolation. Defaults to 0.
+            zmax (float, optional): Maximum redshift for the linear power spectrum interpolation. Defaults to 10.
+            nz (int, optional): Number of redshift points to use for the linear power spectrum interpolation. Defaults to 256.
+            camb_kmax_Mpc (float, optional): Maximum wavenumber (in Mpc^-1) to consider for the linear power spectrum. Defaults to 200.0.
+
+        Returns:
+            get_plin (function): A function that takes redshift (z) and wavenumber (k_Mpc) as inputs and returns the corresponding linear power spectrum.
+        """
+        # Get the CAMB results for the specified redshift range and maximum wavenumber
+        camb_results = self.get_camb_results()
+
+        # Get the linear power spectrum interpolator from the CAMB results
+        # The `var1` and `var2` parameters refer to the transfer function variables
+        # used in the power spectrum calculation. 8 corresponds to the matter power spectrum.
+        linP_interp = camb_results.get_matter_power_interpolator(
+            nonlinear=False,
+            var1=8,
+            var2=8,
+            hubble_units=False,
+            k_hunit=False,
+            log_interp=True,
+        )
+
+        # Create a method-bound function to get the linear power spectrum
+        get_linpower = types.MethodType(P_camb, linP_interp)
+
+        def get_plin(z, k_Mpc):
+            """
+            Get the linear power spectrum at the given redshift and wavenumber.
+
+            Parameters:
+                z (float or array-like): Redshift(s) at which to evaluate the linear power spectrum.
+                k_Mpc (float or array-like): Wavenumber(s) in Mpc^-1 at which to evaluate the linear power spectrum.
+
+            Returns:
+                float or array-like: Linear power spectrum at the given redshift(s) and wavenumber(s).
+            """
+            # Check if the requested redshift or wavenumber is outside the interpolation range
+            if np.any(np.asarray(z) > zmax):
+                raise ValueError(
+                    f"Requested z={z} exceeds interpolation range zmax={zmax}"
+                )
+            elif np.any(np.asarray(k_Mpc) > camb_kmax_Mpc):
+                raise ValueError(
+                    f"Requested k_Mpc={k_Mpc} exceeds interpolation range kmax_Mpc={camb_kmax_Mpc}"
+                )
+            # Use the method-bound function to get the linear power spectrum
+            return get_linpower(z, k_Mpc, grid=False)
+
+        # Attach the cosmology object and maximum wavenumber to the get_plin function
+        get_plin.cosmo = self.cosmo
+        get_plin.camb_kmax_Mpc = camb_kmax_Mpc
+
+        return get_plin
+
+
+# copied from ForestFlow
+def P_camb(pk_intp, z, kh, grid=None):
+    if grid is None:
+        grid = not np.isscalar(z) and not np.isscalar(kh)
+    if pk_intp.islog:
+        return pk_intp.logsign * np.exp(pk_intp(z, np.log(kh), grid=grid))
+    else:
+        return pk_intp(z, np.log(kh), grid=grid)
