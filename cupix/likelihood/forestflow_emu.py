@@ -15,8 +15,6 @@ class FF_emulator():
             self,
             z,
             cosmo_param_dict,
-            pk_interp,
-            kp_Mpc=0.7,
             Nrealizations=3000
         ):
 
@@ -29,14 +27,12 @@ class FF_emulator():
             "kF_Mpc"
         ]
         self.z = z
-        self.cosmo_param_dict = cosmo_param_dict
-        self.pk_interp = pk_interp
+        self.cosmo_param_dict = cosmo_param_dict 
         self.emulator_label = "forestflow_emu"
-        self.kp_Mpc = kp_Mpc
-        self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
+        # self.kp_Mpc = kp_Mpc
+        # self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
         
         self._load_emu(Nrealizations=Nrealizations)
-        self._load_arinyo()
 
     def _load_emu(self, Nrealizations=3000):
         """ This function loads the emulator and doesn't require any input """
@@ -49,26 +45,6 @@ class FF_emulator():
         )
 
         self.emu = emulator
-
-
-    def _load_arinyo(self):
-        """ This function reads redshift z and cosmo paremeters dictionary and loads the Arinyo model
-        Arguments:
-        ----------
-        z: Float or array of floats
-        Redshift.
-
-        input_cosmo: Cosmology dictionary (like what is returned by lac.camb_cosmo.get_cosmology_from_dictionary(cosmo_param_dict))
-
-        camb_cosmo_results: Camb Results object, returned by lace.camb_cosmo.get_camb_results
-        Return:
-        -------
-        arinyo: instance of the ArinyoModel class
-        """
-
-        arinyo = ArinyoModel(cosmo=self.cosmo_param_dict, camb_pk_interp=self.pk_interp) # set model
-
-        self.arinyo = arinyo
 
 
     def emulate_P3D_params(self, emu_call, zs):

@@ -62,7 +62,7 @@ ns = 0.9649
 nrun = 0.0
 w = -1.0
 omk = 0
-fid_cosmo = {
+cosmo = {
     'H0': H0,
     'omch2': omch2,
     'ombh2': ombh2,
@@ -77,7 +77,7 @@ fid_cosmo = {
 # cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
 
 # ffemu = FF_emulator(z, fid_cosmo, cc, Nrealizations=5000)
-theory_AA = set_theory(z, fid_cosmo=fid_cosmo, emulator_label='forestflow_emu', k_unit='iAA', verbose=False)
+theory_AA = set_theory(z, bkgd_cosmo=cosmo, p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 # theory_AA.set_fid_cosmo(z)
 
 # %% [markdown]
@@ -109,12 +109,24 @@ for p in like_params:
 # ### Step 4: Profile likelihood
 
 # %%
-like = Likelihood(forecast, theory_AA, free_param_names=[], iz_choice=iz_choice, like_params=like_params, verbose=False)
+like = Likelihood(forecast, theory_AA, free_param_names=[], iz_choice=iz_choice, like_params=like_params, verbose=True)
 
 # %%
 # make sure theory matches forecast data at central value
 like.plot_px(iz_choice, like_params, multiply_by_k=False, ylim=[-0.00025,0.3], ylim2=[-10,10], every_other_theta=True, show=True,  title=f"Redshift {forecast.z[iz_choice]}", theorylabel=f'Model', datalabel='Forecast')
 
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+import forestflow
+forestflow.__path__
 
 # %%
 print(like.fit_probability(values=None))

@@ -96,7 +96,6 @@ class Likelihood(object):
         theta_a_arcmin = np.asarray([(self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2. for i in self.data.z]) # simply replicate one Nz times; could make it flexible for different thetas per z bin if needed
         if self.verbose:
             print("Computing Px simultaneously for thetas,", theta_a_arcmin[iz], "arcmin")
-        
         Px_Zam = self.theory.get_px_AA(
             zs = zs[iz],
             k_AA=k_AA_fine[iz],
@@ -104,7 +103,6 @@ class Likelihood(object):
             like_params=like_params,
             verbose=self.verbose
         )
-        
         # loop through the large-theta bins from the data
         Px_ZAM_allz = []
         for Px_Zam_zindex, iiz in enumerate(iz):
@@ -129,6 +127,7 @@ class Likelihood(object):
                 Px_ZAM = rebin_theta(V_ZaM_all, Px_ZaM_all)
                 Px_ZAM_all.append(Px_ZAM)
             Px_ZAM_allz.append(np.asarray(Px_ZAM_all))
+        
         if squeeze_result:
             return np.squeeze(np.asarray(Px_ZAM_allz))
         else:
@@ -365,7 +364,6 @@ class Likelihood(object):
                 ax[0].plot(k, theory_iz_iA*factor, color=colors[itheta], linestyle=linestyles[theory_redshift_element], linewidth=2)
                 ax[1].set_xlabel(r'$k [\AA^{-1}]$')
                 ax[1].plot(k, (self.data.Px_ZAM[iz, itheta, :]-theory_iz_iA)/div, color=colors[itheta], marker='o', linestyle='none')
-                print(k.shape, self.data.Px_ZAM[iz,itheta,:].shape)
         # if more than 1 z plotted, add custom legend for the redshifts: "--, square: z=.., -., diamond: z=.." etc
         ax[0].legend()
         handles, labels = ax[0].get_legend_handles_labels()

@@ -18,7 +18,7 @@ from cupix.likelihood.lyaP3D import LyaP3D
 import sys
 
 def set_theory(
-    zs, fid_cosmo, emulator_label, k_unit='iAA', verbose=False
+    zs, bkgd_cosmo, p3d_label, emulator_label, k_unit='iAA', verbose=False
 ):
     """Set theory"""
 
@@ -26,7 +26,8 @@ def set_theory(
     # set theory
     theory = Theory(
         zs = zs,
-        fid_cosmo= fid_cosmo,
+        bkgd_cosmo=bkgd_cosmo,
+        p3d_label='arinyo',
         emulator_label = emulator_label,
         k_unit = k_unit,
         verbose=verbose
@@ -43,7 +44,8 @@ class Theory(object):
     def __init__(
         self,
         zs,
-        fid_cosmo=None,
+        bkgd_cosmo=None,
+        p3d_label='arinyo',
         emulator_label=None,
         verbose=False,
         z_star=3.0,
@@ -61,7 +63,7 @@ class Theory(object):
             - P_model: pressure model
             - metal_models: list of metal models to include
             - hcd_model: model for HCD contamination
-            - fid_cosmo: fiducial cosmology used for fixed parameters
+            - bkgd_cosmo: dictionary of background cosmology parameters used for unit conversions, etc
             - fid_sim_igm: IGM model assumed
             - true_sim_igm: if not None, true IGM model of the mock
         """
@@ -73,10 +75,11 @@ class Theory(object):
         self.kp_kms = kp_kms
         self.use_star_priors = use_star_priors
         self.k_unit = k_unit
-        if fid_cosmo is not None:
-            input_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
+        self.bkgd_cosmo = bkgd_cosmo
+        if bkgd_cosmo is not None:
+            laceCosmo = camb_cosmo.get_cosmology_from_dictionary(bkgd_cosmo)
         else:
-            input_cosmo = None
+            laceCosmo = None
         if emulator_label == "forestflow_emu": # not really sure what this does
             self.emu_kp_Mpc = 0.7  # not really sure what this does
 
@@ -86,15 +89,12 @@ class Theory(object):
         self.hc_points = res[1]
         self.emu_cosmo_all = res[2]
         self.emu_igm_all = res[3]
-        ###
-        self.set_fid_cosmo(zs, input_cosmo=input_cosmo)
-        
-        pk_interp = self.fid_cosmo["cosmo"].get_linP_interp(fid_cosmo)
-        # self.fid_cosmo["cosmo"].get_camb_results().get_matter_power_interpolator()
-        print(pk_interp)
-        # setup emulator
+        self._load_P3D_model(p3d_label=p3d_label)
+        print(dir(self.p3d_model))
+        self.set_fid_cosmo(zs, input_cosmo=laceCosmo)
+
         if emulator_label == "forestflow_emu":
-            self.emulator = FF_emulator(zs, fid_cosmo, pk_interp=pk_interp, Nrealizations=5000, kp_Mpc = self.emu_kp_Mpc)
+            self.emulator = FF_emulator(zs, self.bkgd_cosmo)
         else:
             print("Warning: no emulator specified, theory will not be able to make predictions")
 
@@ -128,18 +128,18 @@ class Theory(object):
             z_star=self.z_star,
             kp_kms=self.kp_kms,
         )
-        self.fid_cosmo["linP_Mpc_params"] = self.fid_cosmo[
-            "cosmo"
-        ].get_linP_Mpc_params(kp_Mpc=self.emu_kp_Mpc)
-        self.fid_cosmo["M_kms_of_zs"] = self.fid_cosmo["cosmo"].get_M_kms_of_zs()
-        self.fid_cosmo["M_AA_of_zs"] = self.fid_cosmo["cosmo"].get_M_AA_of_zs()
-        self.fid_cosmo["M_tdeg_of_zs"] = self.fid_cosmo["cosmo"].get_M_tdeg_of_zs()
-        self.fid_cosmo["linP_params"] = self.fid_cosmo[
-            "cosmo"
-        ].get_linP_params()
+        # self.fid_cosmo["linP_Mpc_params"] = self.fid_cosmo[
+        #     "cosmo"
+        # ].get_linP_Mpc_params(kp_Mpc=self.emu_kp_Mpc) # this part is calling camb
+        self.fid_cosmo["dkms_dMpc_zs"] = self.fid_cosmo["cosmo"].get_dkms_dMpc()
+        self.fid_cosmo["dAA_dMpc_zs"] = self.fid_cosmo["cosmo"].get_dAA_dMpc()
+        self.fid_cosmo["ddeg_dMpc_zs"] = self.fid_cosmo["cosmo"].get_ddeg_dMpc()
+        # self.fid_cosmo["linP_params"] = self.fid_cosmo[
+            # "cosmo"
+        # ].get_linP_params()
 
         # when using a fiducial cosmology, easy to change in other cases (TODO)
-        self.set_cosmo_priors()
+        # self.set_cosmo_priors()
 
     def set_cosmo_priors(self, extra_factor=1.25):
         """Set priors for cosmological parameters
@@ -316,11 +316,11 @@ class Theory(object):
             return linP_Mpc_params
 
     def get_emulator_calls(
-        self, zs, like_params=[], return_M_of_z=True, return_blob=False
+        self, zs, like_params=[], return_conv_of_z=True, return_blob=False
     ):
         """Compute models that will be emulated, one per redshift bin.
         - like_params identify likelihood parameters to use.
-        - return_M_of_z will also return conversion from Mpc to km/s
+        - return_conv_of_z will also return conversion from Mpc to km/s or Mpc to inv Angstroms,
             and from Mpc to deg for transverse separations
         - return_blob will return extra information about the call."""
 
@@ -329,17 +329,17 @@ class Theory(object):
             # use background and transfer functions from fiducial cosmology
             if self.verbose:
                 print("recycle transfer function")
-            M_kms_of_zs  = []
-            M_tdeg_of_zs = []
-            M_AA_of_zs   = []
+            dkms_dMpc_zs  = []
+            ddeg_dMpc_zs = []
+            dAA_dMpc_zs   = []
             for z in zs:
                 _ = np.argwhere(self.fid_cosmo["zs"] == z)[0, 0]
-                M_kms_of_zs.append(self.fid_cosmo["M_kms_of_zs"][_])
-                M_tdeg_of_zs.append(self.fid_cosmo["M_tdeg_of_zs"][_])
-                M_AA_of_zs.append(self.fid_cosmo["M_AA_of_zs"][_])
-            M_kms_of_zs  = np.array(M_kms_of_zs)
-            M_tdeg_of_zs = np.array(M_tdeg_of_zs)
-            M_AA_of_zs   = np.array(M_AA_of_zs)
+                dkms_dMpc_zs.append(self.fid_cosmo["dkms_dMpc_zs"][_])
+                ddeg_dMpc_zs.append(self.fid_cosmo["ddeg_dMpc_zs"][_])
+                dAA_dMpc_zs.append(self.fid_cosmo["dAA_dMpc_zs"][_])
+            dkms_dMpc_zs  = np.array(dkms_dMpc_zs)
+            ddeg_dMpc_zs = np.array(ddeg_dMpc_zs)
+            dAA_dMpc_zs   = np.array(dAA_dMpc_zs)
             if return_blob:
                 blob = self.get_blob_fixed_background(like_params)
         else:
@@ -347,9 +347,9 @@ class Theory(object):
             if self.verbose:
                 print("create new CAMB_model")
             camb_model = self.fid_cosmo["cosmo"].get_new_model(zs, like_params)
-            M_kms_of_zs = camb_model.get_M_kms_of_zs()
-            M_AA_of_zs = camb_model.get_M_AA_of_zs()
-            M_tdeg_of_zs = camb_model.get_M_tdeg_of_zs()
+            dkms_dMpc_zs = camb_model.get_dkms_dMpc()
+            dAA_dMpc_zs = camb_model.get_dAA_dMpc()
+            ddeg_dMpc_zs = camb_model.get_ddeg_dMpc()
             if return_blob:
                 blob = self.get_blob(camb_model=camb_model)
 
@@ -380,21 +380,21 @@ class Theory(object):
                 #         self.model_igm.models["T_model"].get_sigT_kms(
                 #             zs, like_params=like_params
                 #         )
-                #         / M_kms_of_zs
+                #         / dkms_dMpc_zs
                 #     )
                 # elif key == "kF_Mpc":
                 #     emu_call[key] = (
                 #         self.model_igm.models["P_model"].get_kF_kms(
                 #             zs, like_params=like_params
                 #         )
-                #         * M_kms_of_zs
+                #         * dkms_dMpc_zs
                 #     )
                 # elif key == "lambda_P":
                 #     emu_call[key] = 1000 / (
                 #         self.model_igm.models["P_model"].get_kF_kms(
                 #             zs, like_params=like_params
                 #         )
-                #         * M_kms_of_zs
+                #         * dkms_dMpc_zs
                 #     )
                 if key in ["mF", "gamma", "sigT_Mpc", "kF_Mpc", "lambda_P", "Delta2_p", "n_p"]: # "bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2", 
                     # feed in the direct Arinyo model input parameters
@@ -415,15 +415,15 @@ class Theory(object):
                         "Not a theory model for emulator parameter", key
                     )
 
-        if return_M_of_z:
+        if return_conv_of_z:
             if self.k_unit == 'ikms':
-                    return_M_k_of_zs = M_kms_of_zs
+                    return_conv_k_of_zs = dkms_dMpc_zs
             else:
-                return_M_k_of_zs = M_AA_of_zs
+                return_conv_k_of_zs = dAA_dMpc_zs
             if return_blob:
-                return emu_call, return_M_k_of_zs, M_tdeg_of_zs, blob
+                return emu_call, return_conv_k_of_zs, ddeg_dMpc_zs, blob
             else:
-                return emu_call, return_M_k_of_zs, M_tdeg_of_zs,
+                return emu_call, return_conv_k_of_zs, ddeg_dMpc_zs,
         else:
             if return_blob:
                 return emu_call, blob
@@ -567,10 +567,10 @@ class Theory(object):
         Nz = len(zs)
         theta_deg = np.atleast_1d(theta_arcmin) / 60.0
         # figure out emulator calls
-        emu_call, M_AA_of_z, M_tdeg_of_z = self.get_emulator_calls(
+        emu_call, dAA_dMpc_z, ddeg_dMpc_z = self.get_emulator_calls(
             zs,
             like_params=like_params,
-            return_M_of_z=True
+            return_conv_of_z=True
         )
         
         
@@ -598,13 +598,12 @@ class Theory(object):
             else:
                 Ntheta = len(theta_deg)
             theta_deg = [theta_deg]
-
         kin_Mpc = np.zeros((Nz, Nk))
+        
         theta_in_Mpc = np.zeros((Nz, Ntheta))
         for iz in range(Nz):
-            kin_Mpc[iz, : Nk] = k_AA[iz] * M_AA_of_z[iz]
-            theta_in_Mpc[iz, : Ntheta] = theta_deg[iz] / M_tdeg_of_z[iz]
-        
+            kin_Mpc[iz, : Nk] = k_AA[iz] * dAA_dMpc_z[iz]
+            theta_in_Mpc[iz, : Ntheta] = theta_deg[iz] / ddeg_dMpc_z[iz]
         # get the Arinyo coeffs if they're not already being fed in (e.g. if the likelihood parameters don't include them)
         if not self.has_all_arinyo_coeffs(like_params):
             if verbose:
@@ -625,7 +624,7 @@ class Theory(object):
                     arinyo_coeffs[par.name] = np.atleast_1d(par.value)
         # activate the arinyo model
         
-        p3d_model = self.emulator.arinyo.P3D_Mpc_k_mu
+        p3d_fun = self.p3d_model.P3D_Mpc_k_mu
         si_coeffs = {}
         if add_silicon:
             if verbose:
@@ -634,12 +633,12 @@ class Theory(object):
             for par in like_params:
                 if par.name in ["bias_SiIII", "beta_SiIII", "k_p_SiIII"]:
                     si_coeffs[par.name] = par.value
-        lyap3d = LyaP3D(zs, p3d_model, arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, Arinyo=self.emulator.arinyo, verbose=verbose)
+        lyap3d = LyaP3D(zs, P3D_model=self.p3d_model, P3D_fun=p3d_fun, P3D_coeffs=arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, verbose=verbose)
         px_pred_Mpc = lyap3d.model_Px(kin_Mpc, theta_in_Mpc)
         # move from Mpc to AA
         px_AA = np.zeros((Nz, Ntheta, Nk))
         for iz in range(Nz):
-            px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * M_AA_of_z[iz]
+            px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * dAA_dMpc_z[iz]
         # decide what to return, and return it
         out = px_AA
         # if len(out) == 1:
@@ -654,3 +653,17 @@ class Theory(object):
             if coeff not in [par.name for par in likelihood_params]:
                 return False
         return True
+
+
+
+    def _load_P3D_model(self, p3d_label='arinyo'):
+        
+        """ This function reads cosmo paremeters dictionary and loads a P3D model, then sets it
+        """
+        if p3d_label == 'arinyo':
+            from forestflow.model_p3d_arinyo import ArinyoModel
+            arinyo = ArinyoModel(cosmo=self.bkgd_cosmo) # set model
+        else:
+            sys.exit("Error: no P3D model specified. Please choose a valid P3D model. Current option are 'arinyo'.")
+        
+        self.p3d_model = arinyo
