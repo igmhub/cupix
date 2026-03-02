@@ -16,6 +16,7 @@ from cupix.utils.utils import is_number_string
 from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
 import sys
+from forestflow import priors
 
 def set_theory(
     zs, bkgd_cosmo, p3d_label, emulator_label, k_unit='iAA', verbose=False
@@ -544,13 +545,34 @@ class Theory(object):
         else:
             return linP_Mpc_params
 
-    
+    def default_like_params(self, param_format='arinyo', tag='DESI_DR1_P1D'):
+
+        """Set default set of likelihood parameters.
+        Param_format options are 'arinyo' or 'cosmo_igm'.
+        Tag options are 'p1d' to input priors from the p1d paper,
+        'colore' to get the Laura's best-fit parameters (arinyo only)."""
+        if tag=='colore':
+            param_format = 'arinyo'
+            # warn
+            print("Warning: tag 'colore' is only compatible with param_format 'arinyo', setting param_format to 'arinyo'")
+        if tag == 'DESI_DR1_P1D':
+            # import priors using forestflow functions
+            arinyo_pars = priors.get_arinyo_priors(self.z, tag=tag)
+            # set IGM + cosmo parameters
+            igm_pars = priors.get_igm_priors(self.z, tag=tag)
+        elif tag == 'colore':
+            # set Arinyo parameters to Laura's best fit
+            # set other parameters to None
+
+        # make the LikelihoodParameter objects
+            
+
     def get_px_AA(
         self,
         zs,
         k_AA,
         theta_arcmin,
-        like_params=[],
+        like_params=None,
         add_silicon=False,
         verbose=None
     ):
