@@ -15,11 +15,13 @@ from cupix.utils.hull import Hull
 from cupix.utils.utils import is_number_string
 from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
+from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam
 import sys
 from forestflow import priors
+from astropy.io import fits
 
 def set_theory(
-    zs, bkgd_cosmo, p3d_label, emulator_label, k_unit='iAA', verbose=False
+    zs, bkgd_cosmo, default_theory, p3d_label, emulator_label, k_unit='iAA', verbose=False
 ):
     """Set theory"""
 
@@ -28,7 +30,8 @@ def set_theory(
     theory = Theory(
         zs = zs,
         bkgd_cosmo=bkgd_cosmo,
-        p3d_label='arinyo',
+        default_lya_theory=default_theory,
+        p3d_label=p3d_label,
         emulator_label = emulator_label,
         k_unit = k_unit,
         verbose=verbose
@@ -46,6 +49,7 @@ class Theory(object):
         self,
         zs,
         bkgd_cosmo=None,
+        default_lya_theory='best_fit_arinyo_from_p1d',
         p3d_label='arinyo',
         emulator_label=None,
         verbose=False,
@@ -76,11 +80,9 @@ class Theory(object):
         self.kp_kms = kp_kms
         self.use_star_priors = use_star_priors
         self.k_unit = k_unit
-        self.bkgd_cosmo = bkgd_cosmo
-        if bkgd_cosmo is not None:
-            laceCosmo = camb_cosmo.get_cosmology_from_dictionary(bkgd_cosmo)
-        else:
-            laceCosmo = None
+        self.set_cosmo_dict(bkgd_cosmo)
+        laceCosmo = camb_cosmo.get_cosmology_from_dictionary(bkgd_cosmo)
+       
         if emulator_label == "forestflow_emu": # not really sure what this does
             self.emu_kp_Mpc = 0.7  # not really sure what this does
 
@@ -91,15 +93,49 @@ class Theory(object):
         self.emu_cosmo_all = res[2]
         self.emu_igm_all = res[3]
         self._load_P3D_model(p3d_label=p3d_label)
-        print(dir(self.p3d_model))
         self.set_fid_cosmo(zs, input_cosmo=laceCosmo)
-
+        self.default_lya_theory = default_lya_theory
+        self.set_default_param_values(tag=default_lya_theory)
+        if 'arinyo' in default_lya_theory:
+            self.param_names = ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]
+        elif 'igm' in default_lya_theory:
+            self.param_names = ["Delta2_p", "n_p", "mF", "gamma", "sigT_Mpc", "kF_Mpc", "lambda_P"]
+        else:
+            raise ValueError("default_lya_theory tag not recognized, parameters not implemented")
         if emulator_label == "forestflow_emu":
             self.emulator = FF_emulator(zs, self.bkgd_cosmo)
         else:
             print("Warning: no emulator specified, theory will not be able to make predictions")
 
-
+    def set_cosmo_dict(self, bkgd_cosmo):
+        omnuh2 = 0.0006
+        mnu = omnuh2 * 93.14
+        H0 = 67.36
+        omch2 = 0.12
+        ombh2 = 0.02237
+        As = 2.1e-9
+        ns = 0.9649
+        nrun = 0.0
+        w = -1.0
+        omk = 0
+        cosmo_dict = {
+            'H0': H0,
+            'omch2': omch2,
+            'ombh2': ombh2,
+            'mnu': mnu,
+            'omk': omk,
+            'As': As,
+            'ns': ns,
+            'nrun': nrun,
+            'w': w
+        }
+        if bkgd_cosmo is not None:
+            for key in bkgd_cosmo:
+                if key in cosmo_dict:
+                    cosmo_dict[key] = bkgd_cosmo[key] # update default value with user-provided value
+                else:
+                    print(f"Warning: {key} not recognized as a cosmological parameter, ignoring it.")
+        self.bkgd_cosmo = cosmo_dict
 
     def set_fid_cosmo(
         self, zs, zs_hires=None, input_cosmo=None, extra_factor=1.15
@@ -113,7 +149,7 @@ class Theory(object):
         # setup fiducial cosmology (used for fitting)
         if input_cosmo is None:
             input_cosmo = camb_cosmo.get_cosmology()
-        
+    
         # setup CAMB object for the fiducial cosmology and precompute some things
         if self.zs_hires is not None:
             _zs = np.concatenate([self.zs, self.zs_hires, [self.z_star]])
@@ -225,7 +261,8 @@ class Theory(object):
     def fixed_background(self, like_params):
         """Check if any of the input likelihood parameters would change
         the background expansion of the fiducial cosmology"""
-
+        if like_params is None:
+            return True
         # look for parameters that would change background
         for par in like_params:
             if par.name in ["ombh2", "omch2", "H0", "mnu", "cosmomc_theta"]:
@@ -316,15 +353,11 @@ class Theory(object):
         else:
             return linP_Mpc_params
 
-    def get_emulator_calls(
-        self, zs, like_params=[], return_conv_of_z=True, return_blob=False
-    ):
-        """Compute models that will be emulated, one per redshift bin.
-        - like_params identify likelihood parameters to use.
-        - return_conv_of_z will also return conversion from Mpc to km/s or Mpc to inv Angstroms,
-            and from Mpc to deg for transverse separations
-        - return_blob will return extra information about the call."""
 
+    def get_unit_conversions(self, zs, like_params, return_blob=False):
+        """return conversion from Mpc to km/s or Mpc to inv Angstroms,
+            and from Mpc to deg for transverse separations"""
+        
         # compute linear power parameters at all redshifts, and H(z) / (1+z)
         if self.fixed_background(like_params):
             # use background and transfer functions from fiducial cosmology
@@ -353,83 +386,40 @@ class Theory(object):
             ddeg_dMpc_zs = camb_model.get_ddeg_dMpc()
             if return_blob:
                 blob = self.get_blob(camb_model=camb_model)
+        if self.k_unit == 'ikms':
+            return_conv_k_of_zs = dkms_dMpc_zs
+        else:
+            return_conv_k_of_zs = dAA_dMpc_zs
+        if return_blob:
+            return return_conv_k_of_zs, ddeg_dMpc_zs, blob
+        else:
+            return return_conv_k_of_zs, ddeg_dMpc_zs
+            
+    def get_emulator_calls(
+        self, iz_choice, theory_inputs
+    ):
+        """Compute models that will be emulated, one per redshift bin.
+        - like_params identify likelihood parameters to use."""
 
         # store emulator calls
         emu_call = {}
         # check if using the base parameters
-
         for key in self.emulator.emu_params:
-            if key in [par.name for par in like_params]: # if this parameter will be used in the likelihood
-                if self.verbose:
-                    print("Found parameter", key, "in likelihood parameters")
-
-                # if (key == "Delta2_p") | (key == "n_p") | (key == "alpha_p"):
-                #     emu_call[key] = np.zeros(len(zs))
-                #     for ii in range(len(linP_Mpc_params)):
-                #         emu_call[key][ii] = linP_Mpc_params[ii][key]
-                #         print(emu_call[key][ii])
-                # elif key == "mF":
-                #     emu_call[key] = self.model_igm.models["F_model"].get_mean_flux(
-                #         zs, like_params=like_params
-                #     )
-                # elif key == "gamma":
-                #     emu_call[key] = self.model_igm.models["T_model"].get_gamma(
-                #         zs, like_params=like_params
-                #     )
-                # elif key == "sigT_Mpc":
-                #     emu_call[key] = (
-                #         self.model_igm.models["T_model"].get_sigT_kms(
-                #             zs, like_params=like_params
-                #         )
-                #         / dkms_dMpc_zs
-                #     )
-                # elif key == "kF_Mpc":
-                #     emu_call[key] = (
-                #         self.model_igm.models["P_model"].get_kF_kms(
-                #             zs, like_params=like_params
-                #         )
-                #         * dkms_dMpc_zs
-                #     )
-                # elif key == "lambda_P":
-                #     emu_call[key] = 1000 / (
-                #         self.model_igm.models["P_model"].get_kF_kms(
-                #             zs, like_params=like_params
-                #         )
-                #         * dkms_dMpc_zs
-                #     )
-                if key in ["mF", "gamma", "sigT_Mpc", "kF_Mpc", "lambda_P", "Delta2_p", "n_p"]: # "bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2", 
-                    # feed in the direct Arinyo model input parameters
-                    for par in like_params:
-                        if par.name==key:
-                            # make sure a value was provided; currently no default model implemented
-                            if par.value is None:
-                                
-                                raise ValueError(
-                                    f"Parameter {key} not found in likelihood parameters"
-                                )
-                            else:
-                                emu_call[key] = np.atleast_1d(par.value) # if the likelihood params are stored as lists per z (emu_call[key] should be a list /array per z (shape 0 is Nz))
-                                # print(f"Adding {key} to emu_call with value {emu_call[key]}")
-                    # print("Found parameter", key, "in likelihood parameters, setting it to", emu_call[key])
+            emu_call[key] = np.zeros(len(iz_choice))
+            for iiz, iz in enumerate(iz_choice):
+                key_iz = key + f"_{iz}"
+                if key_iz in theory_inputs.keys():
+                    if theory_inputs[key_iz] == np.nan or theory_inputs[key_iz] is None:
+                        raise ValueError(
+                            f"Parameter {key} not found in theory inputs"
+                        )
+                    else:
+                        emu_call[key][iiz] = theory_inputs[key_iz]
                 else:
                     raise ValueError(
-                        "Not a theory model for emulator parameter", key
+                        "Missing information for", key_iz
                     )
-
-        if return_conv_of_z:
-            if self.k_unit == 'ikms':
-                    return_conv_k_of_zs = dkms_dMpc_zs
-            else:
-                return_conv_k_of_zs = dAA_dMpc_zs
-            if return_blob:
-                return emu_call, return_conv_k_of_zs, ddeg_dMpc_zs, blob
-            else:
-                return emu_call, return_conv_k_of_zs, ddeg_dMpc_zs,
-        else:
-            if return_blob:
-                return emu_call, blob
-            else:
-                return emu_call
+        return emu_call
 
     def get_blobs_dtype(self):
         """Return the format of the extra information (blobs) returned
@@ -545,33 +535,55 @@ class Theory(object):
         else:
             return linP_Mpc_params
 
-    def default_like_params(self, param_format='arinyo', tag='DESI_DR1_P1D'):
+    def set_default_param_values(self, tag='best_fit_arinyo_from_p1d'):
 
         """Set default set of likelihood parameters.
         Param_format options are 'arinyo' or 'cosmo_igm'.
         Tag options are 'p1d' to input priors from the p1d paper,
         'colore' to get the Laura's best-fit parameters (arinyo only)."""
+
         if tag=='colore':
             param_format = 'arinyo'
             # warn
             print("Warning: tag 'colore' is only compatible with param_format 'arinyo', setting param_format to 'arinyo'")
-        if tag == 'DESI_DR1_P1D':
-            # import priors using forestflow functions
-            arinyo_pars = priors.get_arinyo_priors(self.z, tag=tag)
-            # set IGM + cosmo parameters
-            igm_pars = priors.get_igm_priors(self.z, tag=tag)
-        elif tag == 'colore':
-            # set Arinyo parameters to Laura's best fit
-            # set other parameters to None
-
-        # make the LikelihoodParameter objects
+            ari_pp_names = ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]
+        self.default_param_dict = {}
+        
+        for iz, z in enumerate(self.zs):
+            # record the index-z relationship
+            self.default_param_dict[f"z_{iz}"] = z
+            if tag == 'best_fit_arinyo_from_p1d' or tag == 'best_fit_igm_from_p1d':
+                if tag == 'best_fit_arinyo_from_p1d':
+                    # import priors using forestflow functions
+                    prior_info = priors.get_arinyo_priors(z, tag='DESI_DR1_P1D')
+                elif tag == 'best_fit_igm_from_p1d':
+                    prior_info = priors.get_IGM_priors(z, tag='DESI_DR1_P1D')
+                for par in prior_info["mean"]:
+                    self.default_param_dict[par+f"_{iz}"] = prior_info["mean"][par]
+                        
+            elif tag == 'best_fit_arinyo_from_colore':
+                assert z in [2.2, 2.4, 2.6, 2.8], "For tag 'best_fit_arinyo_from_colore', redshifts must be in [2.2, 2.4, 2.6, 2.8]"
+                # Load Laura's CF fits for all redshifts
+                with fits.open(f"/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-0/jura-124/raw_bao_unblinding/fits/output_fitter-z-bins/bin_{z:.1f}/lyaxlya.fits") as zbin_cf_file:
+                    zbin_cf_fit = zbin_cf_file[1].header
+                    self.default_param_dict[f'bias_{iz}'] = zbin_cf_fit['bias_LYA']
+                    self.default_param_dict[f'beta_{iz}'] = zbin_cf_fit['beta_LYA']
+                    self.default_param_dict[f'q1_{iz}'] = zbin_cf_fit['dnl_arinyo_q1']
+                    self.default_param_dict[f'kvav_{iz}'] = zbin_cf_fit['dnl_arinyo_kv']**zbin_cf_fit['dnl_arinyo_av']
+                    self.default_param_dict[f'av_{iz}'] = zbin_cf_fit['dnl_arinyo_av']
+                    self.default_param_dict[f'bv_{iz}'] = zbin_cf_fit['dnl_arinyo_bv']
+                    self.default_param_dict[f'kp_{iz}'] = zbin_cf_fit['dnl_arinyo_kp']
+                    if 'dnl_arinyo_q2' in zbin_cf_fit:
+                        self.default_param_dict[f'q2_{iz}'] = zbin_cf_fit['dnl_arinyo_q2']
+            else:
+                raise ValueError("Tag not recognized, choose from 'best_fit_arinyo_from_p1d', 'best_fit_igm_from_p1d', or 'best_fit_arinyo_from_colore'")
             
 
     def get_px_AA(
         self,
-        zs,
         k_AA,
         theta_arcmin,
+        iz_choice=None,
         like_params=None,
         add_silicon=False,
         verbose=None
@@ -584,30 +596,123 @@ class Theory(object):
 
         if verbose is None:
             verbose = self.verbose
-
+        if iz_choice is None:
+            zs = self.zs
+            iz_choice = np.arange(len(self.zs))
+        else:
+            zs = self.zs[iz_choice]
         zs = np.atleast_1d(zs)
+        if verbose:
+            print("Evaluating theory at redshifts", zs)
         Nz = len(zs)
+        if Nz > 1 and k_AA.ndim == 1:
+            k_AA = np.array([k_AA] * Nz) # if only one k_AA array provided, assume it's the same for all redshift bins
+        if Nz > 1 and theta_arcmin.ndim == 1:
+            theta_arcmin = np.array([theta_arcmin] * Nz) # if only one theta array provided, assume it's the same for all redshift bins
+
         theta_deg = np.atleast_1d(theta_arcmin) / 60.0
-        # figure out emulator calls
-        emu_call, dAA_dMpc_z, ddeg_dMpc_z = self.get_emulator_calls(
-            zs,
-            like_params=like_params,
-            return_conv_of_z=True
-        )
         
+        # get a LikelihoodParameters object of like_params if it's a dictionary
+        if like_params is not None and type(like_params) == dict:
+            like_params_obj = likeparam_from_dict(like_params)
+        elif like_params is None:
+            like_params_obj = None
+        else:
+            like_params_obj = like_params
         
-        # compute input k, theta to emulator in Mpc
+        # get unit conversions
+        dAA_dMpc_z, ddeg_dMpc_z = self.get_unit_conversions(zs, like_params=like_params_obj)
+        # set up input parameters. First, set all the defaults
+        theory_inputs = copy.deepcopy(self.default_param_dict.copy())
+        # replace with any user-provided values
+        if like_params is not None:
+            # check if LikelihoodParameter object, if so convert to dictionary
+            if type(like_params) == list and type(like_params[0]) == LikelihoodParameter:
+                like_params = dict_from_likeparam(like_params)
+
+            # now replace any default values with user-provided values
+            for par in like_params:
+                if "_" in par:
+                    theory_inputs[par] = like_params[par]
+                elif "_" not in par and Nz == 1:
+                    # if only one redshift bin, allow user to input parameters without _{integer} format, and apply to the single redshift bin
+                    theory_inputs[par+f"_{iz_choice[0]}"] = like_params[par]
+                else:
+                    print(f"Parameter {par} not in correct format, must end in _{{integer}} to specify redshift bin when evaluating multiple redshift bins")
+                    
+        if self.verbose:
+            print("Theory inputs for this redshift evaluation:", {key: theory_inputs[key] for key in theory_inputs if any([f"_{iz}" in key for iz in iz_choice])})
+
+        # Use the emulator to predict the Arinyo coeffs if they're not already being fed in
+        if "igm" in self.default_lya_theory:
+            # figure out emulator calls
+            emu_call = self.get_emulator_calls(
+                iz_choice=iz_choice,
+                theory_inputs=theory_inputs
+            )
+            if verbose:
+                print("Using emulator to get the Arinyo coefficients")
+            arinyo_coeffs = self.emulator.emulate_P3D_params(emu_call, zs)
+            # check if the user provided any Arinyo coefficients, if so, overwrite the emulated ones with the user-provided ones
+            if like_params is not None:
+                for iiz, iz in enumerate(iz_choice):
+                    for par in arinyo_coeffs.keys():
+                        par_iz = par + f"_{iz}"
+                        if par_iz in theory_inputs and theory_inputs[par_iz] is not None and not np.isnan(theory_inputs[par_iz]):
+                            arinyo_coeffs[par][iiz] = theory_inputs[par_iz]
+                            if verbose:
+                                print("Overwriting emulated coefficient", par, "with user-provided value", theory_inputs[par_iz])
+        
+        elif "arinyo" in self.default_lya_theory:
+            if not self.has_all_arinyo_coeffs(iz_choice, theory_inputs):
+                raise ValueError(
+                "Not all Arinyo coefficients found in likelihood parameters, and/or default values not set for all redshift bins. Please provide values for bias, beta, q1, kvav, av, bv, and kp for all redshift bins, or set default values for all redshift bins using set_default_param_values()"
+            )
+            else:
+                if verbose:
+                    print("All Arinyo coefficients found in likelihood parameters, using them")
+                arinyo_coeffs = {}
+                for par in self.param_names:
+                    arinyo_coeffs[par] = np.zeros(len(iz_choice))
+                    for iz in iz_choice:
+                        par_iz = par + f"_{iz}"
+                        if par_iz in theory_inputs.keys():
+                            arinyo_coeffs[par][iz] = theory_inputs[par_iz]
+                        else:
+                            print("Warning: parameter", par_iz, "not found in theory inputs, setting to 0.")
+        
+        # activate the arinyo model
+        p3d_fun = self.p3d_model.P3D_Mpc_k_mu
+    
+        si_coeffs = {}
+        if add_silicon:
+            if verbose:
+                print("Adding silicon contamination")
+            # add silicon contamination
+            for par in ["bias_SiIII", "beta_SiIII", "k_p_SiIII"]:
+                for iz in iz_choice:
+                    si_coeffs[par] = np.zeros(len(iz_choice))
+                    if par+f"_{iz}" not in theory_inputs.keys() or theory_inputs[par+f"_{iz}"] is None or np.isnan(theory_inputs[par+f"_{iz}"]):
+                        raise ValueError(
+                            f"Parameter {par} not found in likelihood parameters, but add_silicon is True. Please provide values for bias_SiIII, beta_SiIII, and k_p_SiIII for all redshift bins, or set default values for all redshift bins using set_default_param_values()"
+                        )
+                    else:
+                        si_coeffs[par][iz] = theory_inputs[par+f"_{iz}"]
+        lyap3d = LyaP3D(zs, P3D_model=self.p3d_model, P3D_fun=p3d_fun, P3D_coeffs=arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, verbose=verbose)
+        
+        # compute input k, theta to Pcross computation in Mpc
         
         Nk = 0
         Ntheta = 0
         if Nz > 1:
+            print("check 0")
             for iz in range(Nz):
-                if len(k_AA[iz]) > Nk:
+                if len(k_AA[iz]) > Nk: # find the max length of k_AA across redshift bins
                     Nk = len(k_AA[iz])
                 if len(theta_deg[iz]) > Ntheta:
                     Ntheta = len(theta_deg[iz])
+            print("check 1")
         else:
-            
             if len(k_AA) == 1:
                 k_AA = k_AA[0]
             if len(theta_deg) == 1:
@@ -626,54 +731,26 @@ class Theory(object):
         for iz in range(Nz):
             kin_Mpc[iz, : Nk] = k_AA[iz] * dAA_dMpc_z[iz]
             theta_in_Mpc[iz, : Ntheta] = theta_deg[iz] / ddeg_dMpc_z[iz]
-        # get the Arinyo coeffs if they're not already being fed in (e.g. if the likelihood parameters don't include them)
-        if not self.has_all_arinyo_coeffs(like_params):
-            if verbose:
-                print("Arinyo coefficients not found in likelihood parameters, using emulator to get them")
-            arinyo_coeffs = self.emulator.emulate_P3D_params(emu_call, zs)
-        else:
-            if verbose:
-                print("Arinyo coefficients found in likelihood parameters, using them")
-            arinyo_coeffs = {}
-            for par in like_params:
-                if par.name in ["bias", "beta", "q1", "kvav", "av", "bv", "kp"]:
-                    if par.value is None:
-                        raise ValueError(
-                            f"Parameter `{par.name}` was not assigned a value, but is required."
-                        )
-                    arinyo_coeffs[par.name] = np.atleast_1d(par.value)
-                if par.name == "q2": # not a required parameter
-                    arinyo_coeffs[par.name] = np.atleast_1d(par.value)
-        # activate the arinyo model
         
-        p3d_fun = self.p3d_model.P3D_Mpc_k_mu
-        si_coeffs = {}
-        if add_silicon:
-            if verbose:
-                print("Adding silicon contamination")
-            # add silicon contamination
-            for par in like_params:
-                if par.name in ["bias_SiIII", "beta_SiIII", "k_p_SiIII"]:
-                    si_coeffs[par.name] = par.value
-        lyap3d = LyaP3D(zs, P3D_model=self.p3d_model, P3D_fun=p3d_fun, P3D_coeffs=arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, verbose=verbose)
+        # predict Px
         px_pred_Mpc = lyap3d.model_Px(kin_Mpc, theta_in_Mpc)
+        
         # move from Mpc to AA
         px_AA = np.zeros((Nz, Ntheta, Nk))
         for iz in range(Nz):
             px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * dAA_dMpc_z[iz]
-        # decide what to return, and return it
-        out = px_AA
-        # if len(out) == 1:
-        #     return out[0]
-        # else:
-        return out
+
+        return px_AA
         
-    def has_all_arinyo_coeffs(self, likelihood_params):
+    def has_all_arinyo_coeffs(self, iz_choice, input_dict):
         """Check if the likelihood parameters have all the Arinyo coefficients"""
         arinyo_coeffs = ["bias", "beta", "q1", "kvav", "av", "bv", "kp"] # q2 is optional
         for coeff in arinyo_coeffs:
-            if coeff not in [par.name for par in likelihood_params]:
-                return False
+            for iz in iz_choice:
+                coeff_iz = coeff+f"_{iz}"
+                print(coeff_iz, input_dict[coeff_iz])
+                if coeff_iz not in input_dict.keys() or input_dict[coeff_iz] is None or np.isnan(input_dict[coeff_iz]):
+                    return False
         return True
 
 
@@ -689,3 +766,26 @@ class Theory(object):
             sys.exit("Error: no P3D model specified. Please choose a valid P3D model. Current option are 'arinyo'.")
         
         self.p3d_model = arinyo
+    
+    def get_param(self, param_name, iz_choice=None):
+        """Utility function to get the value of a parameter from the default_param_dict, for a given redshift bin (iz_choice)"""
+        if iz_choice is not None:
+            key = f"{param_name}_{iz_choice}"
+            if key in self.default_param_dict:
+                return self.default_param_dict[key]
+            else:
+                raise ValueError(f"Parameter {key} not found in default_param_dict")
+        elif ("_" not in param_name):
+            # if no iz_choice provided, return a list of values for all redshift bins
+            values = []
+            for iz in range(len(self.zs)):
+                key = f"{param_name}_{iz}"
+                if key in self.default_param_dict:
+                    values.append(self.default_param_dict[key])
+                else:
+                    raise ValueError(f"Parameter {key} not found in default_param_dict")
+            return values
+        else:
+            return self.default_param_dict[param_name]
+
+    

@@ -54,15 +54,19 @@ class BaseDataPx(object):
         if has_k_rebinning:
             assert k_m_AA is not None, "k_m_AA must be provided if has_k_rebinning is True"
             if self.Nz>1 and k_m_AA.shape[0]!=self.Nz:
+                # set k_centers one time for easy plotting
+                self.k_M_centers_AA = 0.5 * (k_M_edges_AA[:-1] + k_M_edges_AA[1:])
                 # duplicate to make 1 k for each z
                 self.k_m = np.tile(k_m_AA,(self.Nz,1))
                 self.k_M_edges = np.tile(k_M_edges_AA,(self.Nz,1))
             elif Nz==1:
                 self.k_m = [k_m_AA]
                 self.k_M_edges = [k_M_edges_AA]
+                self.k_M_centers_AA = 0.5 * (k_M_edges_AA[:-1] + k_M_edges_AA[1:])
             else:
                 self.k_m = k_m_AA
                 self.k_M_edges = k_M_edges_AA
+                self.k_M_centers_AA = [0.5 * (k_M_edges_AA[iz][:-1] + k_M_edges_AA[iz][1:]) for iz in range(self.Nz)]
                 
             self.has_k_rebinning = True
         if has_theta_rebinning:
@@ -84,7 +88,6 @@ class BaseDataPx(object):
             self.limit_k_range(k_min_AA=kmin_cut_AA, k_max_AA=kmax_cut_AA)
         # set theta centers
         self.theta_centers_arcmin = 0.5 * (self.theta_min_A_arcmin + self.theta_max_A_arcmin)
-
         return
     
 
@@ -160,11 +163,15 @@ class BaseDataPx(object):
                 # update U_ZaMn
                 new_U_ZaMn.append(np.take(self.U_ZaMn[iz], indices_M, axis=1))
                 new_V_ZaM.append(np.take(self.V_ZaM[iz], indices_M, axis=1))
-                # new_V_ZaM.append(self.V_ZaM[iz, :, indices_M])
+            if self.k_M_centers_AA.shape[0] == self.Nz:
+                self.k_M_centers_AA[iz] = self.k_M_centers_AA[iz][indices_M]
+            else:
+                if iz==0:
+                    self.k_M_centers_AA = self.k_M_centers_AA[indices_M]
         self.k_M_edges = np.array(new_k_M_edges)
         self.Px_ZAM = np.array(new_Px_ZAM)
         self.cov_ZAM = np.array(new_cov_ZAM)
         self.U_ZaMn = np.array(new_U_ZaMn)
         self.V_ZaM = np.array(new_V_ZaM)
-
+        
         return
