@@ -59,7 +59,7 @@ class BaseDataPx(object):
                 # duplicate to make 1 k for each z
                 self.k_m = np.tile(k_m_AA,(self.Nz,1))
                 self.k_M_edges = np.tile(k_M_edges_AA,(self.Nz,1))
-            elif Nz==1:
+            elif self.Nz==1:
                 self.k_m = [k_m_AA]
                 self.k_M_edges = [k_M_edges_AA]
                 self.k_M_centers_AA = 0.5 * (k_M_edges_AA[:-1] + k_M_edges_AA[1:])

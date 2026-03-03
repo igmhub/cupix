@@ -61,7 +61,7 @@ class FF_emulator():
         
         # make sure that emu_call has a value for every z
         Nz = len(zs)
-        print("Forestflow emulator thinks Nz is", Nz)
+        print("Forestflow emulator will evaluate redshift(s) of", zs)
         for key in emu_call.keys():
             assert len(emu_call[key]) == Nz, f"Parameter {key} has {len(emu_call[key])} values but should have {Nz} values for each redshift z."
         

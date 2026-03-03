@@ -15,7 +15,7 @@ from cupix.utils.hull import Hull
 from cupix.utils.utils import is_number_string
 from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
-from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam
+from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam, format_like_params_dict
 import sys
 from forestflow import priors
 from astropy.io import fits
@@ -583,8 +583,8 @@ class Theory(object):
         self,
         k_AA,
         theta_arcmin,
-        iz_choice=None,
-        like_params=None,
+        zs=None,
+        like_params={},
         add_silicon=False,
         verbose=None
     ):
@@ -596,14 +596,19 @@ class Theory(object):
 
         if verbose is None:
             verbose = self.verbose
-        if iz_choice is None:
+        if zs is None:
             zs = self.zs
             iz_choice = np.arange(len(self.zs))
         else:
-            zs = self.zs[iz_choice]
+            if type(zs) == float or type(zs) == int:
+                zs = [zs]
+            assert [z in self.zs for z in zs], "Input redshifts not all found in theory zs"
+            iz_choice = [np.argwhere(self.zs == z)[0, 0] for z in zs]
         zs = np.atleast_1d(zs)
+        iz_choice = np.atleast_1d(iz_choice)
         if verbose:
             print("Evaluating theory at redshifts", zs)
+            print("This will correspond to redshift bins with indices", iz_choice)
         Nz = len(zs)
         if Nz > 1 and k_AA.ndim == 1:
             k_AA = np.array([k_AA] * Nz) # if only one k_AA array provided, assume it's the same for all redshift bins
@@ -612,37 +617,29 @@ class Theory(object):
 
         theta_deg = np.atleast_1d(theta_arcmin) / 60.0
         
-        # get a LikelihoodParameters object of like_params if it's a dictionary
-        if like_params is not None and type(like_params) == dict:
-            like_params_obj = likeparam_from_dict(like_params)
-        elif like_params is None:
-            like_params_obj = None
+        # no matter the inputs, make sure like_params_obj is a list of LikelihoodParameter objects, and like_params is a dictionary of parameter values for easier handling below
+        if like_params:  # should evaluate to false if empty list, None, or empty dict
+            if type(like_params) == dict:
+                likeparam_obj_list = likeparam_from_dict(like_params)
+            else:
+                assert type(like_params[0]) == LikelihoodParameter, "If like_params is not a dictionary, it must be a list of LikelihoodParameter objects"
+                likeparam_obj_list = like_params # rename
+                like_params = dict_from_likeparam(likeparam_obj_list)
+            # make sure like_params (dict) is formatted correctly
+            like_params = format_like_params_dict(iz_choice, like_params)
         else:
-            like_params_obj = like_params
+            likeparam_obj_list = None
         
-        # get unit conversions
-        dAA_dMpc_z, ddeg_dMpc_z = self.get_unit_conversions(zs, like_params=like_params_obj)
         # set up input parameters. First, set all the defaults
         theory_inputs = copy.deepcopy(self.default_param_dict.copy())
         # replace with any user-provided values
-        if like_params is not None:
-            # check if LikelihoodParameter object, if so convert to dictionary
-            if type(like_params) == list and type(like_params[0]) == LikelihoodParameter:
-                like_params = dict_from_likeparam(like_params)
-
-            # now replace any default values with user-provided values
+        if like_params:
             for par in like_params:
-                if "_" in par:
-                    theory_inputs[par] = like_params[par]
-                elif "_" not in par and Nz == 1:
-                    # if only one redshift bin, allow user to input parameters without _{integer} format, and apply to the single redshift bin
-                    theory_inputs[par+f"_{iz_choice[0]}"] = like_params[par]
-                else:
-                    print(f"Parameter {par} not in correct format, must end in _{{integer}} to specify redshift bin when evaluating multiple redshift bins")
-                    
+                theory_inputs[par] = like_params[par]
         if self.verbose:
             print("Theory inputs for this redshift evaluation:", {key: theory_inputs[key] for key in theory_inputs if any([f"_{iz}" in key for iz in iz_choice])})
 
+        
         # Use the emulator to predict the Arinyo coeffs if they're not already being fed in
         if "igm" in self.default_lya_theory:
             # figure out emulator calls
@@ -700,8 +697,10 @@ class Theory(object):
                         si_coeffs[par][iz] = theory_inputs[par+f"_{iz}"]
         lyap3d = LyaP3D(zs, P3D_model=self.p3d_model, P3D_fun=p3d_fun, P3D_coeffs=arinyo_coeffs, Si_contam=add_silicon, contam_coeffs=si_coeffs, verbose=verbose)
         
+        # get unit conversions
+        dAA_dMpc_z, ddeg_dMpc_z = self.get_unit_conversions(zs, like_params=likeparam_obj_list)
+
         # compute input k, theta to Pcross computation in Mpc
-        
         Nk = 0
         Ntheta = 0
         if Nz > 1:
@@ -752,8 +751,7 @@ class Theory(object):
                 if coeff_iz not in input_dict.keys() or input_dict[coeff_iz] is None or np.isnan(input_dict[coeff_iz]):
                     return False
         return True
-
-
+                
 
     def _load_P3D_model(self, p3d_label='arinyo'):
         

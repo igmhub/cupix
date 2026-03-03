@@ -23,7 +23,7 @@ from cupix.likelihood.lya_theory import set_theory
 from cupix.likelihood.forestflow_emu import FF_emulator
 from lace.cosmo import camb_cosmo
 import matplotlib.pyplot as plt
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
+from cupix.likelihood.likelihood_parameter import LikelihoodParameter, par_index, dict_from_likeparam
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 import h5py as h5
 import cupix
@@ -73,18 +73,16 @@ cosmo = {
     'nrun': nrun,
     'w': w
 }
-# sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
-# cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
 
-# ffemu = FF_emulator(z, fid_cosmo, cc, Nrealizations=5000)
-theory_AA = set_theory(z, bkgd_cosmo=cosmo, p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
-# theory_AA.set_fid_cosmo(z)
+theory = set_theory(z, bkgd_cosmo=cosmo, default_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+
 
 # %% [markdown]
 # ### Step 3: Setup up the likelihood parameters
 
 # %%
-iz_choice = np.array([0])#  np.array([0,3])
+iz_choice = 0
+z_choice  = z[iz_choice]
 
 # %%
 # read the likelihood params from forecast file
@@ -97,7 +95,7 @@ with h5.File(forecast_file, "r") as f:
         if len(val)>0:
             like_params.append(LikelihoodParameter(
                 name=key,
-                value=np.array(val[iz_choice]),
+                value=val[iz_choice],
                 min_value=-10., # arbitrary for now
                 max_value=10.
             ))
@@ -109,58 +107,49 @@ for p in like_params:
 # ### Step 4: Profile likelihood
 
 # %%
-like = Likelihood(forecast, theory_AA, free_param_names=[], iz_choice=iz_choice, like_params=like_params, verbose=True)
+like = Likelihood(forecast, theory, z=z_choice, verbose=True)
 
 # %%
 # make sure theory matches forecast data at central value
-like.plot_px(iz_choice, like_params, multiply_by_k=False, ylim=[-0.00025,0.3], ylim2=[-10,10], every_other_theta=True, show=True,  title=f"Redshift {forecast.z[iz_choice]}", theorylabel=f'Model', datalabel='Forecast')
+theta_A_index = 11
+Px_convolved = like.get_convolved_Px_AA(theta_A=theta_A_index, like_params=like_params)[0]
+
+# %%
+plt.plot(forecast.k_M_centers_AA, forecast.Px_ZAM[iz_choice, theta_A_index])
+plt.plot(forecast.k_M_centers_AA, Px_convolved, '--')
+forecast.Px_ZAM[iz_choice, theta_A_index]-Px_convolved
+
+# %%
+# make sure theory matches forecast data at central value
+# like.plot_px(iz_choice, like_params, multiply_by_k=False, ylim=[-0.00025,0.3], ylim2=[-10,10], every_other_theta=True, show=True,  title=f"Redshift {forecast.z[iz_choice]}", theorylabel=f'Model', datalabel='Forecast')
 
 
 # %%
+# print(like.fit_probability(values=None))
 
 # %%
+chi2 = like.get_chi2(like_params=like_params) # if you want to know the chi2 per theta bin, use return_all=True
+print(chi2)
 
 # %%
-
-# %%
-
-# %%
-import forestflow
-forestflow.__path__
-
-# %%
-print(like.fit_probability(values=None))
-
-# %%
-like.get_chi2(values=None)
+like_params_dict = dict_from_likeparam(like_params)
+chi2 = like.get_chi2(like_params=like_params_dict) # if you want to know the chi2 per theta bin, use return_all=True
+print(chi2)
 
 # %% [markdown]
 # ## Choose the parameter you want to test
 
 # %%
-par_to_test = 'sigT_Mpc'
-
-# %%
-like_with_freepar = Likelihood(forecast, theory_AA, free_param_names=[par_to_test], iz_choice=iz_choice, like_params=like_params, verbose=False)
-
-# %%
-par_index = [i for i, lp in enumerate(like_params) if lp.name==par_to_test][0]
-par_index
+par_to_test = 'mF'
 
 # %% [markdown]
 # Make sure the probability is high / chi2 is low if we input the truth for that parameter 
 
 # %%
-like_with_freepar.fit_probability(values=like_params[par_index].get_value_in_cube(like_params[par_index].value))
-
-# %%
-like_with_freepar.get_chi2(values=like_params[par_index].get_value_in_cube(like_params[par_index].value))
-
-# %%
 # get the min/ max values of parameters from the training simulations
 gadget_short_info_file = cupixpath + '/data/emulator/ff_training_info.csv'
 train_test_info = pd.read_csv(gadget_short_info_file)
-train_test_z = np.where(z[iz_choice][0]==train_test_info["z"])[0][0]
+train_test_z = np.where(z_choice==train_test_info["z"])[0][0]
 print("Found min/max values at z=", train_test_info.iloc[train_test_z]['z'])
 min_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_min']
 max_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_max']
@@ -169,10 +158,12 @@ print(f"Min/max values of {par_to_test} in training sims at this z: {min_par_val
 # %%
 chi2_per_param = []
 
-par_vals = np.linspace(1.1*min_par_val, .9*max_par_val, 15)
+par_vals = np.linspace(min_par_val, max_par_val, 50)
 print(par_vals)
 for i in range(len(par_vals)):
-    chi2_i = like_with_freepar.get_chi2(values=[like_params[par_index].get_value_in_cube(par_vals[i])])
+    # update like_params_dict
+    like_params_dict[par_to_test] = par_vals[i]
+    chi2_i = like.get_chi2(like_params=like_params_dict)
     chi2_per_param.append(chi2_i)
     if i==0 or chi2_i < np.min(chi2_per_param[:-1]):
         best = par_vals[i]
@@ -181,14 +172,17 @@ for i in range(len(par_vals)):
     
 
 # %%
+par_i = par_index(like_params, par_to_test)
+
+# %%
 plt.plot(par_vals, chi2_per_param - np.amin(chi2_per_param))
 plt.xlabel(par_to_test)
 
 plt.ylabel(r'$\Delta \chi^2$')
 plt.axvline(best, color='grey', label='best')
-plt.axvline(like_params[par_index].value, color='red', label='truth')
+plt.axvline(like_params[par_i].value, color='red', label='truth')
 plt.title(f'chi2 vs {par_to_test}')
-plt.ylim([0,25])
+# plt.ylim([0,25])
 plt.legend()
 
 # %%

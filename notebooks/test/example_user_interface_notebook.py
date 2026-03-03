@@ -1,6 +1,7 @@
 # ---
 # jupyter:
 #   jupytext:
+#     formats: ipynb,py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
@@ -136,19 +137,168 @@ plt.title(f'Theory prediction for z={z}')
 
 # %%
 # this could be a list of likelihood parameters, but easier to write it here as a dictionary
-# params = {'bias': 0.1, 'beta': 1.6, 'q1': .3}
-params = {'mF': 1., 'n_p': .3}
+params = {'bias': 0.1, 'beta': 1.6, 'q1': .3}
+# params = {'mF': 1., 'n_p': .3}
 # this would only modify the input parameters, and leave others (like k_p or av) unchanged
-Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params=params, iz_choice=np.array([2]))
+Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params=params, zs=2.4)
 
 # %%
 # plot the prediction for a couple of theta values
-# choose a redshift
-iz = 0
-z  = theory.zs[iz]
+iz = 0 # Px_model has shape [Nz, Nt_A, Nk_M], so this is the redshift index of the evaluated redshifts, which is 0 if only one was used
 for it in [0, 5, 10]:
     label = 'theta = {}'.format(theta_arc[it])
     plt.plot(kp_AA, Px_model[iz][it], label=label)
 plt.title(f'Theory prediction for z={z}')
+plt.legend()
+
+# %%
+z_eval = 2.4
+for mF in [0.7, 0.8, 0.9]:
+    # these would use the initial values for other params
+    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'mF':mF}, zs=z_eval) 
+    iz = 0
+    for it in [0]:
+        label = 'theta = {} arcmin, mF={}'.format(theta_arc[it], mF)
+        plt.plot(kp_AA, Px_model[iz][it], label=label)
+plt.title(f'Theory prediction for z={z_eval}')
+plt.legend()
+
+# %%
+for kF in [8,9,10]:
+    # these would use the initial values for other params
+    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'kF_Mpc':kF}, zs=2.4) 
+    iz = 0
+    z  = theory.zs[iz]
+    for it in [0]:
+        label = 'theta = {}, kF={} Mpc-1'.format(theta_arc[it], kF)
+        plt.plot(kp_AA, Px_model[iz][it], label=label)
+plt.title(f'Theory prediction for z={z}')
+plt.legend()
+plt.xlabel(r'$k_\parallel$ (1/Ang)')
+plt.ylabel('Px [Ang]')
+
+# %%
+for sigT in [.09,.12,.16]:
+    # these would use the initial values for other params
+    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'sigT_Mpc':sigT}, zs=2.4) 
+    iz = 0
+    z  = theory.zs[iz]
+    for it in [0]:
+        label = 'theta = {}, sigT={} Mpc'.format(theta_arc[it], sigT)
+        plt.plot(kp_AA, Px_model[iz][it], label=label)
+plt.title(f'Theory prediction for z={z}')
+plt.legend()
+plt.xlabel(r'$k_\parallel$ (1/Ang)')
+plt.ylabel('Px [Ang]')
+
+# %% [markdown]
+# ### Set up the likelihood with one redshift 
+
+# %%
+likelihood = Likelihood(data, theory, z=2.6, verbose=True)
+
+# %%
+# get the convolved Px for a chosen theta bin
+it_M = 0
+theta_bin_choice = data.theta_centers_arcmin[it_M]
+print("Getting the convolved Px for theta bin {} arcmin".format(theta_bin_choice))
+Px_convolved = likelihood.get_convolved_Px_AA(theta_A=it)
+# plot the convolved Px
+# plot the convolved Px. Always has shape Nt_A, Nk_M so we need to specify the theta bin index or just squeeze the result
+
+plt.plot(data.k_M_centers_AA, np.squeeze(Px_convolved), label='convolved Px')
+# without convolution, it would have been:
+Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=2.6)
+# Px_model always has shape [Nz, Nt_A, Nk_M], so we need to specify the redshift and theta bin indices or just squeeze the result
+plt.plot(data.k_M_centers_AA, np.squeeze(Px_model), label='unconvolved Px') 
+plt.legend()
+plt.xlabel(r'$k_\parallel$ (1/Ang)')
+plt.ylabel('Px [Ang]')
+
+
+# %%
+# same, but with special parameters passed
+
+params = {'mF': 0.71, 'kF_Mpc': 3}
+
+it_M = 0
+theta_bin_choice = data.theta_centers_arcmin[it_M]
+print("Getting the convolved Px for theta bin {} arcmin".format(theta_bin_choice))
+Px_convolved = likelihood.get_convolved_Px_AA(theta_A=it, like_params=params)
+# plot the convolved Px
+# plot the convolved Px. Always has shape Nt_A, Nk_M so we need to specify the theta bin index or just squeeze the result
+plt.plot(data.k_M_centers_AA, np.squeeze(Px_convolved), label='convolved Px')
+# without convolution, it would have been:
+Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=2.6, like_params=params)
+# Px_model always has shape [Nz, Nt_A, Nk_M], so we need to specify the redshift and theta bin indices or just squeeze the result
+plt.plot(data.k_M_centers_AA, np.squeeze(Px_model), label='unconvolved Px') 
+plt.legend()
+plt.xlabel(r'$k_\parallel$ (1/Ang)')
+plt.ylabel('Px [Ang]')
+
+
+# plot the data on top
+iz_data = np.where(np.isclose(data.z, 2.6))[0][0]
+plot_theta_bins(data, k_M, iz=iz_data, it_M=it_M)
+
+
+# %%
+# you could pass these as LikelihoodParameters objects:
+# same, but with special parameters passed
+
+
+like_params = []
+like_params.append(LikelihoodParameter(
+                name='mF',
+                value=0.71,
+                min_value=-10., # arbitrary for now
+                max_value=10.
+            ))
+like_params.append(LikelihoodParameter(
+                name='kF_Mpc',
+                value=3,
+                min_value=-10., # arbitrary for now
+                max_value=10.
+            ))  
+# check the parameters
+for p in like_params:
+    print(p.name, p.value)
+
+# %%
+
+it_M = 0
+theta_bin_choice = data.theta_centers_arcmin[it_M]
+print("Getting the convolved Px for theta bin {} arcmin".format(theta_bin_choice))
+Px_convolved = likelihood.get_convolved_Px_AA(theta_A=it, like_params=like_params)
+# plot the convolved Px. Always has shape Nt_A, Nk_M so we need to specify the theta bin index or just squeeze the result
+plt.plot(data.k_M_centers_AA, np.squeeze(Px_convolved), label='convolved Px')
+# without convolution, it would have been:
+Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=2.6, like_params=like_params)
+# Px_model always has shape [Nz, Nt_A, Nk_M], so we need to specify the redshift and theta bin indices or just squeeze the result
+plt.plot(data.k_M_centers_AA, np.squeeze(Px_model), label='unconvolved Px') 
+plt.legend()
+plt.xlabel(r'$k_\parallel$ (1/Ang)')
+plt.ylabel('Px [Ang]')
+
+
+# plot the data on top
+iz_data = np.where(np.isclose(data.z, 2.6))[0][0]
+plot_theta_bins(data, k_M, iz=iz_data, it_M=it_M)
+
+
+# %% [markdown]
+# ### Examine the chi2
+
+# %%
+# pass by dicitonary
+likelihood.get_chi2(like_params=params)
+
+# %%
+# pass by likelihoodParameters object
+likelihood.get_chi2(like_params=like_params)
+
+# %%
+# pass nothing
+likelihood.get_chi2()
 
 # %%

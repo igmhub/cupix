@@ -21,10 +21,7 @@ class Likelihood(object):
         self,
         data,
         theory,
-        iz_choice,
-        like_params,
-        free_param_names=None,
-        free_param_limits=None,
+        z,
         verbose=False,
         prior_Gauss_rms=None,
         min_log_like=-1e100,
@@ -32,6 +29,7 @@ class Likelihood(object):
         """Setup likelihood from theory and data. Options:
         - data (required) is the data to model
         - theory (required) instance of lya_theory
+        - z is a single redshift value
         - free_param_names is a list of param names, in any order
         - free_param_limits list of tuples, same order than free_param_names
         - if prior_Gauss_rms is None it will use uniform priors
@@ -41,30 +39,20 @@ class Likelihood(object):
         self.prior_Gauss_rms = prior_Gauss_rms
         self.min_log_like = min_log_like
         self.data = data
-        self.free_param_names = free_param_names
-        self.free_param_limits = free_param_limits
-        self.iz_choice = iz_choice
-        self.like_params = like_params
-        
-        # we only do this for latter save all relevant after fitting the model
-        # self.args = {}
-        # for attr, value in args.__dict__.items():
-        #     if attr not in ["archive", "emulator"]:
-        #         self.args[attr] = value
-
-        
+        # ensure only one z passed to likelihood, and ensure that it exists in both the data and theory zs
+        if np.atleast_1d(z).size != 1:
+            raise ValueError("Likelihood computation not implemented for more than one redshift at once. Please pass a single redshift value.")
+        self.z = z
         self.theory = theory
-        
-        self.set_Gauss_priors()
-
-        # store also fiducial model
-        # self.set_fid()
-
+        self.theory_iz = np.where(self.theory.zs == self.z)[0][0]
+        self.data_iz = np.where(self.data.z == self.z)[0][0]
+        if self.verbose:
+            print("Likelihood will evaluate redshift of", self.z, "which corresponds to iz =", self.theory_iz, "in theory and iz =", self.data_iz, "in data.")
+        # self.set_Gauss_priors()
 
 
 
     def get_convolved_Px_AA(self,
-        iz,
         theta_A,
         like_params=None):
 
@@ -78,69 +66,57 @@ class Likelihood(object):
         Px_ZAM (np.ndarray): array of shape (len(theta_A), len(k_AA_binned))
             with convolved Pcross for each coarse-theta_A bin
         """
-        squeeze_result = False
+        # if theta_A is a single int, make it a list of one element for easier handling
         if type(theta_A) is not list and type(theta_A) is not np.ndarray:
             theta_A = [theta_A]
-            squeeze_result = True
-        zs = np.atleast_1d(self.data.z)
+        z = np.atleast_1d(self.z)
         k_AA_fine = self.data.k_m
 
-        # make sure the likelihood params match the iz. First make a deepcopy
-        if like_params is not None:
-            like_params = copy.deepcopy(like_params)
-        for ip, par in enumerate(like_params):
-            if type(par.value) in [list, np.ndarray] and len(par.value)>1:
-                like_params[ip].value = par.value[np.array(iz)]
-        # Compute Px in vectorized way (all theta at once)
-        
-        theta_a_arcmin = np.asarray([(self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2. for i in self.data.z]) # simply replicate one Nz times; could make it flexible for different thetas per z bin if needed
+        theta_a_arcmin = (self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2.
         if self.verbose:
-            print("Computing Px simultaneously for thetas,", theta_a_arcmin[iz], "arcmin")
+            print("Computing Px simultaneously for thetas,", theta_a_arcmin[self.data_iz], "arcmin")
         Px_Zam = self.theory.get_px_AA(
-            zs = zs[iz],
-            k_AA=k_AA_fine[iz],
-            theta_arcmin=theta_a_arcmin[iz],
+            zs = z,
+            k_AA=k_AA_fine[self.data_iz],
+            theta_arcmin=theta_a_arcmin,
             like_params=like_params,
             verbose=self.verbose
         )
-        # loop through the large-theta bins from the data
-        Px_ZAM_allz = []
-        for Px_Zam_zindex, iiz in enumerate(iz):
-            Px_ZAM_all = []
-            for itheta_A in theta_A:
-                # get the small-theta indices in this coarse-theta bin
-                ind_in_theta = self.data.B_A_a.astype(bool)[itheta_A,:] # generally this could be different with redshift; assume it's not for now
-                theta_a_inds = np.where(ind_in_theta)[0]
-                
-                k_AA_binned = (self.data.k_M_edges[iiz][:-1] + self.data.k_M_edges[iiz][1:]) / 2.
-                Px_ZaM_all = np.zeros((len(theta_a_inds), len(k_AA_binned)))
-                V_ZaM_all  = np.zeros((len(theta_a_inds), len(k_AA_binned)))
-                for save_index, a in enumerate(theta_a_inds):
-                    # retrieve the window matrix for this small-theta bin
-                    if self.data.U_ZaMn is not None:
-                        U_ZaMn = self.data.U_ZaMn[iiz,a]
-                        Px_ZaM = convolve_window(U_ZaMn,Px_Zam[Px_Zam_zindex,a].T) # check later if the window convolution can also be vectorized
-                    Px_ZaM_all[save_index,:] = Px_ZaM
-                    V_ZaM = self.data.V_ZaM[iiz,a]
-                    V_ZaM_all[save_index,:] = V_ZaM
-                # rebin in theta
-                Px_ZAM = rebin_theta(V_ZaM_all, Px_ZaM_all)
-                Px_ZAM_all.append(Px_ZAM)
-            Px_ZAM_allz.append(np.asarray(Px_ZAM_all))
+        Px_Zam = np.squeeze(Px_Zam) # reduce from shape (1, ntheta_a, nk_AA) to (ntheta_a, nk_AA)
         
-        if squeeze_result:
-            return np.squeeze(np.asarray(Px_ZAM_allz))
-        else:
-            return np.asarray(Px_ZAM_allz)
+        # window convolution
+        # loop through the large-theta bins from the data
+        Px_ZAM_all = []
+        for itheta_A in theta_A:
+            # get the small-theta indices in this coarse-theta bin
+            ind_in_theta = self.data.B_A_a.astype(bool)[itheta_A,:] # generally this could be different with redshift; assume it's not for now
+            theta_a_inds = np.where(ind_in_theta)[0]
+            
+            k_AA_binned = (self.data.k_M_edges[self.data_iz][:-1] + self.data.k_M_edges[self.data_iz][1:]) / 2.
+            Px_ZaM_all = np.zeros((len(theta_a_inds), len(k_AA_binned)))
+            V_ZaM_all  = np.zeros((len(theta_a_inds), len(k_AA_binned)))
+            for save_index, a in enumerate(theta_a_inds):
+                # retrieve the window matrix for this small-theta bin
+                if self.data.U_ZaMn is not None:
+                    U_ZaMn = self.data.U_ZaMn[self.data_iz,a]
+                    Px_ZaM = convolve_window(U_ZaMn,Px_Zam[a].T)
+                Px_ZaM_all[save_index,:] = Px_ZaM
+                V_ZaM = self.data.V_ZaM[self.data_iz,a]
+                V_ZaM_all[save_index,:] = V_ZaM
+            # rebin in theta
+            Px_ZAM = rebin_theta(V_ZaM_all, Px_ZaM_all)
+            Px_ZAM_all.append(Px_ZAM)
+        print(np.asarray(Px_ZAM_all).shape)
+        return np.asarray(Px_ZAM_all)
 
 
 
-    def get_chi2(self, values, return_all=False):
+    def get_chi2(self, like_params=None, return_all=False):
         """Compute chi2 using data and theory, without adding
         emulator covariance"""
         
         log_like, log_like_all = self.get_log_like(
-            values=values,
+            like_params=like_params,
             ignore_log_det_cov=True
         )
         
@@ -153,15 +129,12 @@ class Likelihood(object):
 
     def get_log_like(
         self,
-        values,
+        like_params=None,
         ignore_log_det_cov=True
     ):
         """Compute log(likelihood), including determinant of covariance
         unless you are setting ignore_log_det_cov=True."""
         start = time.time()
-        iz = self.iz_choice
-        if len(np.atleast_1d(iz))>1:
-            raise ValueError("Likelihood computation not implemented for more than one redshift at once.")
         # what to return if we are out of priors
         null_out = [-np.inf, -np.inf]
         data = self.data
@@ -169,35 +142,18 @@ class Likelihood(object):
         # compute log like contribution from this redshift bin
         log_like_all = np.zeros(ntheta)
         log_like = 0
-        # get the parameters for this iteration
-        params = self.like_params.copy()
         
-        # fill in the free parameters
-        # free parameter names must match the order of values
-        fp_index = 0
-        for i,p in enumerate(params):
-            if p.name in self.free_param_names:
-                # translate the value in [0,1] to the actual parameter value
-                free_param_value = p.value_from_cube(values[fp_index])
-                params[i] = LikelihoodParameter(
-                    name=p.name,
-                    min_value=p.min_value,
-                    max_value=p.max_value,
-                    value=free_param_value)
-                fp_index += 1
-        for p in params:
-            print(p.name, p.value)
         
         theta_A = np.arange(ntheta)
-        model_iz = self.get_convolved_Px_AA(iz,theta_A,params)[0]
+        model_iz = self.get_convolved_Px_AA(theta_A,like_params)
         for itheta in range(ntheta):
             # compute chi2 for this redshift bin
-            det_cov = np.linalg.det(self.data.cov_ZAM[iz,itheta,:,:])
+            det_cov = np.linalg.det(self.data.cov_ZAM[self.data_iz,itheta,:,:])
             if det_cov == 0:
                 # make a warning
                 warnings.warn("Det(cov) appears to be 0: could be a singular covariance matrix!")
-            icov_ZAM = np.linalg.inv(self.data.cov_ZAM[iz,itheta,:,:])
-            data_izitheta  = data.Px_ZAM[iz,itheta,:]
+            icov_ZAM = np.linalg.inv(self.data.cov_ZAM[self.data_iz,itheta,:,:])
+            data_izitheta  = data.Px_ZAM[self.data_iz,itheta,:]
             diff = np.squeeze(data_izitheta - model_iz[itheta])
             chi2_z = np.dot(np.dot(np.squeeze(icov_ZAM), diff), diff)
             # check whether to add determinant of covariance as well
