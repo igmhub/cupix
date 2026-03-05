@@ -227,6 +227,12 @@ class IminuitMinimizer(object):
         results_dict['chi2'] = chi2
         return results_dict
 
+    def interface_with_likelihood():
+        # a log like function that ingests the likelihood log_like function
+        # but instead of taking parameter dictionaries or LikelihoodParamter objects,
+        # takes a list of parameter values in the unit cube, and uses like.free_params information to transform them to physical values before passing to the likelihood log_like function
+        # this will be the function that is passed to the minimizer, and will be called by the minimizer with different parameter values in the unit cube
+
 def save_analysis_npz(results, filename="analysis_results.npz"):
     """
     results: list or dict of per-analysis dictionaries
@@ -242,3 +248,4 @@ def save_analysis_npz(results, filename="analysis_results.npz"):
 
     # Save each dict as an object
     np.savez(filename, **out, allow_pickle=True)
+

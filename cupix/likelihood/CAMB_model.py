@@ -10,7 +10,7 @@ import types
 class CAMBModel(object):
     """Interface between CAMB object and Theory"""
 
-    def __init__(self, zs, cosmo=None, z_star=3.0, kp_kms=0.009):
+    def __init__(self, zs, cosmo=None):
         """Setup from CAMB object and list of redshifts"""
 
         # list of redshifts at which we evaluate linear power
@@ -26,93 +26,7 @@ class CAMBModel(object):
         self.cached_camb_results = None
         # cache wavenumbers and linear power (at zs) when computed
         self.cached_linP_Mpc = None
-        # cache linear power parameters at (z_star, kp_kms)
-        self.z_star = z_star
-        self.kp_kms = kp_kms
         self.cached_linP_params = None
-
-    def get_likelihood_parameters(self, cosmo_priors=None):
-        """Return a list of likelihood parameters"""
-
-        # should clarify role of min/max given that these are also
-        # set in the likelihood
-
-        params = []
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="ombh2",
-                min_value=0.018,
-                max_value=0.026,
-                value=self.cosmo.ombh2,
-            )
-        )
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="omch2",
-                min_value=0.10,
-                max_value=0.14,
-                value=self.cosmo.omch2,
-            )
-        )
-        if cosmo_priors is not None:
-            min_val = cosmo_priors["As"][0]
-            max_val = cosmo_priors["As"][1]
-        else:
-            min_val = 0.90e-09
-            max_val = 3.60e-09
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="As",
-                min_value=min_val,
-                max_value=max_val,
-                value=self.cosmo.InitPower.As,
-            )
-        )
-
-        if cosmo_priors is not None:
-            min_val = cosmo_priors["ns"][0]
-            max_val = cosmo_priors["ns"][1]
-        else:
-            min_val = 0.85
-            max_val = 1.10
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="ns",
-                min_value=min_val,
-                max_value=max_val,
-                value=self.cosmo.InitPower.ns,
-            )
-        )
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="mnu",
-                min_value=0.0,
-                max_value=1.0,
-                value=camb_cosmo.get_mnu(self.cosmo),
-            )
-        )
-
-        if cosmo_priors is not None:
-            min_val = cosmo_priors["nrun"][0]
-            max_val = cosmo_priors["nrun"][1]
-        else:
-            min_val = -0.05
-            max_val = 0.05
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="nrun",
-                min_value=min_val,
-                max_value=max_val,
-                value=self.cosmo.InitPower.nrun,
-            )
-        )
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="H0", min_value=50, max_value=100, value=self.cosmo.H0
-            )
-        )
-
-        return params
 
     def get_camb_results(self):
         """Check if we have called CAMB.get_results yet, to save time.
@@ -225,76 +139,3 @@ class CAMBModel(object):
 
         return CAMBModel(zs=zs, cosmo=new_cosmo)
 
-
-        
-#     def get_linP_interp(self, zmin=0, zmax=10, nz=256, camb_kmax_Mpc=200.0):
-#         """
-#         Obtain an interpolator of the linear power spectrum from CAMB.
-#         Copied from ForestFlow
-
-#         Parameters:
-#             cosmo (Cosmology): Cosmology object representing the cosmological parameters.
-#             zmin (float, optional): Minimum redshift for the linear power spectrum interpolation. Defaults to 0.
-#             zmax (float, optional): Maximum redshift for the linear power spectrum interpolation. Defaults to 10.
-#             nz (int, optional): Number of redshift points to use for the linear power spectrum interpolation. Defaults to 256.
-#             camb_kmax_Mpc (float, optional): Maximum wavenumber (in Mpc^-1) to consider for the linear power spectrum. Defaults to 200.0.
-
-#         Returns:
-#             get_plin (function): A function that takes redshift (z) and wavenumber (k_Mpc) as inputs and returns the corresponding linear power spectrum.
-#         """
-#         # Get the CAMB results for the specified redshift range and maximum wavenumber
-#         camb_results = self.get_camb_results()
-
-#         # Get the linear power spectrum interpolator from the CAMB results
-#         # The `var1` and `var2` parameters refer to the transfer function variables
-#         # used in the power spectrum calculation. 8 corresponds to the matter power spectrum.
-#         linP_interp = camb_results.get_matter_power_interpolator(
-#             nonlinear=False,
-#             var1=8,
-#             var2=8,
-#             hubble_units=False,
-#             k_hunit=False,
-#             log_interp=True,
-#         )
-
-#         # Create a method-bound function to get the linear power spectrum
-#         get_linpower = types.MethodType(P_camb, linP_interp)
-
-#         def get_plin(z, k_Mpc):
-#             """
-#             Get the linear power spectrum at the given redshift and wavenumber.
-
-#             Parameters:
-#                 z (float or array-like): Redshift(s) at which to evaluate the linear power spectrum.
-#                 k_Mpc (float or array-like): Wavenumber(s) in Mpc^-1 at which to evaluate the linear power spectrum.
-
-#             Returns:
-#                 float or array-like: Linear power spectrum at the given redshift(s) and wavenumber(s).
-#             """
-#             # Check if the requested redshift or wavenumber is outside the interpolation range
-#             if np.any(np.asarray(z) > zmax):
-#                 raise ValueError(
-#                     f"Requested z={z} exceeds interpolation range zmax={zmax}"
-#                 )
-#             elif np.any(np.asarray(k_Mpc) > camb_kmax_Mpc):
-#                 raise ValueError(
-#                     f"Requested k_Mpc={k_Mpc} exceeds interpolation range kmax_Mpc={camb_kmax_Mpc}"
-#                 )
-#             # Use the method-bound function to get the linear power spectrum
-#             return get_linpower(z, k_Mpc, grid=False)
-
-#         # Attach the cosmology object and maximum wavenumber to the get_plin function
-#         get_plin.cosmo = self.cosmo
-#         get_plin.camb_kmax_Mpc = camb_kmax_Mpc
-
-#         return get_plin
-
-
-# # copied from ForestFlow
-# def P_camb(pk_intp, z, kh, grid=None):
-#     if grid is None:
-#         grid = not np.isscalar(z) and not np.isscalar(kh)
-#     if pk_intp.islog:
-#         return pk_intp.logsign * np.exp(pk_intp(z, np.log(kh), grid=grid))
-#     else:
-#         return pk_intp(z, np.log(kh), grid=grid)

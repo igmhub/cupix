@@ -22,6 +22,7 @@ class Likelihood(object):
         data,
         theory,
         z,
+        free_params=[],
         verbose=False,
         prior_Gauss_rms=None,
         min_log_like=-1e100,
@@ -30,8 +31,8 @@ class Likelihood(object):
         - data (required) is the data to model
         - theory (required) instance of lya_theory
         - z is a single redshift value
-        - free_param_names is a list of param names, in any order
-        - free_param_limits list of tuples, same order than free_param_names
+        - free_params is a list of LikelihoodParameter instances that we want to vary in the likelihood. If empty, it 
+            is assumed no parameters will be varied and no priors are applied.
         - if prior_Gauss_rms is None it will use uniform priors
         - min_log_like: use this instead of - infinity"""
 
@@ -48,7 +49,13 @@ class Likelihood(object):
         self.data_iz = np.where(self.data.z == self.z)[0][0]
         if self.verbose:
             print("Likelihood will evaluate redshift of", self.z, "which corresponds to iz =", self.theory_iz, "in theory and iz =", self.data_iz, "in data.")
-        # self.set_Gauss_priors()
+        
+        # for priors, we will keep it optional:
+        # if free_param_names is empty, no priors; if it's not empty, set priors on those parameters.
+        # Either Gaussians with widths given by prior_Gauss_rms, or uniform if prior_Gauss_rms is None.
+        if free_params:
+            self.set_Gauss_priors()
+            self.free_param_names = [par.name for par in free_params]
 
 
 
@@ -71,10 +78,10 @@ class Likelihood(object):
             theta_A = [theta_A]
         z = np.atleast_1d(self.z)
         k_AA_fine = self.data.k_m
-
+        # print("k_AA_fine shape", k_AA_fine.shape)
         theta_a_arcmin = (self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2.
         if self.verbose:
-            print("Computing Px simultaneously for thetas,", theta_a_arcmin[self.data_iz], "arcmin")
+            print("Computing Px simultaneously for thetas,", theta_a_arcmin, "arcmin")
         Px_Zam = self.theory.get_px_AA(
             zs = z,
             k_AA=k_AA_fine[self.data_iz],
@@ -82,8 +89,9 @@ class Likelihood(object):
             like_params=like_params,
             verbose=self.verbose
         )
-        Px_Zam = np.squeeze(Px_Zam) # reduce from shape (1, ntheta_a, nk_AA) to (ntheta_a, nk_AA)
         
+        Px_Zam = np.squeeze(Px_Zam) # reduce from shape (1, ntheta_a, nk_AA) to (ntheta_a, nk_AA)
+        # print("Px_Zam shape", Px_Zam.shape)
         # window convolution
         # loop through the large-theta bins from the data
         Px_ZAM_all = []
@@ -99,6 +107,8 @@ class Likelihood(object):
                 # retrieve the window matrix for this small-theta bin
                 if self.data.U_ZaMn is not None:
                     U_ZaMn = self.data.U_ZaMn[self.data_iz,a]
+                    # print("U_ZaMn shape", U_ZaMn.shape)
+                    # print("Px_ZaM shape to be convolved", Px_Zam[a].T.shape)
                     Px_ZaM = convolve_window(U_ZaMn,Px_Zam[a].T)
                 Px_ZaM_all[save_index,:] = Px_ZaM
                 V_ZaM = self.data.V_ZaM[self.data_iz,a]
@@ -184,14 +194,17 @@ class Likelihood(object):
             return self.min_log_like
         return max(self.min_log_like, log_like)
 
-    def compute_log_prob(
-        self, values, ignore_log_det_cov=True
+    def log_prob(
+        self, like_params, ignore_log_det_cov=True
     ):
         """Compute log likelihood plus log priors for input values"""
 
-        # Always force parameter to be within range (for now)
-        if (max(values) > 1.0) or (min(values) < 0.0):
-            return self.min_log_like
+        # translate like_params into array of values in cube
+        for par in like_params:
+            value = par.value_in_cube()
+            # Always force parameter to be within range
+            if (value > 1.0) or (value < 0.0):
+                return self.min_log_like
 
         # compute log_prior
         if self.Gauss_priors is not None:
@@ -200,7 +213,7 @@ class Likelihood(object):
             log_prior = 0
         # compute log_like
         log_like, chi2_all = self.get_log_like(
-            values,
+            like_params=like_params,
             ignore_log_det_cov=ignore_log_det_cov
         )
 
@@ -210,13 +223,6 @@ class Likelihood(object):
 
         return log_like + log_prior
 
-    def log_prob(self, values, ignore_log_det_cov=True):
-        """Return log likelihood plus log priors"""
-
-        return self.compute_log_prob(
-            values,
-            ignore_log_det_cov=ignore_log_det_cov
-        )
 
 
 
@@ -363,28 +369,22 @@ class Likelihood(object):
                 plt.show()
         return
 
-    def fit_probability(self, values, Z=None, n_free_p=None):
+    def fit_probability(self, like_params=None, z=None, n_free_p=0):
         """Compute probability given number of degrees of freedom"""
-        if n_free_p is None:
-            n_free_p = len(self.free_param_names)
         chi2 = self.get_chi2(
-            values=values, return_all=False
+            like_params=like_params, return_all=False
         )
-        if Z is None:
-            Z = self.iz_choice
-        ndeg = self.ndeg(Z)
+        if z is None:
+            z = self.z
+            iz = self.data_iz
+        ndeg = self.ndeg(iz)
         print(ndeg, "ndeg", chi2,"chi2", n_free_p, "n_free_p")
         prob = chi2_scipy.sf(chi2, ndeg - n_free_p)
         return prob
 
-    def ndeg(self, Z):
+    def ndeg(self, iz):
         """Compute number of degrees of freedom in data"""
-
-        ndeg = 0
-        if type(Z) in [int, np.integer]:
-            Z = [Z]
-        for iz in range(len(Z)):
-            ndeg += np.sum(self.data.Px_ZAM[iz] != 0)
+        ndeg = np.sum(self.data.Px_ZAM[iz] != 0)
         return ndeg
     
 
@@ -510,24 +510,23 @@ class Likelihood(object):
         """
         Sets Gaussian priors on the parameters
         """
-
-        self.Gauss_priors = np.ones((len(self.free_param_names)))
-        ii = 0
-        for par_like in self.like_params:
-            if par_like.name in self.free_param_names:
-                if par_like.Gauss_priors_width is not None:
-                    _fid = par_like.ini_value
-                    _width = par_like.Gauss_priors_width
-                    # _low = _fid - 0.5 * _width
-                    # _high = _fid + 0.5 * _width
-                    _low = par_like.get_value_in_cube(_fid - 0.5 * _width) # bring these back when want to normalize
-                    _high = par_like.get_value_in_cube(_fid + 0.5 * _width)
-                    _prior = _high - _low
-                else:
-                    print(par_like.name + " no prior")
-                    _prior = 1e4  # so we get zero
-                self.Gauss_priors[ii] = _prior
-                ii += 1
+        
+        self.Gauss_priors = {}
+        for par in self.free_params:
+            self.Gauss_priors[par] = 1
+        
+        for par_like in self.free_params:
+            if par_like.Gauss_priors_width is not None:
+                _fid = par_like.ini_value
+                _width = par_like.Gauss_priors_width
+                _low = par_like.get_value_in_cube(_fid - 0.5 * _width) # bring these back when want to normalize
+                _high = par_like.get_value_in_cube(_fid + 0.5 * _width)
+                _prior = _high - _low
+            else:
+                print(par_like.name + " no prior")
+                _prior = 1e4  # so we get zero
+            self.Gauss_priors[par_like.name] = _prior
+         
         if np.any(self.Gauss_priors != 1e4):
             pass
         else:

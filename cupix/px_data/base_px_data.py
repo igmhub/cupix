@@ -33,8 +33,10 @@ class BaseDataPx(object):
         filepath=None,
         theta_min_cut_arcmin=None,
         theta_max_cut_arcmin=None,
-        kmin_cut_AA=None,
-        kmax_cut_AA=None
+        kM_min_cut_AA=None,
+        kM_max_cut_AA=None,
+        km_min_cut_AA=None,
+        km_max_cut_AA=None,
     ):
         """Construct base Px class, from measured power and covariance"""
 
@@ -84,8 +86,10 @@ class BaseDataPx(object):
 
         if theta_min_cut_arcmin is not None or theta_max_cut_arcmin is not None:
             self.limit_theta_range(theta_min_arcmin=theta_min_cut_arcmin, theta_max_arcmin=theta_max_cut_arcmin)
-        if kmin_cut_AA is not None or kmax_cut_AA is not None:
-            self.limit_k_range(k_min_AA=kmin_cut_AA, k_max_AA=kmax_cut_AA)
+        if kM_min_cut_AA is not None or kM_max_cut_AA is not None:
+            self.limit_k_M_range(k_min_AA=kM_min_cut_AA, k_max_AA=kM_max_cut_AA)
+        if km_min_cut_AA is not None or km_max_cut_AA is not None:
+            self.limit_k_m_range(k_min_AA=km_min_cut_AA, k_max_AA=km_max_cut_AA)
         # set theta centers
         self.theta_centers_arcmin = 0.5 * (self.theta_min_A_arcmin + self.theta_max_A_arcmin)
         return
@@ -132,7 +136,7 @@ class BaseDataPx(object):
 
         return
     
-    def limit_k_range(self, k_min_AA=None, k_max_AA=None):
+    def limit_k_M_range(self, k_min_AA=None, k_max_AA=None):
         """Limit the k range of the data to [k_min_AA, k_max_AA]"""
         """Eventually, I can have this more flexible to allow different k limits for each redshift"""
 
@@ -174,4 +178,29 @@ class BaseDataPx(object):
         self.U_ZaMn = np.array(new_U_ZaMn)
         self.V_ZaM = np.array(new_V_ZaM)
         
+        return
+
+    def limit_k_m_range(self, k_min_AA=None, k_max_AA=None):
+        """Limit the k range of the data to [k_min_AA, k_max_AA]"""
+        """Eventually, I can have this more flexible to allow different k limits for each redshift"""
+
+        if (k_min_AA is None) and (k_max_AA is None):
+            warn("No k limits provided. No changes made.")
+            return
+        new_k_m = []
+        new_U_ZaMn = []
+        for iz in range(self.Nz):
+            if k_min_AA is None:
+                indices_m = np.where(self.k_m[iz][:-1] <= k_max_AA)[0]
+            elif k_max_AA is None:
+                indices_m = np.where(self.k_m[iz][:-1] >= k_min_AA)[0]
+            else:
+                indices_m = np.where((self.k_m[iz][:-1] >= k_min_AA) & (self.k_m[iz][1:] <= k_max_AA))[0]
+            if len(indices_m) == 0:
+                raise ValueError("No k bins found within the specified range.")
+            new_k_m.append(self.k_m[iz][indices_m])
+            # update U_ZaMn
+            new_U_ZaMn.append(np.take(self.U_ZaMn[iz], indices_m, axis=2))
+        self.k_m = np.array(new_k_m)
+        self.U_ZaMn = np.array(new_U_ZaMn)
         return
