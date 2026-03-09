@@ -80,3 +80,44 @@ class LikelihoodParameter(object):
         par.set_from_cube(value_in_cube)
 
         return par
+
+def likeparam_from_dict(params_dict):
+    # takes a dictionary of parameter names and values, and returns a list of LikelihoodParameter objects
+    like_params = []
+    for name, value in params_dict.items():
+        like_params.append(LikelihoodParameter(name=name, min_value=-1000, max_value=1000, value=value))
+        
+    return like_params
+
+def dict_from_likeparam(like_params):
+    # takes a list of LikelihoodParameter objects, and returns a dictionary of parameter names and values
+    params_dict = {}
+    for param in like_params:
+        params_dict[param.name] = param.value
+        
+    return params_dict
+
+
+def format_like_params_dict(iz_choice, param_dict):
+    """ Ensure that the parameters are consistent with param_{iz} format,
+    and transform units where necessary.
+    """
+    formatted_param_dict = {}
+    for iz in range(20): # assume there will never be more than 20 redshift bins
+        for key in param_dict.keys():
+            if key.endswith(f"_{iz}"):
+                formatted_param_dict[key] = param_dict[key]
+            elif iz_choice.size == 1:
+                # if there is only 1 redshift bin, allow parameters without _{iz} format, and apply to the single redshift bin
+                formatted_param_dict[key+f"_{iz_choice[0]}"] = param_dict[key]
+            else:
+                print("Warning: parameter", key, "not in correct format, must end in _{integer} to specify redshift bin when evaluating multiple redshift bins. This parameter will be ignored.")
+    
+    return formatted_param_dict
+
+def par_index(like_param_list, par_name):
+    """ Return the index of the parameter with name par_name in the list of LikelihoodParameter objects like_param_list"""
+    for i, param in enumerate(like_param_list):
+        if param.name == par_name:
+            return i
+    raise ValueError("Parameter with name " + par_name + " not found in list of LikelihoodParameter objects.")

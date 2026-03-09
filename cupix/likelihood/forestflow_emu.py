@@ -15,8 +15,6 @@ class FF_emulator():
             self,
             z,
             cosmo_param_dict,
-            camb_cosmo_results,
-            kp_Mpc=0.7,
             Nrealizations=3000
         ):
 
@@ -29,14 +27,12 @@ class FF_emulator():
             "kF_Mpc"
         ]
         self.z = z
-        self.cosmo_param_dict = cosmo_param_dict
-        self.camb_cosmo_results = camb_cosmo_results
+        self.cosmo_param_dict = cosmo_param_dict 
         self.emulator_label = "forestflow_emu"
-        self.kp_Mpc = kp_Mpc
-        self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
+        # self.kp_Mpc = kp_Mpc
+        # self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
         
         self._load_emu(Nrealizations=Nrealizations)
-        self._load_arinyo()
 
     def _load_emu(self, Nrealizations=3000):
         """ This function loads the emulator and doesn't require any input """
@@ -44,31 +40,11 @@ class FF_emulator():
         path_program = forestflow.__path__[0][:-10]
 
         emulator = P3DEmulator(
-        model_path=path_program+"/data/emulator_models/new_emu",
+        model_path=path_program+"/data/emulator_models/forest_mpg", #new_emu
         Nrealizations=Nrealizations
         )
 
         self.emu = emulator
-
-
-    def _load_arinyo(self):
-        """ This function reads redshift z and cosmo paremeters dictionary and loads the Arinyo model
-        Arguments:
-        ----------
-        z: Float or array of floats
-        Redshift.
-
-        input_cosmo: Cosmology dictionary (like what is returned by lac.camb_cosmo.get_cosmology_from_dictionary(cosmo_param_dict))
-
-        camb_cosmo_results: Camb Results object, returned by lace.camb_cosmo.get_camb_results
-        Return:
-        -------
-        arinyo: instance of the ArinyoModel class
-        """
-
-        arinyo = ArinyoModel(cosmo=self.cosmo_param_dict, camb_results=self.camb_cosmo_results, zs=self.z, camb_kmax_Mpc=1000) # set model
-
-        self.arinyo = arinyo
 
 
     def emulate_P3D_params(self, emu_call, zs):
@@ -85,7 +61,7 @@ class FF_emulator():
         
         # make sure that emu_call has a value for every z
         Nz = len(zs)
-        print("Forestflow emulator thinks Nz is", Nz)
+        print("Forestflow emulator will evaluate redshift(s) of", zs)
         for key in emu_call.keys():
             assert len(emu_call[key]) == Nz, f"Parameter {key} has {len(emu_call[key])} values but should have {Nz} values for each redshift z."
         
@@ -111,7 +87,6 @@ class FF_emulator():
                     emu_call_iz[key] = emu_call[key][iz]
                 else:
                     print(f"Warning: {key} is not a valid emu parameter. It will not be used in the emulation.")
-            print("emu_call is now", emu_call_iz)
             # make sure emu_call contains all the required parameters
             for key in self.emu_params:
                 if key not in emu_call_iz:
@@ -119,14 +94,9 @@ class FF_emulator():
             print("Trying to predict arinyo params with emu_call", emu_call_iz)
             arinyo_coeffs_iz = self.emu.predict_Arinyos(
             emu_params=emu_call_iz)
-            
-            # turn into a dictionary
-            ia = 0
             for key in arinyo_coeffs.keys():
-                arinyo_coeffs[key][iz] = arinyo_coeffs_iz[ia]
-                ia += 1
-        print("got arinyo coeffs", arinyo_coeffs)
-
+                arinyo_coeffs[key][iz] = arinyo_coeffs_iz[key]
+            
         for key in emu_call.keys():
             if key in ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]:
                 # If any of the keys are in the emu_call, overwrite the emulated values

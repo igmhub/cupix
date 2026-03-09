@@ -4,12 +4,13 @@ import camb
 from lace.cosmo import camb_cosmo
 from lace.cosmo import fit_linP
 from cupix.likelihood import likelihood_parameter
+import types
 
 
 class CAMBModel(object):
     """Interface between CAMB object and Theory"""
 
-    def __init__(self, zs, cosmo=None, z_star=3.0, kp_kms=0.009):
+    def __init__(self, zs, cosmo=None):
         """Setup from CAMB object and list of redshifts"""
 
         # list of redshifts at which we evaluate linear power
@@ -25,101 +26,16 @@ class CAMBModel(object):
         self.cached_camb_results = None
         # cache wavenumbers and linear power (at zs) when computed
         self.cached_linP_Mpc = None
-        # cache linear power parameters at (z_star, kp_kms)
-        self.z_star = z_star
-        self.kp_kms = kp_kms
         self.cached_linP_params = None
-
-    def get_likelihood_parameters(self, cosmo_priors=None):
-        """Return a list of likelihood parameters"""
-
-        # should clarify role of min/max given that these are also
-        # set in the likelihood
-
-        params = []
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="ombh2",
-                min_value=0.018,
-                max_value=0.026,
-                value=self.cosmo.ombh2,
-            )
-        )
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="omch2",
-                min_value=0.10,
-                max_value=0.14,
-                value=self.cosmo.omch2,
-            )
-        )
-        if cosmo_priors is not None:
-            min_val = cosmo_priors["As"][0]
-            max_val = cosmo_priors["As"][1]
-        else:
-            min_val = 0.90e-09
-            max_val = 3.60e-09
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="As",
-                min_value=min_val,
-                max_value=max_val,
-                value=self.cosmo.InitPower.As,
-            )
-        )
-
-        if cosmo_priors is not None:
-            min_val = cosmo_priors["ns"][0]
-            max_val = cosmo_priors["ns"][1]
-        else:
-            min_val = 0.85
-            max_val = 1.10
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="ns",
-                min_value=min_val,
-                max_value=max_val,
-                value=self.cosmo.InitPower.ns,
-            )
-        )
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="mnu",
-                min_value=0.0,
-                max_value=1.0,
-                value=camb_cosmo.get_mnu(self.cosmo),
-            )
-        )
-
-        if cosmo_priors is not None:
-            min_val = cosmo_priors["nrun"][0]
-            max_val = cosmo_priors["nrun"][1]
-        else:
-            min_val = -0.05
-            max_val = 0.05
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="nrun",
-                min_value=min_val,
-                max_value=max_val,
-                value=self.cosmo.InitPower.nrun,
-            )
-        )
-        params.append(
-            likelihood_parameter.LikelihoodParameter(
-                name="H0", min_value=50, max_value=100, value=self.cosmo.H0
-            )
-        )
-
-        return params
 
     def get_camb_results(self):
         """Check if we have called CAMB.get_results yet, to save time.
         It returns a CAMB.results object."""
 
         if self.cached_camb_results is None:
+            print("Calling get_camb_results")
             self.cached_camb_results = camb_cosmo.get_camb_results(
-                self.cosmo, zs=self.zs, fast_camb=True
+                self.cosmo, zs=self.zs, camb_kmax_Mpc=200 #, fast_camb=True
             )
 
         return self.cached_camb_results
@@ -136,15 +52,6 @@ class CAMBModel(object):
 
         return self.cached_linP_Mpc
 
-    def get_linP_params(self):
-        """Linear power parameters at (z_star,kp_kms) for this cosmology"""
-
-        if self.cached_linP_params is None:
-            self.cached_linP_params = fit_linP.parameterize_cosmology_kms(
-                self.cosmo, self.get_camb_results(), self.z_star, self.kp_kms
-            )
-
-        return self.cached_linP_params
 
     def get_linP_Mpc_params(self, kp_Mpc):
         """Get linear power parameters to call emulator, at each z.
@@ -152,7 +59,6 @@ class CAMBModel(object):
 
         ## Get the P(k) at each z
         k_Mpc, z, pk_Mpc = self.get_linP_Mpc()
-
         # specify wavenumber range to fit
         kmin_Mpc = 0.5 * kp_Mpc
         kmax_Mpc = 2.0 * kp_Mpc
@@ -177,38 +83,31 @@ class CAMBModel(object):
             linP_params.append(linP_z)
 
         return linP_params
-    
-    def dkms_dMpc(self, z):
-        """Return H(z)/(1+z) to convert Mpc to km/s"""
 
-        # get CAMB results objects (might be cached already)
-        camb_results = self.get_camb_results()
-        H_z = camb_results.hubble_parameter(z)
-        return H_z / (1 + z)
     
-    def get_M_kms_of_zs(self):
+    def get_dkms_dMpc(self):
         """Return M(z)=H(z)/(1+z) for each z"""
-        M_kms_of_zs = []
+        dkms_of_zs = []
         for z in self.zs:    
-            M_kms_of_zs.append(camb_cosmo.dkms_dMpc(self.cosmo, z))
+            dkms_of_zs.append(camb_cosmo.dkms_dMpc(self.cosmo, z))
 
-        return M_kms_of_zs
+        return dkms_of_zs
     
-    def get_M_AA_of_zs(self):
+    def get_dAA_dMpc(self):
         """Return conversion factor from inv cMpc to inv Angstroms for each z"""
-        M_AA_of_zs = []
+        dAA_of_zs = []
         for z in self.zs:
-            M_AA_of_zs.append(camb_cosmo.dAA_dMpc(self.cosmo, z, 1215.67))
+            dAA_of_zs.append(camb_cosmo.dAA_dMpc(self.cosmo, z, 1215.67))
 
-        return M_AA_of_zs
+        return dAA_of_zs
     
-    def get_M_tdeg_of_zs(self):
+    def get_ddeg_dMpc(self):
         """Return conversion factor from Mpc to deg for each z"""
-        M_tdeg_of_zs = []
+        ddeg_of_zs = []
         for z in self.zs:
-            M_tdeg_of_zs.append(camb_cosmo.ddeg_dMpc(self.cosmo, z))
+            ddeg_of_zs.append(camb_cosmo.ddeg_dMpc(self.cosmo, z))
 
-        return M_tdeg_of_zs
+        return ddeg_of_zs
 
     def get_new_model(self, zs, like_params):
         """For an arbitrary list of like_params, return a new CAMBModel"""
@@ -230,3 +129,4 @@ class CAMBModel(object):
         )
 
         return CAMBModel(zs=zs, cosmo=new_cosmo)
+

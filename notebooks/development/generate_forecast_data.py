@@ -17,65 +17,160 @@
 import numpy as np
 from cupix.likelihood.generate_fake_data import FakeData
 from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
-from cupix.likelihood.input_pipeline import Args
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood
-from lace.cosmo import camb_cosmo, fit_linP
 import matplotlib.pyplot as plt
-from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-import scipy
-from lace.cosmo.thermal_broadening import thermal_broadening_kms
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
-from cupix.likelihood.lya_theory import Theory
 import forestflow
 from forestflow.archive import GadgetArchive3D
 import os
 from pathlib import Path
+import cupix
+import pandas as pd
 import h5py 
 # %load_ext autoreload
 # %autoreload 2
 
 
-# %%
-# realdata = DESI_DR2("/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_20_w_res.hdf5")
-mockdata_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/analysis-0/tru_cont/binned_out_px-zbins_2-thetabins_18.hdf5"
-mockdata = DESI_DR2(mockdata_file)
-
-# %%
-mockdata.k_M_edges[0][1]-mockdata.k_M_edges[0][0]
-
-# %%
-# Figure out the ForestFlow training central simulation
+   # %%
+   # Figure out the ForestFlow training central simulation
 path_program = os.path.dirname(forestflow.__path__[0]) + '/'
 path_program
 folder_lya_data = path_program + "/data/best_arinyo/"
-
+print("Loading archive.")
 Archive3D = GadgetArchive3D(
     base_folder=path_program[:-1],
-    folder_data=folder_lya_data,
-    average="both",
+    # folder_data=folder_lya_data,
+    # average="both",
 )
+sim_dict_central =  Archive3D.get_testing_data("mpg_central")
 training_data = Archive3D.training_data
 
+
+
+for sim_z in sim_dict_central:
+    print(sim_z['Arinyo_minz'])
+    break
+    # for par in all_pars:
+    #     if par in sim_z['Arinyo']:
+    #         dict_save[par+"_central"].append(sim_z['Arinyo'][par])
+    #     elif par in sim_z:
+    #         dict_save[par+"_central"].append(sim_z[par])
+    #     else:
+    #         print("Parameter", par, "not found in central simulation at z=", sim_z['z'])
+    #     # now find min, max values from training data
+    #     all_training_values_iz = []
+    #     for i in range(len(training_data)):
+    #         if abs(training_data[i]['z']-sim_z['z'])<0.01:
+    #             if par in training_data[i]['Arinyo']:
+    #                 all_training_values_iz.append(training_data[i]['Arinyo'][par])
+    #             elif par in training_data[i]:
+    #                 all_training_values_iz.append(training_data[i][par])
+    #     dict_save[par+"_min"].append(np.amin(np.asarray(all_training_values_iz)))
+    #     dict_save[par+"_max"].append(np.amax(np.asarray(all_training_values_iz)))
+
 # %%
+for sim_z in sim_dict_central:
+    print(sim_z['Arinyo_minz'])
+    print(sim_z['Arinyo_min'])
+    break
+
+# %% [markdown]
+# ## Set up the forecast configuration
+
+# %%
+# --------- settings ---------
+forecast = "central" # "central" or "random"
+param_mode = "igm" # "igm" or "arinyo"
+add_noise = False
+Nfree = 2 # number of free parameters to fit in validation
+run_minimizer = True # if false, will only generate the forecast
+# "central" uses the central simulation in the training set
+# "random" randomly selects points within the minimum and maximum range of each training parameter
+# --------------------------
+
+# %%
+data_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_9_w_res.hdf5"
+# data_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/analysis-0/tru_cont/binned_out_px-zbins_2-thetabins_18.hdf5" # mock
+data = DESI_DR2(data_file)
+data_label = 'real'
+
+# %%
+igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
+arinyo_pars = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+# set cosmo+IGM pars and Arinyo pars
+if param_mode == "igm":
+    pars = igm_pars
+elif param_mode == "arinyo":
+    pars = arinyo_pars
+
+# %%
+cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
+igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
+arinyo_pars = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+gadget_short_info_file = cupixpath + '/data/emulator/ff_training_info.csv'
+if not os.path.exists(gadget_short_info_file):
+    # Figure out the ForestFlow training central simulation
+    path_program = os.path.dirname(forestflow.__path__[0]) + '/'
+    path_program
+    folder_lya_data = path_program + "/data/best_arinyo/"
+    print("Loading archive.")
+    Archive3D = GadgetArchive3D(
+        base_folder=path_program[:-1],
+        folder_data=folder_lya_data,
+        average="both",
+    )
+    sim_dict_central =  Archive3D.get_testing_data("mpg_central")
+    training_data = Archive3D.training_data
+    all_pars = arinyo_pars + igm_pars
+    dict_save = {par+"_central": [] for par in all_pars} # save the central values of each parameter at each redshift
+    # save the min-max range of each parameter at each redshift
+    dict_save.update({par+"_min": [] for par in all_pars})
+    dict_save.update({par+"_max": [] for par in all_pars})
+    dict_save["z"] = []
+    for sim_z in sim_dict_central:
+        dict_save["z"].append(sim_z['z']) # save the redshifts
+        for par in all_pars:
+            if par in sim_z['Arinyo']:
+                dict_save[par+"_central"].append(sim_z['Arinyo'][par])
+            elif par in sim_z:
+                dict_save[par+"_central"].append(sim_z[par])
+            else:
+                print("Parameter", par, "not found in central simulation at z=", sim_z['z'])
+            # now find min, max values from training data
+            all_training_values_iz = []
+            for i in range(len(training_data)):
+                if abs(training_data[i]['z']-sim_z['z'])<0.01:
+                    if par in training_data[i]['Arinyo']:
+                        all_training_values_iz.append(training_data[i]['Arinyo'][par])
+                    elif par in training_data[i]:
+                        all_training_values_iz.append(training_data[i][par])
+            dict_save[par+"_min"].append(np.amin(np.asarray(all_training_values_iz)))
+            dict_save[par+"_max"].append(np.amax(np.asarray(all_training_values_iz)))
+    train_test_info = pd.DataFrame(dict_save)
+    train_test_info.to_csv(gadget_short_info_file, index=False)
+else:
+    print("Gadget simulation info file already exists at", gadget_short_info_file, "\nLoading it.")
+    train_test_info = pd.read_csv(gadget_short_info_file)
+
+# %%
+# choose some redshifts from the training data
 zs = []
-sim_dict =  Archive3D.get_testing_data("mpg_central")
-for sim_z in sim_dict:
-    if (sim_z['z'] < 2.7) & (sim_z['z'] > 2.2):
-        zs.append(sim_z['z'])
+
+for sim_z in train_test_info['z']:
+    if (sim_z < 2.7) & (sim_z > 2.2):
+        zs.append(sim_z)
 zs = np.sort(np.array(zs))
+Nz = len(zs)
+print("Will generate forecast at redshifts:", zs)
+# manually overwrite data zs with ForestFlow zs
+data.z = zs
+
+# %% [markdown]
+# Load the theory
 
 # %%
-# manually overwrite MockData zs with ForestFlow zs
-mockdata.z = zs
-print(mockdata.z)
-
-# %%
-# Load emulator
-# z = MockData.z[0:4]
-
+# Load theory
 omnuh2 = 0.0006
 mnu = omnuh2 * 93.14
 H0 = 67.36
@@ -86,7 +181,7 @@ ns = 0.9649
 nrun = 0.0
 w = -1.0
 omk = 0
-fid_cosmo = {
+cosmo = {
     'H0': H0,
     'omch2': omch2,
     'ombh2': ombh2,
@@ -97,62 +192,84 @@ fid_cosmo = {
     'nrun': nrun,
     'w': w
 }
-sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
-cc = camb_cosmo.get_camb_results(sim_cosmo, zs=zs, camb_kmax_Mpc=1000)
 
-ffemu = FF_emulator(zs, fid_cosmo, cc)
-ffemu.kp_Mpc = 1 # set pivot point
-
-theory_AA = set_theory(ffemu, k_unit='iAA')
-theory_AA.set_fid_cosmo(zs)
-theory_AA.emulator = ffemu
-dkms_dMpc_zs = camb_cosmo.dkms_dMpc(sim_cosmo, z=np.array(zs), camb_results=cc)
+theory = set_theory(zs, bkgd_cosmo=cosmo, default_theory=f'best_fit_{param_mode}_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 
 # %% [markdown]
 # ## Generate it at the center of the original training simulation
 
 # %%
-like_params = []
+# prepare to generate and write fake data
+filepath = cupixpath + "/data/px_measurements/forecast/"
 
-sim_dict =  Archive3D.get_testing_data("mpg_central")
-for par in ['sigT_Mpc', 'gamma', 'mF', 'Delta2_p', 'n_p', 'kF_Mpc']:
-    thispar_values = []
-    for iz,zz in enumerate(zs):
-        for sim_z in sim_dict:
-            if abs(sim_z['z']-zz)<0.01:
-                print(sim_z['z'])
-                for par2 in sim_z.keys():
-                    if par2 == par:
-                        thispar_values.append(sim_z[par])
-    thispar_values = np.asarray(thispar_values)
-    like_params.append(LikelihoodParameter(name=par, min_value=-20, max_value=20, value=thispar_values))
-
-# %%
-for par in like_params:
-    print(par.name, par.value)
-
-# %%
-like = Likelihood(mockdata, theory_AA, free_param_names=["bias"], iz_choice=np.asarray([0,1]), like_params=like_params, verbose=True)
-
-# %%
-fakedata = FakeData(like)
-
-# %%
-savestr
-
-# %%
-add_noise = False
 if add_noise:
     noise_str = 'noisy'
 else:
     noise_str = 'noiseless'
-savestr = f"../../data/px_measurements/forecast/forecast_ffcentral_{Path(mockdata_file).stem}_{noise_str}.hdf5"
-print("Save to...", savestr)
+if forecast=="random":
+    rng = np.random.default_rng()
+    forecast_str = f"_{rng.choice(1000):03d}"
+else:
+    forecast_str = ""
+
+savestr = f"{filepath}/forecast_ff{forecast}{forecast_str}_{param_mode}_{data_label}_{Path(data_file).stem}_{noise_str}.hdf5"
+if os.path.exists(savestr):
+    print("File already exists at", savestr)
+else:
+    print("Will generate forecast and save to", savestr)
+
+# %%
+like_params = []
+like_params_dict = {par:np.zeros(len(zs)) for par in pars}
+
+for iz,zz in enumerate(zs):
+    iz_traintest = np.where(train_test_info['z']==zz)[0][0]
+    
+    if forecast=="central":
+        for par in pars:
+            if par+"_central" in train_test_info.columns:
+                like_params_dict[par][iz] = train_test_info[par+"_central"][iz_traintest]
+            else:
+                print("Parameter", par, "not found in training info file for redshift", zz)
+                like_params_dict[par][iz] = 0
+
+    elif forecast=="random":
+        # randomly select a value within the min and max range of each parameter at this redshift
+        for par in pars:
+            if par+"_min" not in train_test_info.columns or par+"_max" not in train_test_info.columns:
+                print("Min/max of parameter", par, "not found in training info file for redshift", zz)
+            else:
+                like_params_dict[par][iz] = rng.uniform(train_test_info[par+"_min"][iz_traintest], train_test_info[par+"_max"][iz_traintest])
+                print("new parameter value for", par, like_params_dict[par][iz])
+
+
+# %%
+
+# create LikelihoodParameter objects
+for par in like_params_dict:
+    like_params.append(LikelihoodParameter(name=par, min_value=-1000, max_value=1000, value=like_params_dict[par])) # min/max values don't matter here
+
+
+# %%
+# initialize Likelihood
+like = Likelihood(data, theory, z=2.25, verbose=True)
+
+
+# %%
+# initialize fake data
+fakedata = FakeData(like)
+
+# %%
+print("Saving to...", savestr)
+# use default theory
 fakedata.write_to_file(savestr, add_noise=False)
 
 # %%
 # just copying and pasting from the previous output
-arinyo_dict = {'bias': np.array([0.11810589, 0.14949374]), 'beta': np.array([1.52642012, 1.4411819 ]), 'q1': np.array([0.29296646, 0.31081784]), 'kvav': np.array([0.51745933, 0.54350346]), 'av': np.array([0.32345456, 0.37763417]), 'bv': np.array([1.6457237 , 1.69155955]), 'kp': np.array([12.90727806, 13.73200226]), 'q2': np.array([0.26116902, 0.28188545])}
+# arinyo_dict = {'bias': np.array([0.11810589, 0.14949374]), 'beta': np.array([1.52642012, 1.4411819 ]), 'q1': np.array([0.29296646, 0.31081784]), 'kvav': np.array([0.51745933, 0.54350346]), 'av': np.array([0.32345456, 0.37763417]), 'bv': np.array([1.6457237 , 1.69155955]), 'kp': np.array([12.90727806, 13.73200226]), 'q2': np.array([0.26116902, 0.28188545])}
+# arinyo_dict = {'bias': np.array([0.11719166, 0.14775302, 0.18601523, 0.23090219]), 'beta': np.array([1.52999781, 1.44227235, 1.3310534 , 1.2097371 ]), 'q1': np.array([0.30040638, 0.32946218, 0.3630141 , 0.40578129]), 'kvav': np.array([0.51962305, 0.55578851, 0.60605053, 0.67135953]), 'av': np.array([0.33154755, 0.39208764, 0.46333845, 0.53290917]), 'bv': np.array([1.65384236, 1.6902841 , 1.73748284, 1.78617228]), 'kp': np.array([13.15922816, 13.99669913, 14.89153095, 15.82119602]), 'q2': np.array([0.25414535, 0.26888122, 0.26672887, 0.25766121])}
+# arinyo_dict = {'bias': np.array([0.11719166, 0.14775302, 0.18601523, 0.23090219]), 'beta': np.array([1.52999781, 1.44227235, 1.3310534 , 1.2097371 ]), 'q1': np.array([0.30040638, 0.32946218, 0.3630141 , 0.40578129]), 'kvav': np.array([0.51962305, 0.55578851, 0.60605053, 0.67135953]), 'av': np.array([0.33154755, 0.39208764, 0.46333845, 0.53290917]), 'bv': np.array([1.65384236, 1.6902841 , 1.73748284, 1.78617228]), 'kp': np.array([13.15922816, 13.99669913, 14.89153095, 15.82119602]), 'q2': np.array([0.25414535, 0.26888122, 0.26672887, 0.25766121])}
+arinyo_dict = {'bias': np.array([0.11735305]), 'beta': np.array([1.4121992]), 'q1': np.array([0.25009289]), 'kvav': np.array([0.53466132]), 'av': np.array([0.42833239]), 'bv': np.array([1.67831029]), 'kp': np.array([10.24335181]), 'q2': np.array([0.27303594])}
 
 
 # %%
@@ -160,250 +277,55 @@ arinyo_dict = {'bias': np.array([0.11810589, 0.14949374]), 'beta': np.array([1.5
 loaded_file = h5py.File(savestr, 'a')
 print(loaded_file.keys()) 
 for par in arinyo_dict:
-    loaded_file['like_params'].attrs[par] = arinyo_dict[par]
+    loaded_file['arinyo_pars'].attrs[par] = arinyo_dict[par]
 loaded_file.close()
 
-# %%
-# Walther+ constriaints
-T0_z2p2 = 1.014*1e4 # Kelvin
-gamma_z2p2 = 1.74
-mF_z2p2 = 0.825
-lambdap_z2p2 = 79.4 # [kpc]
-
-T0_z2p4 = 1.165*1e4
-gamma_z2p4 = 1.63
-mF_z2p4 = 0.799
-lambdap_z2p4 = 81.1 # [kpc]
-
-sigma_T_kms_z2p2 = thermal_broadening_kms(T0_z2p2)
-sigT_Mpc_z2p2 = sigma_T_kms_z2p2 / dkms_dMpc_zs[0]
-kF_Mpc_z2p2 = 1/(lambdap_z2p2/1000)
-
-sigma_T_kms_z2p4 = thermal_broadening_kms(T0_z2p4)
-sigT_Mpc_z2p4 = sigma_T_kms_z2p4 / dkms_dMpc_zs[0]
-kF_Mpc_z2p4 = 1/(lambdap_z2p4/1000)
+# %% [markdown]
+# ## Test the forecast output
 
 # %%
-# compute linear power parameters at each z (in Mpc units)
-linP_zs = fit_linP.get_linP_Mpc_zs(
-    sim_cosmo, z, 0.7
-)
+# make sure it worked
+forecast = DESI_DR2(savestr)
 
 # %%
-like_params = []
-like_params.append(LikelihoodParameter(
-    name='sigT_Mpc',
-    min_value=-1.0,
-    max_value=1.0,
-    value=np.array([sigT_Mpc_z2p2, sigT_Mpc_z2p4]),
-    ini_value=sigT_Mpc_z2p2,
-    Gauss_priors_width=.5
-    ))
-like_params.append(LikelihoodParameter(
-    name='gamma',
-    min_value=0.0,
-    max_value=3.0,
-    value = np.array([gamma_z2p2, gamma_z2p4]),
-    ini_value = gamma_z2p4,
-    Gauss_priors_width=1
-    ))
-like_params.append(LikelihoodParameter(
-    name='mF',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = mF_z2p2,
-    value = np.array([mF_z2p2, mF_z2p4]),
-    Gauss_priors_width=0.5
-    ))
-like_params.append(LikelihoodParameter(
-    name='Delta2_p',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = linP_zs[0]['Delta2_p'],
-    value = np.array([linP_zs[0]['Delta2_p'], linP_zs[1]['Delta2_p']])
-    ))
-like_params.append(LikelihoodParameter(
-    name='n_p',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = linP_zs[0]['n_p'],
-    value = np.array([linP_zs[0]['n_p'], linP_zs[1]['n_p']])
-    ))
-like_params.append(LikelihoodParameter(
-    name='kF_Mpc',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = kF_Mpc_z2p2,
-    value = np.array([kF_Mpc_z2p2, kF_Mpc_z2p4])
-    ))
-like_params.append(LikelihoodParameter(
-    name='lambda_P',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = lambdap_z2p2,
-    value = np.array([lambdap_z2p2, lambdap_z2p4])
-    ))
+# native binning (no rebinning)
+Nz, Nt_a, Nk_M, Nk_m = forecast.U_ZaMn.shape
+print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_M={Nk_M}, Nk_m={Nk_m}")
+# rebinned values
+Nz, Nt_A, Nk_M = forecast.Px_ZAM.shape
+print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
 
 # %%
-# # set the likelihood parameters as the Arinyo params with some fiducial values
+# get the central value of each redshift bin, of length Nz
+zs = forecast.z
+print(zs)
+# get a 1D array of central values of the measured k bins, of length Nk_M
+k_M = data.k_M_centers_AA
+# get two 1D arrays with the edges of each theta bin, of length Nt_A each
+theta_A_min = data.theta_min_A_arcmin
+theta_A_max = data.theta_max_A_arcmin
 
-# like_params = []
-# like_params.append(LikelihoodParameter(
-#     name='bias',
-#     min_value=-1.0,
-#     max_value=0,
-#     ini_value=-0.05,
-#     value =-0.115,
-#     Gauss_priors_width=.05
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='beta',
-#     min_value=0.0,
-#     max_value=2.0,    
-#     ini_value = 1.2,
-#     value=1.55,
-#     Gauss_priors_width=.5
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='q1',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.04,
-#     value=0.1112,
-#     Gauss_priors_width=0.111
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='kvav',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.0003**0.2694,
-#     value=0.0001**0.2694,
-#     Gauss_priors_width=0.0003**0.2694,
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='av',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.7,
-#     value=0.2694,
-#     Gauss_priors_width=0.27
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='bv',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.0004,
-#     value=0.0002,
-#     Gauss_priors_width=0.0002
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='kp',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.33,
-#     value=0.5740,
-#     Gauss_priors_width=0.5
-#     ))
-
-
-# # likelihood_params = []
-# # likelihood_params.append(LikelihoodParameter(
-# #     name='Delta2_p',
-# #     min_value=-1.0,
-# #     max_value=1.0,
-# #     ))
-# # likelihood_params.append(LikelihoodParameter(
-# #     name='n_p',
-# #     min_value=-1.0,
-# #     max_value=1.0,
-# #     ))
-# # likelihood_params.append(LikelihoodParameter(
-# #     name='mF',
-# #     min_value=-1.0,
-# #     max_value=1.0,
-# #     ))
-# # likelihood_params.append(LikelihoodParameter(
-# #     name='gamma',
-# #     min_value=-1.0,
-# #     max_value=1.0,
-# #     ))
-# # likelihood_params.append(LikelihoodParameter(
-# #     name='kF_Mpc',
-# #     min_value=-1.0,
-# #     max_value=1.0,
-# #     ))
-# # likelihood_params.append(LikelihoodParameter(
-# #     name='sigT_Mpc',
-# #     min_value=-1.0,
-# #     max_value=1.0,
-# #     ))
 
 # %%
-like = Likelihood(MockData, theory_AA, free_param_names=["bias"], iz_choice=[0,1], like_params=like_params, verbose=True)
+# make a plot for a couple of theta bins, and one redshift bin
+def plot_theta_bins(data, k_M, iz, it_M):
+    label = '{:.2f} < theta < {:.2f}'.format(theta_A_min[it_M], theta_A_max[it_M])
+    # 1D array with measured Px, length Nk_M
+    Px = data.Px_ZAM[iz][it_M]
+    # get also errorbars
+    sig_Px = np.sqrt(np.diagonal(data.cov_ZAM[iz][it_M]))
+    plt.errorbar(k_M, Px, sig_Px, label=label)
+    
+
 
 # %%
-fakedata = FakeData(like)
+plot_theta_bins(forecast, k_M, iz=0, it_M=0)
+plot_theta_bins(data, k_M, iz=0, it_M=0)
+plt.legend()
 
 # %%
-# save the fake data in the same format as the Colore mock measurements
-fakedata.write_to_file("../../data/px_measurements/forecast/forecast_binned_out_px-zbins_4-thetabins_20_noiseless.hdf5", add_noise=False)
-
-# %%
-import h5py as h5
-
-# %%
-dat = h5.File("../../data/px_measurements/forecast/forecast_binned_out_px-zbins_4-thetabins_20_noiseless.hdf5")
-
-# %%
-dat.keys()
-
-# %%
-dat['P_Z_AM']['z_1']['theta_rebin_0'][:]
-
-# %%
-dat.close()
-
-# %%
-# read in the fake data to verify
-forecast = DESI_DR2("../../data/px_measurements/forecast/forecast_binned_out_px-zbins_4-thetabins_20_noiseless.hdf5", theta_min_cut_arcmin=0, kmax_cut_AA=1)
-
-# %%
-forecast
-
-# %%
-forecast.cov_ZAM[0].shape
-
-# %%
-np.sqrt(np.diag(forecast.cov_ZAM[z][iA])).shape
-
-# %%
-forecast.Px_ZAM[z][iA,:].shape
-
-# %%
-
-for z in range(len(forecast.z)):
-    print("z bin ", z)
-    k_forecast = (forecast.k_M_edges[z][:-1]+forecast.k_M_edges[z][1:])/2.
-    k_data = (MockData.k_M_edges[z][:-1]+MockData.k_M_edges[z][1:])/2.
-    for iA in range(0,forecast.Px_ZAM[z].shape[0], 3):    
-        plt.errorbar(k_forecast, forecast.Px_ZAM[z][iA,:], yerr=np.sqrt(np.diag(forecast.cov_ZAM[z][iA])), fmt='o', label=f'Theta={like.data.theta_centers_arcmin[iA]:.2f}\', fake data')
-        # compare with the real data
-        plt.errorbar(k_data, MockData.Px_ZAM[z][iA,:], yerr=np.sqrt(np.diag(MockData.cov_ZAM[z][iA])), fmt='*', color='k', label='Lyacolore Mock Data')
-        plt.legend()
-        plt.show()
-        plt.clf()
-
-# %%
-# noisy_Px = fakedata.generate_px(iz_choice=0, theta_A_ind=np.arange(len(MockData.theta_centers_arcmin)), like_params=like_params, add_noise=False)
-
-# %%
-k = (like.data.k_M_edges[:-1]+like.data.k_M_edges[1:])/2.
-for iA in range(0,noisy_Px.shape[0], 1):
-    plt.errorbar(k, noisy_Px[iA,:], yerr=np.sqrt(np.diag(like.data.cov_ZAM[0][iA])), fmt='o', label=f'Theta={like.data.theta_centers_arcmin[iA]:.2f}\', fake data')
-    # compare with the real data
-    plt.errorbar(k, like.data.Px_ZAM[0][iA,:], yerr=np.sqrt(np.diag(like.data.cov_ZAM[0][iA])), fmt='*', color='k', label='Lyacolore Mock Data')
-    plt.legend()
-    plt.show()
-    plt.clf()
+for i in range(8):
+    plot_theta_bins(forecast, k_M, iz=0, it_M=i)
+plt.legend()
 
 # %%

@@ -9,7 +9,7 @@ class DESI_DR2(BaseDataPx):
     """Class containing Px in format of DESI DR2-style analysis.
     This can include Colore mock data, real data, or forecasts."""
 
-    def __init__(self, filepath, theta_min_cut_arcmin=None, theta_max_cut_arcmin=None, kmin_cut_AA=None, kmax_cut_AA=None):
+    def __init__(self, filepath, theta_min_cut_arcmin=None, theta_max_cut_arcmin=None, kM_min_cut_AA=None, kM_max_cut_AA=None, km_min_cut_AA=None, km_max_cut_AA=None):
         """Read measured Px."""
         # folder storing P1D measurements
         self.filepath = filepath
@@ -55,8 +55,10 @@ class DESI_DR2(BaseDataPx):
                         filepath=self.filepath,
                         theta_min_cut_arcmin=theta_min_cut_arcmin,
                         theta_max_cut_arcmin=theta_max_cut_arcmin,
-                        kmin_cut_AA=kmin_cut_AA,
-                        kmax_cut_AA=kmax_cut_AA)
+                        kM_min_cut_AA=kM_min_cut_AA,
+                        kM_max_cut_AA=kM_max_cut_AA,
+                        km_min_cut_AA=km_min_cut_AA,
+                        km_max_cut_AA=km_max_cut_AA)
         return
 
 

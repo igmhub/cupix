@@ -10,11 +10,11 @@ class LyaP3D():
             self,
             z,
             P3D_model,
+            P3D_fun,
             P3D_coeffs,
             kp_Mpc=0.7,
             Si_contam=False,
             contam_coeffs={},
-            Arinyo=None,
             verbose=False
 
     ):
@@ -23,12 +23,12 @@ class LyaP3D():
         self.Si_contam = Si_contam
         self.kp_Mpc = kp_Mpc
         self.P3D_coeffs = P3D_coeffs
+        self.P3D_fun = P3D_fun
         self.P3D_model = P3D_model
         if Si_contam:
             if not contam_coeffs:
                 raise ValueError("Si contamination coefficients must be provided if Si contamination is enabled.")
             self.contam_coeffs = contam_coeffs
-        self.arinyo = Arinyo
 
     def model_Px(self, kpar_Mpc, rperp_Mpc):
         # Code won't work if kpar has a zero
@@ -52,12 +52,11 @@ class LyaP3D():
         if self.Si_contam:
             if self.verbose:
                 print("Including Si contamination with coeffs", self.contam_coeffs)
-            Px_pred_Mpc = Px_Mpc_withSiIII(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs, Si_coeffs=self.contam_coeffs, Arinyo=self.arinyo)
+            Px_pred_Mpc = Px_Mpc_withSiIII(self.z, kpar_Mpc, rperp_Mpc, self.P3D_fun, p3d_params=self.P3D_coeffs, Si_coeffs=self.contam_coeffs)
         else:
             if self.verbose:
                 print("No Si contamination")
-            Px_pred_Mpc = pcross.Px_Mpc_detailed(self.z, kpar_Mpc, rperp_Mpc, self.P3D_model, P3D_params=self.P3D_coeffs, fast_transition=True,)
-            
+            Px_pred_Mpc = self.P3D_model.Px_Mpc(self.z, kpar_Mpc, rperp_Mpc, ari_pp=self.P3D_coeffs)
         if np.any(np.isnan(Px_pred_Mpc)):
             print("NaN encountered in Px prediction!")
         return Px_pred_Mpc
@@ -129,11 +128,11 @@ def Px_Mpc_withSiIII(
     z,
     kpar_iMpc,
     rperp_Mpc,
+    P3D_model,
     P3D_Mpc,
     P3D_mode="pol",
     Si_coeffs={},
-    P3D_params={}, 
-    Arinyo=None
+    P3D_params={}
 ):
     """
     Compute the cross-power spectrum P_cross(k_parallel, r_perp) using a Hankel transform
@@ -303,7 +302,7 @@ def Px_Mpc_withSiIII(
             bias_SiIII[iz], bias_SiIII[iz], beta_SiIII[iz], beta_SiIII[iz], mu2d
         ) * np.exp(-((k2d / k_p_SiIII[iz]) ** 2))  # include a pressure cutoff
         # get the linear power at this redshift
-        P3D_lin = Arinyo.linP_Mpc(z[iz], k2d)
+        P3D_lin = P3D_model.linP_Mpc(z[iz], k2d)
         P3D_eval_SiIII = kaiser_SiIII * P3D_lin
         # get the cross term
         kaiser_cross = kaiser(bias_alpha[iz], bias_SiIII[iz], beta_alpha[iz], beta_SiIII[iz], mu2d)
