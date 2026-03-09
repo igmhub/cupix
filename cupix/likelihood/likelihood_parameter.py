@@ -99,7 +99,9 @@ def dict_from_likeparam(like_params):
 
 
 def format_like_params_dict(iz_choice, param_dict):
-    """ Ensure that the parameters are consistent with param_{iz} format"""
+    """ Ensure that the parameters are consistent with param_{iz} format,
+    and transform units where necessary.
+    """
     formatted_param_dict = {}
     for iz in range(20): # assume there will never be more than 20 redshift bins
         for key in param_dict.keys():
@@ -110,7 +112,7 @@ def format_like_params_dict(iz_choice, param_dict):
                 formatted_param_dict[key+f"_{iz_choice[0]}"] = param_dict[key]
             else:
                 print("Warning: parameter", key, "not in correct format, must end in _{integer} to specify redshift bin when evaluating multiple redshift bins. This parameter will be ignored.")
-
+    
     return formatted_param_dict
 
 def par_index(like_param_list, par_name):

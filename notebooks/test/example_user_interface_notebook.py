@@ -35,7 +35,7 @@ cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # %%
 data_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_9_w_res.hdf5"
 # "../../data/px_measurements/forecast/forecast_ffcentral_cosmo_igm_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
-data = DESI_DR2(data_file, kmax_cut_AA=1)
+data = DESI_DR2(data_file, kM_max_cut_AA=1, km_max_cut_AA=
 # kmax_cut determines max of the widely-binned k; finely-binned k will still be fully used for the window matrix application
 
 # %%
@@ -84,12 +84,12 @@ cosmo = {'H0': 67}
 # 'best_fit_arinyo_from_p1d': best fit to the DESI DR1 P1D data from Chaves+2026
 # 'best_fit_igm_from_p1d': same but for IGM parameters
 # 'best_fit_arinyo_from_colore': best fit to xi from colore mocks. Only works for z=2.2, 2.4, 2.6, 2.8
-theory_p1d = set_theory(z, bkgd_cosmo=cosmo, default_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory_p1d = set_theory(z, cosmo_dict=cosmo, default_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 # theory_colore = set_theory(z, bkgd_cosmo=cosmo, default_theory='best_fit_arinyo_from_colore', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 
 # %%
 # check full cosmo dictionary to see what other default parameters were used
-theory_p1d.bkgd_cosmo
+theory_p1d.cosmo_dict
 
 # %%
 theory_p1d.default_param_dict
@@ -196,6 +196,12 @@ plt.ylabel('Px [Ang]')
 
 # %%
 likelihood = Likelihood(data, theory, z=2.6, verbose=True)
+
+# %%
+data.theta_centers_arcmin
+
+# %%
+data.theta_max_A_arcmin
 
 # %%
 # get the convolved Px for a chosen theta bin

@@ -41,9 +41,14 @@ mode = 'cosmo_igm' # if the parameters you want to test are mean-flux, etc
 # mode = 'arinyo' # if the parameters you want to test are Arinyo params
 
 # %%
-forecast_file = f"../../data/px_measurements/forecast/forecast_ffcentral_{mode}_binned_out_px-zbins_2-thetabins_18_noiseless.hdf5"
+forecast_file = f"{cupixpath}/data/px_measurements/forecast//forecast_ffcentral_igm_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
 # forecast_file = f"../../data/px_measurements/forecast/forecast_ffcentral_{mode}_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
 forecast = DESI_DR2(forecast_file, kmax_cut_AA=1)
+# get default theory from forecast
+with h5.File(forecast_file, 'r') as f:
+    default_theory_label = f['metadata'].attrs['true_lya_theory']
+print(f"Default theory label: {default_theory_label}")
+
 
 # %% [markdown]
 # ### Step 2: Load the emulator with Nrealizations = 1000
@@ -74,7 +79,7 @@ cosmo = {
     'w': w
 }
 
-theory = set_theory(z, bkgd_cosmo=cosmo, default_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory = set_theory(z, bkgd_cosmo=cosmo, default_theory=default_theory_label, p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 
 
 # %% [markdown]
@@ -111,12 +116,14 @@ like = Likelihood(forecast, theory, z=z_choice, verbose=True)
 
 # %%
 # make sure theory matches forecast data at central value
-theta_A_index = 11
-Px_convolved = like.get_convolved_Px_AA(theta_A=theta_A_index, like_params=like_params)[0]
+theta_A_index = 5
+like_params = None # only use the default cosmo+IGM theory, not like_params as it contains the evaluated Arinyo params
+Px_convolved = like.get_convolved_Px_AA(theta_A=theta_A_index, like_params=like_params)[0] 
 
 # %%
 plt.plot(forecast.k_M_centers_AA, forecast.Px_ZAM[iz_choice, theta_A_index])
 plt.plot(forecast.k_M_centers_AA, Px_convolved, '--')
+
 forecast.Px_ZAM[iz_choice, theta_A_index]-Px_convolved
 
 # %%
