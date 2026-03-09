@@ -83,6 +83,8 @@ class LikelihoodParameter(object):
 
 def likeparam_from_dict(params_dict):
     # takes a dictionary of parameter names and values, and returns a list of LikelihoodParameter objects
+    if params_dict is None:
+        return []
     like_params = []
     for name, value in params_dict.items():
         like_params.append(LikelihoodParameter(name=name, min_value=-1000, max_value=1000, value=value))
@@ -91,6 +93,8 @@ def likeparam_from_dict(params_dict):
 
 def dict_from_likeparam(like_params):
     # takes a list of LikelihoodParameter objects, and returns a dictionary of parameter names and values
+    if like_params is None:
+        return {}
     params_dict = {}
     for param in like_params:
         params_dict[param.name] = param.value

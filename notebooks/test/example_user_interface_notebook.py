@@ -6,19 +6,19 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %%
 import numpy as np
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.lya_theory import set_theory
+from cupix.likelihood.lya_theory import Theory
 from cupix.likelihood.forestflow_emu import FF_emulator
-from lace.cosmo import camb_cosmo
+from lace.cosmo import cosmology
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
@@ -35,7 +35,7 @@ cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # %%
 data_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_9_w_res.hdf5"
 # "../../data/px_measurements/forecast/forecast_ffcentral_cosmo_igm_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
-data = DESI_DR2(data_file, kmax_cut_AA=1)
+data = DESI_DR2(data_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 # kmax_cut determines max of the widely-binned k; finely-binned k will still be fully used for the window matrix application
 
 # %%
@@ -79,17 +79,13 @@ plot_theta_bins(data, k_M, iz=0, it_M=0)
 
 # %%
 z = data.z
-cosmo = {'H0': 67}
+cosmo = cosmology.Cosmology(cosmo_params_dict={'H0': 67})
 # default_theory options are:
 # 'best_fit_arinyo_from_p1d': best fit to the DESI DR1 P1D data from Chaves+2026
 # 'best_fit_igm_from_p1d': same but for IGM parameters
 # 'best_fit_arinyo_from_colore': best fit to xi from colore mocks. Only works for z=2.2, 2.4, 2.6, 2.8
-theory_p1d = set_theory(z, bkgd_cosmo=cosmo, default_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory_p1d = Theory(z, fid_cosmo=cosmo, default_lya_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 # theory_colore = set_theory(z, bkgd_cosmo=cosmo, default_theory='best_fit_arinyo_from_colore', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
-
-# %%
-# check full cosmo dictionary to see what other default parameters were used
-theory_p1d.bkgd_cosmo
 
 # %%
 theory_p1d.default_param_dict
