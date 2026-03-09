@@ -1,16 +1,7 @@
 import numpy as np
 import copy
-import matplotlib.pyplot as plt
 from lace.cosmo import cosmology
-from lace.emulator import gp_emulator
 from cupix.likelihood.forestflow_emu import FF_emulator
-from cupix.likelihood.model_contaminants import Contaminants
-from cupix.likelihood.model_systematics import Systematics
-from cupix.likelihood.model_igm import IGM
-from cupix.utils.utils_sims import get_training_hc
-from cupix.utils.hull import Hull
-from cupix.utils.utils import is_number_string
-from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
 from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam, format_like_params_dict
 import sys
@@ -61,11 +52,11 @@ class Theory(object):
         else:
             raise ValueError("Emulator label not recognized. Current only option is 'forestflow_emu'.")
 
-    
-    def get_unit_conversions(self, zs, like_params, return_blob=False):
+
+    def get_unit_conversions(self, zs, like_params):
         """return conversion from Mpc to km/s or Mpc to inv Angstroms,
             and from Mpc to deg for transverse separations"""
-
+ 
         # convert list of LikelihoodParameters to dictionary
         params_dict = dict_from_likeparam(like_params)
         print('params_dict', params_dict)
@@ -85,19 +76,12 @@ class Theory(object):
         ddeg_dMpc_zs = np.array(ddeg_dMpc_zs)
         dAA_dMpc_zs   = np.array(dAA_dMpc_zs)
 
-        if return_blob:
-            raise ValueError("implement blobs")
-            #blob = self.get_blob_fixed_background(like_params)
-        
         if self.k_unit == 'ikms':
             return_conv_k_of_zs = dkms_dMpc_zs
         else:
             return_conv_k_of_zs = dAA_dMpc_zs
-        if return_blob:
-            return return_conv_k_of_zs, ddeg_dMpc_zs, blob
-        else:
-            return return_conv_k_of_zs, ddeg_dMpc_zs
-         
+        return return_conv_k_of_zs, ddeg_dMpc_zs
+
 
     def get_emulator_calls(
         self, iz_choice, theory_inputs
@@ -194,9 +178,7 @@ class Theory(object):
     ):
         """Emulate Px in velocity units, for all redshift bins,
         as a function of input likelihood parameters.
-        theta_arcmin is a list of theta bins.
-        It might also return a covariance from the emulator,
-        or a blob with extra information for the fitter."""
+        theta_arcmin is a list of theta bins."""
 
         if verbose is None:
             verbose = self.verbose
@@ -363,7 +345,7 @@ class Theory(object):
         """
         if p3d_label == 'arinyo':
             from forestflow.model_p3d_arinyo import ArinyoModel
-            arinyo = ArinyoModel(fid_cosmo=self.fid_cosmo) # set model
+            arinyo = ArinyoModel(cosmo=self.cosmo_dict) # set model
         else:
             sys.exit("Error: no P3D model specified. Please choose a valid P3D model. Current option are 'arinyo'.")
         
