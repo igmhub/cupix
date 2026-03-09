@@ -14,6 +14,7 @@ from cupix.likelihood.window_and_rebin import convolve_window
 from cupix.likelihood.lyaP3D import LyaP3D
 from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam, format_like_params_dict
 import sys
+from lace.cosmo.thermal_broadening import thermal_broadening_kms
 from forestflow import priors
 from astropy.io import fits
 
@@ -104,9 +105,22 @@ class Theory(object):
         """Compute models that will be emulated, one per redshift bin.
         - like_params identify likelihood parameters to use."""
 
+        # convert any different units to emulator-accepted units
+        for key in theory_inputs.keys():
+            if 'T0' in key:
+                sigT_kms = thermal_broadening_kms(theory_inputs[key])
+                z_int = int(key.split('_')[-1])
+                sigT_Mpc = sigT_kms / self.cosmo["dkms_dMpc_zs"][z_int]
+                theory_inputs[f'sigT_Mpc_{z_int}'] = sigT_Mpc
+            elif 'kF_kms' in key:
+                z_int = int(key.split('_')[-1])
+                kF_Mpc = theory_inputs[key] / self.cosmo["dkms_dMpc_zs"][z_int]
+                theory_inputs[f'kF_Mpc_{z_int}'] = kF_Mpc
+            # later, when varying cosmology, can add here the conversions for Delta* and n* to Deltap and np
+
         # store emulator calls
         emu_call = {}
-        # check if using the base parameters
+        # reformat redshifts
         for key in self.emulator.emu_params:
             emu_call[key] = np.zeros(len(iz_choice))
             for iiz, iz in enumerate(iz_choice):

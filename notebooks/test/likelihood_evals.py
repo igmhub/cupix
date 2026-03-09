@@ -118,6 +118,7 @@ Px_convolved = like.get_convolved_Px_AA(theta_A=theta_A_index, like_params=like_
 # %%
 plt.plot(forecast.k_M_centers_AA, forecast.Px_ZAM[iz_choice, theta_A_index])
 plt.plot(forecast.k_M_centers_AA, Px_convolved, '--')
+
 forecast.Px_ZAM[iz_choice, theta_A_index]-Px_convolved
 
 # %%

@@ -52,15 +52,6 @@ class CAMBModel(object):
 
         return self.cached_linP_Mpc
 
-    def get_linP_params(self):
-        """Linear power parameters at (z_star,kp_kms) for this cosmology"""
-
-        if self.cached_linP_params is None:
-            self.cached_linP_params = fit_linP.parameterize_cosmology_kms(
-                self.cosmo, self.get_camb_results(), self.z_star, self.kp_kms
-            )
-
-        return self.cached_linP_params
 
     def get_linP_Mpc_params(self, kp_Mpc):
         """Get linear power parameters to call emulator, at each z.

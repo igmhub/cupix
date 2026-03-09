@@ -194,6 +194,12 @@ plt.ylabel('Px [Ang]')
 likelihood = Likelihood(data, theory, z=2.6, verbose=True)
 
 # %%
+data.theta_centers_arcmin
+
+# %%
+data.theta_max_A_arcmin
+
+# %%
 # get the convolved Px for a chosen theta bin
 it_M = 0
 theta_bin_choice = data.theta_centers_arcmin[it_M]
