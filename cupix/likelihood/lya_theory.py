@@ -69,12 +69,9 @@ class Theory(object):
         else:
             cosmo = cosmology.Cosmology(cosmo_params_dict=params_dict)
 
-        dkms_dMpc_zs  = [cosmo.get_dkms_dMpc(z) for z in zs]
-        ddeg_dMpc_zs = [cosmo.get_ddeg_dMpc(z) for z in zs]
-        dAA_dMpc_zs   = [cosmo.get_dAA_dMpc(z) for z in zs]
-        dkms_dMpc_zs  = np.array(dkms_dMpc_zs)
-        ddeg_dMpc_zs = np.array(ddeg_dMpc_zs)
-        dAA_dMpc_zs   = np.array(dAA_dMpc_zs)
+        dkms_dMpc_zs  = np.array([cosmo.get_dkms_dMpc(z) for z in zs])
+        ddeg_dMpc_zs = np.array([cosmo.get_ddeg_dMpc(z) for z in zs])
+        dAA_dMpc_zs   = np.array([cosmo.get_dAA_dMpc(z) for z in zs])
 
         if self.k_unit == 'ikms':
             return_conv_k_of_zs = dkms_dMpc_zs
@@ -94,11 +91,17 @@ class Theory(object):
             if 'T0' in key:
                 sigT_kms = thermal_broadening_kms(theory_inputs[key])
                 z_int = int(key.split('_')[-1])
-                sigT_Mpc = sigT_kms / self.cosmo["dkms_dMpc_zs"][z_int]
+                print('WARNING: check this code (Andreu)')
+                z=self.zs[z_int]
+                # I don't this can assume fiducial cosmo...
+                sigT_Mpc = sigT_kms / self.fid_cosmo.get_dkms_dMpc(z=z)
                 theory_inputs[f'sigT_Mpc_{z_int}'] = sigT_Mpc
             elif 'kF_kms' in key:
                 z_int = int(key.split('_')[-1])
-                kF_Mpc = theory_inputs[key] / self.cosmo["dkms_dMpc_zs"][z_int]
+                print('WARNING: check this code (Andreu)')
+                z=self.zs[z_int]
+                # I don't this can assume fiducial cosmo...
+                kF_Mpc = theory_inputs[key] / self.fid_cosmo.get_dkms_dMpc(z=z)
                 theory_inputs[f'kF_Mpc_{z_int}'] = kF_Mpc
             # later, when varying cosmology, can add here the conversions for Delta* and n* to Deltap and np
 
@@ -345,7 +348,7 @@ class Theory(object):
         """
         if p3d_label == 'arinyo':
             from forestflow.model_p3d_arinyo import ArinyoModel
-            arinyo = ArinyoModel(cosmo=self.cosmo_dict) # set model
+            arinyo = ArinyoModel(fid_cosmo=self.fid_cosmo)
         else:
             sys.exit("Error: no P3D model specified. Please choose a valid P3D model. Current option are 'arinyo'.")
         

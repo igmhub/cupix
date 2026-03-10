@@ -75,7 +75,8 @@ cosmo_dict = {
 fid_cosmo = cosmology.Cosmology(cosmo_params_dict=cosmo_dict)
 #fid_cosmo = cosmology.Cosmology(label='Planck18')
 
-theory = Theory(z, fid_cosmo=fid_cosmo, default_lya_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory = Theory(z, fid_cosmo=fid_cosmo, default_lya_theory='best_fit_igm_from_p1d', 
+                p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 
 
 # %% [markdown]
