@@ -10,7 +10,6 @@ from mpi4py import MPI
 
 # our own modules
 import cupix, lace
-from lace.cosmo import camb_cosmo
 from cupix.utils.utils import create_print_function, purge_chains
 
 

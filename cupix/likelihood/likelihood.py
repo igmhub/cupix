@@ -7,8 +7,6 @@ from scipy.stats.distributions import chi2 as chi2_scipy
 from scipy.optimize import minimize
 from scipy.linalg import block_diag
 from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
-import lace
-from lace.cosmo import camb_cosmo
 from cupix.utils.utils import is_number_string
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter, likeparam_from_dict
 import warnings

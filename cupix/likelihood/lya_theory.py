@@ -1,33 +1,13 @@
 import numpy as np
 import copy
-from lace.cosmo import camb_cosmo
+from lace.cosmo import cosmology
 from cupix.likelihood.forestflow_emu import FF_emulator
-from cupix.likelihood import CAMB_model
 from cupix.likelihood.lyaP3D import LyaP3D
 from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam, format_like_params_dict
 import sys
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 from forestflow import priors
 from astropy.io import fits
-
-def set_theory(
-    zs, cosmo_dict=None, default_theory='best_fit_arinyo_from_p1d', p3d_label='arinyo', emulator_label=None, k_unit='iAA', verbose=False
-):
-    """Set theory"""
-
-
-    # set theory
-    theory = Theory(
-        zs = zs,
-        cosmo_dict = cosmo_dict,
-        default_lya_theory=default_theory,
-        p3d_label=p3d_label,
-        emulator_label = emulator_label,
-        k_unit = k_unit,
-        verbose=verbose
-    )
-
-    return theory
 
 
 class Theory(object):
@@ -38,7 +18,7 @@ class Theory(object):
     def __init__(
         self,
         zs,
-        cosmo_dict=None,
+        fid_cosmo=None,
         default_lya_theory='best_fit_arinyo_from_p1d',
         p3d_label='arinyo',
         emulator_label=None,
@@ -48,7 +28,7 @@ class Theory(object):
         """Setup object to compute predictions for the 1D power spectrum.
         Inputs:
             - zs: redshifts that will be evaluated
-            - cosmo: dictionary of cosmology parameters used for unit conversions, setting the linear power spectrum, etc
+            - fid_cosmo: fiducial Cosmology object, used for unit conversions, setting the linear power spectrum, etc
             - default_lya_theory: string tag to specify which default set of likelihood parameters to use. Options are 'best_fit_arinyo_from_p1d' to use the best-fit Arinyo coefficients from the p1d paper, 'best_fit_igm_from_p1d' to use the best-fit IGM parameters from the p1d paper, and 'best_fit_arinyo_from_colore' to use the best-fit Arinyo coefficients from Laura's CF fits.
             - p3d_label: string tag to specify which P3D model to use. Current option is 'arinyo' to use the Arinyo model.
             - emulator_label: string tag to specify which emulator to use for predicting the Arinyo coefficients. Current option is 'forestflow_emu' to use the forestflow emulator.
@@ -58,122 +38,48 @@ class Theory(object):
         self.zs = zs
         # specify pivot point used in compressed parameters
         self.k_unit = k_unit
-        self.set_cosmo(cosmo_dict)
+        if fid_cosmo is None:
+            self.fid_cosmo = cosmology.Cosmology()
+        else:
+            self.fid_cosmo = fid_cosmo
         self._load_P3D_model(p3d_label=p3d_label)
         self.default_lya_theory = default_lya_theory
         self.set_default_param_values(tag=default_lya_theory)
         if emulator_label == "forestflow_emu":
-            self.emulator = FF_emulator(zs, self.cosmo_dict)
+            self.emulator = FF_emulator(zs)
         elif emulator_label is None:
             assert "igm" not in self.default_lya_theory, "If default_lya_theory includes 'igm', an emulator must be specified to predict the Arinyo parameters. Please specify an emulator_label, for example 'forestflow_emu'."
         else:
             raise ValueError("Emulator label not recognized. Current only option is 'forestflow_emu'.")
 
-    def set_cosmo_dict(self, cosmo_dict_input):
-        # Make a dictionary with some default values, if none are passed
-        # Replace any passed by user-specified inputs)
-        omnuh2 = 0.0006
-        mnu = omnuh2 * 93.14
-        H0 = 67.36
-        omch2 = 0.12
-        ombh2 = 0.02237
-        As = 2.1e-9
-        ns = 0.9649
-        nrun = 0.0
-        w = -1.0
-        omk = 0
-        cosmo_dict = {
-            'H0': H0,
-            'omch2': omch2,
-            'ombh2': ombh2,
-            'mnu': mnu,
-            'omk': omk,
-            'As': As,
-            'ns': ns,
-            'nrun': nrun,
-            'w': w
-        }
-        if cosmo_dict_input is not None:
-            for key in cosmo_dict_input:
-                if key in cosmo_dict:
-                    cosmo_dict[key] = cosmo_dict_input[key] # update default value with user-provided value
-                else:
-                    print(f"Warning: {key} not recognized as a cosmological parameter, ignoring it.")
-        self.cosmo_dict = cosmo_dict
 
-    def set_cosmo(
-        self,
-        cosmo_dict
-    ):
-        """Setup initial cosmology"""
-        # first, set the comology dictionary
-        self.set_cosmo_dict(cosmo_dict)
-        laceCosmo = camb_cosmo.get_cosmology_from_dictionary(self.cosmo_dict)
-        self.cosmo = {}
-        self.cosmo["zs"] = self.zs
-        self.cosmo["cosmo"] = CAMB_model.CAMBModel(
-            zs=self.zs,
-            cosmo=laceCosmo,
-        )
-        self.cosmo["dkms_dMpc_zs"] = self.cosmo["cosmo"].get_dkms_dMpc()
-        self.cosmo["dAA_dMpc_zs"] = self.cosmo["cosmo"].get_dAA_dMpc()
-        self.cosmo["ddeg_dMpc_zs"] = self.cosmo["cosmo"].get_ddeg_dMpc()
-
-    
-    def fixed_background(self, like_params):
-        """Check if any of the input likelihood parameters would change
-        the background expansion of the initial cosmology"""
-        if like_params is None:
-            return True
-        # look for parameters that would change background
-        for par in like_params:
-            if par.name in ["ombh2", "omch2", "H0", "mnu", "cosmomc_theta"]:
-                return False
-
-        return True
-
-
-    def get_unit_conversions(self, zs, like_params, return_blob=False):
+    def get_unit_conversions(self, zs, like_params):
         """return conversion from Mpc to km/s or Mpc to inv Angstroms,
             and from Mpc to deg for transverse separations"""
-        
-        # compute linear power parameters at all redshifts, and H(z) / (1+z)
-        if self.fixed_background(like_params):
+ 
+        # convert list of LikelihoodParameters to dictionary
+        params_dict = dict_from_likeparam(like_params)
+        print('params_dict', params_dict)
+
+        if self.fid_cosmo.same_background(cosmo_params=params_dict):
             # use background and transfer functions from initial cosmology
+            cosmo = self.fid_cosmo
             if self.verbose:
                 print("recycle transfer function")
-            dkms_dMpc_zs  = []
-            ddeg_dMpc_zs = []
-            dAA_dMpc_zs   = []
-            for z in zs:
-                _ = np.argwhere(self.cosmo["zs"] == z)[0, 0]
-                dkms_dMpc_zs.append(self.cosmo["dkms_dMpc_zs"][_])
-                ddeg_dMpc_zs.append(self.cosmo["ddeg_dMpc_zs"][_])
-                dAA_dMpc_zs.append(self.cosmo["dAA_dMpc_zs"][_])
-            dkms_dMpc_zs  = np.array(dkms_dMpc_zs)
-            ddeg_dMpc_zs = np.array(ddeg_dMpc_zs)
-            dAA_dMpc_zs   = np.array(dAA_dMpc_zs)
-            if return_blob:
-                blob = self.get_blob_fixed_background(like_params)
         else:
-            # setup a new CAMB_model from like_params
-            if self.verbose:
-                print("create new CAMB_model")
-            camb_model = self.cosmo["cosmo"].get_new_model(zs, like_params)
-            dkms_dMpc_zs = camb_model.get_dkms_dMpc()
-            dAA_dMpc_zs = camb_model.get_dAA_dMpc()
-            ddeg_dMpc_zs = camb_model.get_ddeg_dMpc()
-            if return_blob:
-                blob = self.get_blob(camb_model=camb_model)
+            cosmo = cosmology.Cosmology(cosmo_params_dict=params_dict)
+
+        dkms_dMpc_zs  = np.array([cosmo.get_dkms_dMpc(z) for z in zs])
+        ddeg_dMpc_zs = np.array([cosmo.get_ddeg_dMpc(z) for z in zs])
+        dAA_dMpc_zs   = np.array([cosmo.get_dAA_dMpc(z) for z in zs])
+
         if self.k_unit == 'ikms':
             return_conv_k_of_zs = dkms_dMpc_zs
         else:
             return_conv_k_of_zs = dAA_dMpc_zs
-        if return_blob:
-            return return_conv_k_of_zs, ddeg_dMpc_zs, blob
-        else:
-            return return_conv_k_of_zs, ddeg_dMpc_zs
-            
+        return return_conv_k_of_zs, ddeg_dMpc_zs
+
+
     def get_emulator_calls(
         self, iz_choice, theory_inputs
     ):
@@ -185,11 +91,17 @@ class Theory(object):
             if 'T0' in key:
                 sigT_kms = thermal_broadening_kms(theory_inputs[key])
                 z_int = int(key.split('_')[-1])
-                sigT_Mpc = sigT_kms / self.cosmo["dkms_dMpc_zs"][z_int]
+                print('WARNING: check this code (Andreu)')
+                z=self.zs[z_int]
+                # I don't this can assume fiducial cosmo...
+                sigT_Mpc = sigT_kms / self.fid_cosmo.get_dkms_dMpc(z=z)
                 theory_inputs[f'sigT_Mpc_{z_int}'] = sigT_Mpc
             elif 'kF_kms' in key:
                 z_int = int(key.split('_')[-1])
-                kF_Mpc = theory_inputs[key] / self.cosmo["dkms_dMpc_zs"][z_int]
+                print('WARNING: check this code (Andreu)')
+                z=self.zs[z_int]
+                # I don't this can assume fiducial cosmo...
+                kF_Mpc = theory_inputs[key] / self.fid_cosmo.get_dkms_dMpc(z=z)
                 theory_inputs[f'kF_Mpc_{z_int}'] = kF_Mpc
             # later, when varying cosmology, can add here the conversions for Delta* and n* to Deltap and np
 
@@ -269,9 +181,7 @@ class Theory(object):
     ):
         """Emulate Px in velocity units, for all redshift bins,
         as a function of input likelihood parameters.
-        theta_arcmin is a list of theta bins.
-        It might also return a covariance from the emulator,
-        or a blob with extra information for the fitter."""
+        theta_arcmin is a list of theta bins."""
 
         if verbose is None:
             verbose = self.verbose
@@ -438,7 +348,7 @@ class Theory(object):
         """
         if p3d_label == 'arinyo':
             from forestflow.model_p3d_arinyo import ArinyoModel
-            arinyo = ArinyoModel(cosmo=self.cosmo_dict) # set model
+            arinyo = ArinyoModel(fid_cosmo=self.fid_cosmo)
         else:
             sys.exit("Error: no P3D model specified. Please choose a valid P3D model. Current option are 'arinyo'.")
         

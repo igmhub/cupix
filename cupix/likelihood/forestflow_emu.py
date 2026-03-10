@@ -14,7 +14,6 @@ class FF_emulator():
     def __init__(
             self,
             z,
-            cosmo_param_dict,
             Nrealizations=3000
         ):
 
@@ -27,7 +26,6 @@ class FF_emulator():
             "kF_Mpc"
         ]
         self.z = z
-        self.cosmo_param_dict = cosmo_param_dict 
         self.emulator_label = "forestflow_emu"
         # self.kp_Mpc = kp_Mpc
         # self.kmax_Mpc = 5 # from Forestflow paper plots, could revisit
