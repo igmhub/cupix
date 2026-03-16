@@ -124,7 +124,7 @@ class Theory(object):
 
         if self.include_continuum:
             # compute multiplicative correction due to continuum fitting
-            cont_distortion = self.get_continuum_distortion(iz, k_AA, cosmo, params)
+            cont_distortion = self.get_continuum_distortion_obs(iz, k_AA, cosmo, params)
             px_obs *= cont_distortion
 
         return px_obs
@@ -523,3 +523,32 @@ class Theory(object):
 
         return Px_sky
 
+
+    def get_continuum_distortion_obs(self, iz, k_AA, cosmo=None, params={}):
+        """ compute multiplicative correction due to continuum fitting """
+
+        # figure out the cosmology to use
+        cosmo = self.get_cosmology(cosmo=cosmo, params=params)
+        z = self.zs[iz]
+
+        # unit conversions to Mpc (where theory lives)
+        lr_lya = self.lya_models[iz].lr_lya
+        dAA_dMpc = cosmo.get_dAA_dMpc(z, lambda_rest_AA=lr_lya)
+        kp_Mpc = k_AA * dAA_dMpc
+
+        cont_dist = self.get_continuum_distortion_Mpc(iz, kp_Mpc, params)
+
+        return cont_dist
+
+
+    def get_continuum_distortion_Mpc(self, iz, kp_Mpc, params={}):
+
+        # get continuum parameters (using default and input params)
+        cont_params = self.cont_models[iz].get_continuum_params(params)
+        kC_Mpc = cont_params['kC_Mpc']
+        pC = cont_params['pC']
+
+        # for now let's use the first model from Blomqvist et al. (2015)
+        cont_dist = np.tanh( (kp_Mpc/kC_Mpc)**pC )
+
+        return cont_dist

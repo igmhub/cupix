@@ -72,12 +72,12 @@ model_Arinyo.default_params
 # %%
 nn_k = 200  # number of k bins
 nn_mu = 10  # number of mu bins
-k = np.logspace(-3, 2, nn_k)
+k = np.logspace(-4, 2, nn_k)
 mu = np.linspace(0, 1, nn_mu)
 k2d = np.tile(k[:, np.newaxis], nn_mu)  # k grid for P3D
 mu2d = np.tile(mu[:, np.newaxis], nn_k).T  # mu grid for P3D
 
-kpar = np.logspace(-1, np.log10(5), nn_k)  # kpar for P1D
+kpar = np.logspace(-3, 1, nn_k)  # kpar for P1D
 
 plin = model_Arinyo.linP_Mpc(zs[0], k)  # get linear power spectrum at target z
 p3d = model_Arinyo.P3D_Mpc_k_mu(
@@ -136,6 +136,27 @@ plt.ylabel(r"$P/P_{\rm lin}$")
 plt.xlim([10**-3, 40])
 plt.ylim([10**-3, 1])
 plt.legend()
+plt.title('Impact of HCDs to the Lya P3D')
+
+# %%
+for ii in [-1, 0]:
+    plt.semilogx(k, test_p3d[:, ii] / new_p3d[:, ii], label=r"$<\mu>=$" + str(np.round(mu[ii], 2)))
+plt.xlabel(r"$k$ [Mpc]")
+plt.ylabel(r"$P_{\rm Lya + HCD}/P_{\rm Lya}(k, \mu)$")
+plt.xlim([10**-4, 40])
+#plt.ylim([10**-3, 1])
+plt.legend()
+plt.title('Impact of HCDs to the Lya P3D')
+
+# %%
+for ii in [-1, 0]:
+    plt.loglog(k, (test_p3d[:, ii] - new_p3d[:, ii]) / new_p3d[:, ii], label=r"$<\mu>=$" + str(np.round(mu[ii], 2)))
+plt.xlabel(r"$k$ [Mpc]")
+plt.ylabel(r"$(P_{\rm Lya + HCD} - P_{\rm Lya})/P_{\rm Lya}(k, \mu)$")
+plt.xlim([10**-4, 40])
+plt.ylim([10**-2, 1])
+plt.legend()
+plt.title('Impact of HCDs to the Lya P3D')
 
 # %% [markdown]
 # ### Now test Px (in comoving Mpc)
@@ -203,6 +224,18 @@ plt.ylabel(r'$P_\times(r_\perp, k_\parallel)$ [Mpc]')
 plt.xlabel(r'$k_\parallel$ [1/Mpc]')
 plt.title('Impact of correlated sky residuals (x10)')
 
+# %%
+cont_dist = new_theory.get_continuum_distortion_Mpc(iz=0, kp_Mpc=kpar, params=new_params)
+
+# %%
+for irt in [0, 50, 70]:
+    plt.semilogx(kpar, px_lya[irt], label='rt = {:.3f} Mpc'.format(rperp[irt]))
+    plt.semilogx(kpar, px_lya[irt] * cont_dist, ls=':')
+plt.legend()
+plt.ylabel(r'$P_\times(r_\perp, k_\parallel)$ [Mpc]')
+plt.xlabel(r'$k_\parallel$ [1/Mpc]')
+plt.title('Impact of continuum distortion')
+
 # %% [markdown]
 # ### Now test Px (in observing units)
 
@@ -228,10 +261,14 @@ if px_sky.shape[0]==1:
     px_sky = px_sky.squeeze()
 
 # %%
+cont_dist = new_theory.get_continuum_distortion_obs(iz=0, k_AA=k_AA, params=new_params)
+
+# %%
 plt.semilogx(k_AA, px_lya, label='Lya')
 plt.semilogx(k_AA, px_lya_hcd, label='Lya + HCD')
 plt.semilogx(k_AA, px_lya + px_sky, label='Lya + sky')
 plt.semilogx(k_AA, px_lya_hcd + px_metal_auto + px_metal_cross, label='Lya + HCD + metals')
+plt.semilogx(k_AA, px_lya * cont_dist, label='Lya (continuum fitted)')
 
 plt.legend()
 plt.ylabel(r'$P_\times(\theta, q)$ [AA]')
@@ -242,6 +279,7 @@ plt.title(r'Impact of contamination at z = {:.2f}, $\theta={:.2f}$ arcmin'.forma
 plt.semilogx(k_AA, px_lya_hcd / px_lya, label='Lya + HCD')
 plt.semilogx(k_AA, (px_lya + px_sky) / px_lya, label='Lya + sky')
 plt.semilogx(k_AA, (px_lya_hcd + px_metal_auto + px_metal_cross) / px_lya, label='Lya + HCD + metals')
+plt.semilogx(k_AA, cont_dist, label='Continuum distortion')
 plt.axhline(y=1, ls=':', color='gray')
 plt.legend()
 plt.ylim([0.9,1.3])
@@ -249,5 +287,7 @@ plt.ylabel(r'$P_\times(\theta, q) ~/ ~ P_\times^{\alpha}(\theta, q) $')
 plt.xlabel(r'q [1/AA]')
 plt.title(r'Impact of contamination at z = {:.2f}, $\theta={:.2f}$ arcmin'.format(zs[0], theta_arc))
 plt.savefig('px_cont.png')
+
+# %%
 
 # %%
