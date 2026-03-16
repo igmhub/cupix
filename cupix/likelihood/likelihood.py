@@ -491,18 +491,6 @@ class Likelihood(object):
         else:
             plt.show()
 
-    def plot_hull_fid(self):
-        emu_call, M_of_z = self.theory.get_emulator_calls(self.data.z)
-        p1 = np.zeros(
-            (
-                self.theory.hull.nz,
-                len(self.theory.hull.params),
-            )
-        )
-        for jj, key in enumerate(self.theory.hull.params):
-            p1[:, jj] = emu_call[key]
-
-        self.theory.hull.plot_hulls(p1)
 
     def set_Gauss_priors(self):
         """
