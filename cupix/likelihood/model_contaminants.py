@@ -26,6 +26,9 @@ class ContaminantsModel(object):
         self.default_sky_params = self.get_default_sky_params(config)
         self.default_continuum_params = self.get_default_continuum_params(config)
 
+        # read the function xi_noise(theta) needed for the sky contamination
+        self.xi_noise = self.read_xi_noise(config)
+
         return
 
 
@@ -100,3 +103,23 @@ class ContaminantsModel(object):
 
         return continuum_params
 
+
+    def read_xi_noise(self, config):
+        """Read function xi_noise(theta) for sky contamination"""
+
+        from scipy.interpolate import interp1d
+        from astropy.table import Table
+        import cupix
+
+        cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
+        fname=cupixpath+"/data/desi_instrument/desi-instrument-syst-for-forest-auto-correlation_arcmin.csv"
+        syst_table = Table.read(fname)
+        syst_interp = interp1d(syst_table["theta_arc"], syst_table["xi_noise"], kind='linear')
+
+        return syst_interp
+
+
+    def get_xi_noise(self, theta_arc):
+        """Evaluate xi_noise at theta_arc"""
+
+        return self.xi_noise(theta_arc)

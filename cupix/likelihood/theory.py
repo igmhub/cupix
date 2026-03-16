@@ -35,6 +35,12 @@ class Theory(object):
         # setup model for systematics / contaminants, one per z
         self.cont_models = [ContaminantsModel(z, config) for z in self.zs]
 
+        # whether to model the different contaminants
+        self.include_hcd = config.get('include_hcd', False)
+        self.include_metal = config.get('include_metal', False)
+        self.include_sky = config.get('include_sky', False)
+        self.include_continuum = config.get('include_continuum', False)
+
         return
 
 
@@ -98,15 +104,31 @@ class Theory(object):
         if self.verbose:
             print('Theta bins (deg)', theta_deg)
 
-        # ask for Px (Lya + HCD) 
-        px_lya_hcd_obs = self.get_px_lya_hcd_obs(iz, theta_arc, k_AA, cosmo, params)
+        if self.include_hcd:
+            # ask for Px (Lya + HCD) 
+            px_obs = self.get_px_lya_hcd_obs(iz, theta_arc, k_AA, cosmo, params)
+        else:
+            # ask for Lya Px 
+            px_obs = self.get_px_lya_obs(iz, theta_arc, k_AA, cosmo, params)
 
-        # compute metals here (silicon auto, and silicon x lya)
-        px_metal_auto = self.get_px_metal_auto_obs(iz, theta_arc, k_AA, cosmo, params)
-        px_metal_cross = self.get_px_metal_cross_obs(iz, theta_arc, k_AA, cosmo, params)
+        if self.include_metal:
+            # compute metals here (silicon auto, and silicon x lya)
+            px_metal_auto = self.get_px_metal_auto_obs(iz, theta_arc, k_AA, cosmo, params)
+            px_metal_cross = self.get_px_metal_cross_obs(iz, theta_arc, k_AA, cosmo, params)
+            px_obs += px_metal_auto + px_metal_cross
+
+        if self.include_sky:
+            # compute contamination from sky residuals
+            px_sky = self.get_px_sky_obs(iz, theta_arc, k_AA, cosmo, params)
+            px_obs += px_sky
+
+        if self.include_continuum:
+            # compute multiplicative correction due to continuum fitting
+            cont_distortion = self.get_continuum_distortion(iz, k_AA, cosmo, params)
+            px_obs *= cont_distortion
+
+        return px_obs
         
-        return px_lya_hcd_obs + px_metal_auto + px_metal_cross
-
 
     def get_px_lya_obs(self, iz, theta_arc, k_AA, cosmo=None, params={}):
 
@@ -446,3 +468,58 @@ class Theory(object):
         kt_Mpc_max = 200.0
 
         return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kt_Mpc_max)
+
+
+    def get_px_sky_obs(self, iz, theta_arc, k_AA, cosmo=None, params={}):
+
+        # figure out the cosmology to use 
+        cosmo = self.get_cosmology(cosmo=cosmo, params=params)
+        z = self.zs[iz]
+
+        # unit conversions to Mpc (where theory lives)
+        darc_dMpc = cosmo.get_darc_dMpc(z)
+        lr_lya = self.lya_models[iz].lr_lya
+        dAA_dMpc = cosmo.get_dAA_dMpc(z, lambda_rest_AA=lr_lya)
+        rt_Mpc = theta_arc / darc_dMpc
+        kp_Mpc = k_AA * dAA_dMpc
+        
+        # compute Px in Mpc
+        Px_Mpc = self.get_px_sky_Mpc(iz, rt_Mpc, kp_Mpc, cosmo, params)
+
+        # back to inverse Angstroms
+        Px_AA = Px_Mpc * dAA_dMpc
+
+        return Px_AA 
+
+
+    def get_px_sky_Mpc(self,iz, rt_Mpc, kp_Mpc, cosmo=None, params={}):
+
+        # figure out the cosmology to use
+        cosmo = self.get_cosmology(cosmo=cosmo, params=params)
+        z = self.zs[iz]
+
+        # unit conversions (should be fast) 
+        darc_dMpc = cosmo.get_darc_dMpc(z)
+        lr_lya = self.lya_models[iz].lr_lya
+        dAA_dMpc = cosmo.get_dAA_dMpc(z, lambda_rest_AA=lr_lya)
+
+        # 1 at theta=0, 0 at large angular separations
+        theta_arc = rt_Mpc * darc_dMpc
+        xi_noise = self.cont_models[iz].get_xi_noise(theta_arc)
+
+        # get b_noise parameter (using default and input params)
+        sky_params = self.cont_models[iz].get_sky_params(params)
+        b_noise_Mpc = sky_params['b_noise_Mpc']
+
+        # pixel width in Angstroms
+        x_AA = 0.8
+        x_Mpc = x_AA / dAA_dMpc
+
+        # pixel smoothing 
+        x = x_Mpc * kp_Mpc / 2.0
+        smooth = (np.sin(x)/x)**2
+
+        Px_sky = b_noise_Mpc * np.outer(xi_noise, smooth)
+
+        return Px_sky
+

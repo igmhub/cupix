@@ -191,6 +191,18 @@ plt.ylabel(r'$P_\times(r_\perp, k_\parallel)$ [Mpc]')
 plt.xlabel(r'$k_\parallel$ [1/Mpc]')
 plt.title('Impact of metal contamination')
 
+# %%
+px_sky = new_theory.get_px_sky_Mpc(iz=0, rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
+
+# %%
+for irt in [0, 50, 70]:
+    plt.semilogx(kpar, px_lya[irt], label='rt = {:.3f} Mpc'.format(rperp[irt]))
+    plt.semilogx(kpar, px_lya[irt] + 10*px_sky[irt], ls=':')
+plt.legend()
+plt.ylabel(r'$P_\times(r_\perp, k_\parallel)$ [Mpc]')
+plt.xlabel(r'$k_\parallel$ [1/Mpc]')
+plt.title('Impact of correlated sky residuals (x10)')
+
 # %% [markdown]
 # ### Now test Px (in observing units)
 
@@ -202,7 +214,7 @@ k_AA = np.linspace(0.01,1.0, 1000)
 px_lya = new_theory.get_px_lya_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
 
 # %%
-px_lya_hcd = new_theory.get_px_lya_hcd_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
+px_lya_hcd = new_theory.get_px_lya_hcd_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, cosmo=cosmo, params=new_params)
 
 # %%
 px_metal_auto = new_theory.get_px_metal_auto_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
@@ -211,8 +223,14 @@ px_metal_auto = new_theory.get_px_metal_auto_obs(iz=0, theta_arc=theta_arc, k_AA
 px_metal_cross = new_theory.get_px_metal_cross_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
 
 # %%
+px_sky = new_theory.get_px_sky_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
+if px_sky.shape[0]==1:
+    px_sky = px_sky.squeeze()
+
+# %%
 plt.semilogx(k_AA, px_lya, label='Lya')
 plt.semilogx(k_AA, px_lya_hcd, label='Lya + HCD')
+plt.semilogx(k_AA, px_lya + px_sky, label='Lya + sky')
 plt.semilogx(k_AA, px_lya_hcd + px_metal_auto + px_metal_cross, label='Lya + HCD + metals')
 
 plt.legend()
@@ -222,11 +240,14 @@ plt.title(r'Impact of contamination at z = {:.2f}, $\theta={:.2f}$ arcmin'.forma
 
 # %%
 plt.semilogx(k_AA, px_lya_hcd / px_lya, label='Lya + HCD')
+plt.semilogx(k_AA, (px_lya + px_sky) / px_lya, label='Lya + sky')
 plt.semilogx(k_AA, (px_lya_hcd + px_metal_auto + px_metal_cross) / px_lya, label='Lya + HCD + metals')
 plt.axhline(y=1, ls=':', color='gray')
 plt.legend()
+plt.ylim([0.9,1.3])
 plt.ylabel(r'$P_\times(\theta, q) ~/ ~ P_\times^{\alpha}(\theta, q) $')
 plt.xlabel(r'q [1/AA]')
 plt.title(r'Impact of contamination at z = {:.2f}, $\theta={:.2f}$ arcmin'.format(zs[0], theta_arc))
+plt.savefig('px_cont.png')
 
 # %%

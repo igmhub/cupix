@@ -1,0 +1,5 @@
+python script copied from Vega
+https://github.com/andreicuceu/vega/blob/master/vega/models/instrumental_systematics/write_desi_instrumental_syst_table.py
+
+and modified to write file as a function of arcmin (and not Mpc)
+
