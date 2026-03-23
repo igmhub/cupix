@@ -99,8 +99,6 @@ plt.ylim([10**-3, 1])
 plt.legend()
 
 # %%
-
-# %%
 new_theory = theory.Theory(zs=zs, fid_cosmo=cosmo, config={'verbose':True})
 
 # %%
@@ -289,5 +287,6 @@ plt.title(r'Impact of contamination at z = {:.2f}, $\theta={:.2f}$ arcmin'.forma
 plt.savefig('px_cont.png')
 
 # %%
+a=3
 
 # %%
