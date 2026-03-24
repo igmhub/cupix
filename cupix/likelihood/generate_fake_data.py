@@ -2,6 +2,8 @@
 
 import numpy as np
 import h5py
+import copy
+from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam, format_like_params_dict
 # fake_data object will covariance matrix, Arinyo model etc
 
 class FakeData(object):
@@ -20,11 +22,12 @@ class FakeData(object):
 
 
     def generate_px(self, theta_A_ind, like_params=None, add_noise=True):
-        print("Generating")
+        
         # set up the Arinyo P3D model
         # do we want to apply the noise before or after the window convolution?
         # has to be after because I have the covariance matrix for the post-rebinned data
-        Px_theory = self.like.get_convolved_Px_AA(theta_A_ind, like_params)
+        Px_theory, arinyo_coeffs = self.like.get_convolved_Px_AA(theta_A_ind, like_params, return_arinyo_coeffs=True)
+        print(arinyo_coeffs)
         # add noise
         if add_noise:
             if type(theta_A_ind) in [int, np.int64, np.int32]:
@@ -40,7 +43,7 @@ class FakeData(object):
                 Px_out = np.array(Px_out)
         else:
             Px_out = Px_theory
-        return Px_out
+        return Px_out, arinyo_coeffs
     
     def write_to_file(self, filepath, like_params=None, add_noise=True):
         with h5py.File(filepath,'w') as f:
@@ -63,8 +66,15 @@ class FakeData(object):
             Vgroup = f.create_group('V_Z_aM')
             params_group = f.create_group('like_params')
             arinyo_group = f.create_group('arinyo_pars')
+            cosmo = f.create_group('cosmo_params')
+            print("Here")
+            # no matter the inputs, make sure like_params_obj is a list of LikelihoodParameter objects, and like_params is a dictionary of parameter values for easier handling below
+            print(self.like.data_iz)
+            like_params = format_like_params_dict(self.like.data_iz, like_params)
+            print("After")   
+            print(like_params)
             print("arguments going in", np.arange(len(self.like.data.theta_min_A_arcmin)), like_params, add_noise)
-            Px = self.generate_px(np.arange(len(self.like.data.theta_min_A_arcmin)), like_params, add_noise=add_noise)
+            Px, arinyo = self.generate_px(np.arange(len(self.like.data.theta_min_A_arcmin)), like_params, add_noise=add_noise)
             print(f"writing to z bin {self.like.data_iz}")
             pxgroup_z = pxgroup.create_group(f'z_{self.like.data_iz}')
             covgroup_z = covgroup.create_group(f'z_{self.like.data_iz}')
@@ -83,10 +93,19 @@ class FakeData(object):
                 Vweights = self.like.data.V_ZaM[self.like.data_iz, theta_bin_ind]
                 Vgroup_z[f'theta_{theta_bin_ind}/'] = np.squeeze(Vweights)
             print("Made it past the small theta bin writing in generate_fake_data")
-            if like_params is not None:
-                for lp in like_params:
-                    print(lp.name)
-                    params_group.attrs[lp.name] = lp.value
-            
+            # get input parameters. First, get all the defaults
+            theory_inputs = copy.deepcopy(self.like.theory.default_param_dict.copy())
+            # replace with any user-provided values
+            if like_params:
+                for par in like_params:
+                    theory_inputs[par] = like_params[par]
+            for par in theory_inputs:
+                print(par, theory_inputs[par])
+                params_group.attrs[par] = theory_inputs[par]
+            for par in self.like.theory.cosmo_dict:
+                print(par, self.like.theory.cosmo_dict[par])
+                cosmo.attrs[par] = self.like.theory.cosmo_dict[par]
+            for par in arinyo:
+                arinyo_group.attrs[par+f'_{self.like.theory_iz}'] = arinyo[par][self.like.theory_iz]
         return
     
