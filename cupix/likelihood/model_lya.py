@@ -57,10 +57,10 @@ class LyaModel(object):
         lya_params = {'bias': -0.12, 'beta': 1.5}
         lya_params['q1'] = 0.5
         lya_params['q2'] = 0.0
-        lya_params['av'] = 0.0
-        lya_params['bv'] = 0.0
+        lya_params['av'] = 0.3
+        lya_params['bv'] = 1.5
         # these are in Mpc units
-        lya_params['kv_Mpc'] = 1000.0
+        lya_params['kv_Mpc'] = 0.2
         lya_params['kp_Mpc'] = 10.0
         return lya_params
 
