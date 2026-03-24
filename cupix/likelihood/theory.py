@@ -66,7 +66,7 @@ class Theory(object):
     def get_px_AA(self, 
         k_AA,
         theta_arcmin,
-        zs=None,
+        z=None,
         like_params={},
         verbose=None
     ):
@@ -80,15 +80,6 @@ class Theory(object):
         if verbose:
             print('params_dict', params_dict)
 
-        return self.get_px_obs(z=zs, theta_arc=theta_arcmin, k_AA=k_AA, 
-                               params=params_dict)
-
-
-    def get_px_obs(self, z, theta_arc, k_AA, cosmo=None, params={}):
-        
-        # figure out the cosmology to use 
-        cosmo = self.get_cosmology(cosmo=cosmo, params=params)
-
         # hopefully we'll get rid of this soon (we should have a theory per z)
         assert z in self.zs, "Input redshift not found in theory.zs"
         iz = np.argwhere(self.zs == z)[0, 0] 
@@ -98,11 +89,16 @@ class Theory(object):
             print("This will correspond to redshift bin with index", iz)
 
         if self.verbose:
-            print('Theta bins (arcmin)', theta_arc)
+            print('Theta bins (arcmin)', theta_arcmin)
 
-        theta_deg = np.atleast_1d(theta_arc) / 60.0
-        if self.verbose:
-            print('Theta bins (deg)', theta_deg)
+        return self.get_px_obs(iz=iz, theta_arc=theta_arcmin, k_AA=k_AA, 
+                               params=params_dict)
+
+
+    def get_px_obs(self, iz, theta_arc, k_AA, cosmo=None, params={}):
+        
+        # figure out the cosmology to use 
+        cosmo = self.get_cosmology(cosmo=cosmo, params=params)
 
         if self.include_hcd:
             # ask for Px (Lya + HCD) 

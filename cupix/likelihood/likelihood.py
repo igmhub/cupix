@@ -81,7 +81,7 @@ class Likelihood(object):
         if self.verbose:
             print("Computing Px simultaneously for thetas,", theta_a_arcmin, "arcmin")
         Px_Zam = self.theory.get_px_AA(
-            zs = z,
+            z = z,
             k_AA=k_AA_fine[self.data_iz],
             theta_arcmin=theta_a_arcmin,
             like_params=like_params,
