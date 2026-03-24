@@ -27,53 +27,11 @@ import os
 from pathlib import Path
 import cupix
 import pandas as pd
-import h5py 
+import h5py as h5
 # %load_ext autoreload
 # %autoreload 2
+cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 
-
-   # %%
-   # Figure out the ForestFlow training central simulation
-path_program = os.path.dirname(forestflow.__path__[0]) + '/'
-path_program
-folder_lya_data = path_program + "/data/best_arinyo/"
-print("Loading archive.")
-Archive3D = GadgetArchive3D(
-    base_folder=path_program[:-1],
-    # folder_data=folder_lya_data,
-    # average="both",
-)
-sim_dict_central =  Archive3D.get_testing_data("mpg_central")
-training_data = Archive3D.training_data
-
-
-
-for sim_z in sim_dict_central:
-    print(sim_z['Arinyo_minz'])
-    break
-    # for par in all_pars:
-    #     if par in sim_z['Arinyo']:
-    #         dict_save[par+"_central"].append(sim_z['Arinyo'][par])
-    #     elif par in sim_z:
-    #         dict_save[par+"_central"].append(sim_z[par])
-    #     else:
-    #         print("Parameter", par, "not found in central simulation at z=", sim_z['z'])
-    #     # now find min, max values from training data
-    #     all_training_values_iz = []
-    #     for i in range(len(training_data)):
-    #         if abs(training_data[i]['z']-sim_z['z'])<0.01:
-    #             if par in training_data[i]['Arinyo']:
-    #                 all_training_values_iz.append(training_data[i]['Arinyo'][par])
-    #             elif par in training_data[i]:
-    #                 all_training_values_iz.append(training_data[i][par])
-    #     dict_save[par+"_min"].append(np.amin(np.asarray(all_training_values_iz)))
-    #     dict_save[par+"_max"].append(np.amax(np.asarray(all_training_values_iz)))
-
-# %%
-for sim_z in sim_dict_central:
-    print(sim_z['Arinyo_minz'])
-    print(sim_z['Arinyo_min'])
-    break
 
 # %% [markdown]
 # ## Set up the forecast configuration
@@ -96,7 +54,7 @@ data = DESI_DR2(data_file)
 data_label = 'real'
 
 # %%
-igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
+igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'T0', 'kF_Mpc']
 arinyo_pars = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
 # set cosmo+IGM pars and Arinyo pars
 if param_mode == "igm":
@@ -104,10 +62,9 @@ if param_mode == "igm":
 elif param_mode == "arinyo":
     pars = arinyo_pars
 
+
 # %%
-cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
-igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
-arinyo_pars = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+
 gadget_short_info_file = cupixpath + '/data/emulator/ff_training_info.csv'
 if not os.path.exists(gadget_short_info_file):
     # Figure out the ForestFlow training central simulation
@@ -193,12 +150,17 @@ cosmo = {
     'w': w
 }
 
-theory = set_theory(zs, bkgd_cosmo=cosmo, default_theory=f'best_fit_{param_mode}_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory = set_theory(zs, cosmo_dict=cosmo, default_theory=f'best_fit_{param_mode}_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 
 # %% [markdown]
 # ## Generate it at the center of the original training simulation
 
 # %%
+# pick a redshift
+iz_choice = 0
+z_choice = zs[iz_choice]
+print("Generating for", z_choice)
+
 # prepare to generate and write fake data
 filepath = cupixpath + "/data/px_measurements/forecast/"
 
@@ -212,42 +174,42 @@ if forecast=="random":
 else:
     forecast_str = ""
 
-savestr = f"{filepath}/forecast_ff{forecast}{forecast_str}_{param_mode}_{data_label}_{Path(data_file).stem}_{noise_str}.hdf5"
+savestr = f"{filepath}/forecast_ff{forecast}{forecast_str}_{data_label}_{Path(data_file).stem}_{noise_str}_z{iz_choice}.hdf5"
 if os.path.exists(savestr):
     print("File already exists at", savestr)
 else:
     print("Will generate forecast and save to", savestr)
 
 # %%
-like_params = []
-like_params_dict = {par:np.zeros(len(zs)) for par in pars}
+pars
 
-for iz,zz in enumerate(zs):
-    iz_traintest = np.where(train_test_info['z']==zz)[0][0]
-    
-    if forecast=="central":
-        for par in pars:
-            if par+"_central" in train_test_info.columns:
-                like_params_dict[par][iz] = train_test_info[par+"_central"][iz_traintest]
-            else:
-                print("Parameter", par, "not found in training info file for redshift", zz)
-                like_params_dict[par][iz] = 0
-
-    elif forecast=="random":
-        # randomly select a value within the min and max range of each parameter at this redshift
-        for par in pars:
-            if par+"_min" not in train_test_info.columns or par+"_max" not in train_test_info.columns:
-                print("Min/max of parameter", par, "not found in training info file for redshift", zz)
-            else:
-                like_params_dict[par][iz] = rng.uniform(train_test_info[par+"_min"][iz_traintest], train_test_info[par+"_max"][iz_traintest])
-                print("new parameter value for", par, like_params_dict[par][iz])
-
+# %%
+train_test_info.columns
 
 # %%
 
-# create LikelihoodParameter objects
-for par in like_params_dict:
-    like_params.append(LikelihoodParameter(name=par, min_value=-1000, max_value=1000, value=like_params_dict[par])) # min/max values don't matter here
+like_params_dict = {}
+
+
+iz_traintest = np.where(train_test_info['z']==z_choice)[0][0]
+
+if forecast=="central":
+    for par in pars:
+        par+"_central"
+        if par+"_central" in train_test_info.columns:
+            print("found")
+            like_params_dict[f"{par}_{iz_choice}"] = train_test_info[par+"_central"][iz_traintest]
+        else:
+            print("Parameter", par, "not found in training info file for redshift", z_choice)
+
+# elif forecast=="random":
+#     # randomly select a value within the min and max range of each parameter at this redshift
+#     for par in pars:
+#         if par+"_min" not in train_test_info.columns or par+"_max" not in train_test_info.columns:
+#             print("Min/max of parameter", par, "not found in training info file for redshift", zz)
+#         else:
+#             like_params_dict[par][iz] = rng.uniform(train_test_info[par+"_min"][iz_traintest], train_test_info[par+"_max"][iz_traintest])
+#             print("new parameter value for", par, like_params_dict[par][iz])
 
 
 # %%
@@ -260,21 +222,26 @@ like = Likelihood(data, theory, z=2.25, verbose=True)
 fakedata = FakeData(like)
 
 # %%
+like_params_dict
+
+# %%
 print("Saving to...", savestr)
 # use default theory
-fakedata.write_to_file(savestr, add_noise=False)
+fakedata.write_to_file(savestr, add_noise=False, like_params=like_params_dict)
 
 # %%
 # just copying and pasting from the previous output
 # arinyo_dict = {'bias': np.array([0.11810589, 0.14949374]), 'beta': np.array([1.52642012, 1.4411819 ]), 'q1': np.array([0.29296646, 0.31081784]), 'kvav': np.array([0.51745933, 0.54350346]), 'av': np.array([0.32345456, 0.37763417]), 'bv': np.array([1.6457237 , 1.69155955]), 'kp': np.array([12.90727806, 13.73200226]), 'q2': np.array([0.26116902, 0.28188545])}
 # arinyo_dict = {'bias': np.array([0.11719166, 0.14775302, 0.18601523, 0.23090219]), 'beta': np.array([1.52999781, 1.44227235, 1.3310534 , 1.2097371 ]), 'q1': np.array([0.30040638, 0.32946218, 0.3630141 , 0.40578129]), 'kvav': np.array([0.51962305, 0.55578851, 0.60605053, 0.67135953]), 'av': np.array([0.33154755, 0.39208764, 0.46333845, 0.53290917]), 'bv': np.array([1.65384236, 1.6902841 , 1.73748284, 1.78617228]), 'kp': np.array([13.15922816, 13.99669913, 14.89153095, 15.82119602]), 'q2': np.array([0.25414535, 0.26888122, 0.26672887, 0.25766121])}
 # arinyo_dict = {'bias': np.array([0.11719166, 0.14775302, 0.18601523, 0.23090219]), 'beta': np.array([1.52999781, 1.44227235, 1.3310534 , 1.2097371 ]), 'q1': np.array([0.30040638, 0.32946218, 0.3630141 , 0.40578129]), 'kvav': np.array([0.51962305, 0.55578851, 0.60605053, 0.67135953]), 'av': np.array([0.33154755, 0.39208764, 0.46333845, 0.53290917]), 'bv': np.array([1.65384236, 1.6902841 , 1.73748284, 1.78617228]), 'kp': np.array([13.15922816, 13.99669913, 14.89153095, 15.82119602]), 'q2': np.array([0.25414535, 0.26888122, 0.26672887, 0.25766121])}
-arinyo_dict = {'bias': np.array([0.11735305]), 'beta': np.array([1.4121992]), 'q1': np.array([0.25009289]), 'kvav': np.array([0.53466132]), 'av': np.array([0.42833239]), 'bv': np.array([1.67831029]), 'kp': np.array([10.24335181]), 'q2': np.array([0.27303594])}
+# arinyo_dict = {'bias': np.array([0.11735305]), 'beta': np.array([1.4121992]), 'q1': np.array([0.25009289]), 'kvav': np.array([0.53466132]), 'av': np.array([0.42833239]), 'bv': np.array([1.67831029]), 'kp': np.array([10.24335181]), 'q2': np.array([0.27303594])}
+arinyo_dict = {'bias': np.array([0.11675875]), 'beta': np.array([1.52536028]), 'q1': np.array([0.31426492]), 'kvav': np.array([0.53195834]), 'av': np.array([0.33967567]), 'bv': np.array([1.64159948]), 'kp': np.array([13.29889182]), 'q2': np.array([0.24399545])}
+
 
 
 # %%
 # add the Arinyo parameters to the attributes
-loaded_file = h5py.File(savestr, 'a')
+loaded_file = h5.File(savestr, 'a')
 print(loaded_file.keys()) 
 for par in arinyo_dict:
     loaded_file['arinyo_pars'].attrs[par] = arinyo_dict[par]
@@ -285,19 +252,21 @@ loaded_file.close()
 
 # %%
 # make sure it worked
-forecast = DESI_DR2(savestr)
+
+forecast_res = DESI_DR2(savestr)
+
 
 # %%
 # native binning (no rebinning)
-Nz, Nt_a, Nk_M, Nk_m = forecast.U_ZaMn.shape
+Nz, Nt_a, Nk_M, Nk_m = forecast_res.U_ZaMn.shape
 print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_M={Nk_M}, Nk_m={Nk_m}")
 # rebinned values
-Nz, Nt_A, Nk_M = forecast.Px_ZAM.shape
+Nz, Nt_A, Nk_M = forecast_res.Px_ZAM.shape
 print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
 
 # %%
 # get the central value of each redshift bin, of length Nz
-zs = forecast.z
+zs = forecast_res.z
 print(zs)
 # get a 1D array of central values of the measured k bins, of length Nk_M
 k_M = data.k_M_centers_AA
@@ -319,13 +288,21 @@ def plot_theta_bins(data, k_M, iz, it_M):
 
 
 # %%
-plot_theta_bins(forecast, k_M, iz=0, it_M=0)
+plot_theta_bins(forecast_res, k_M, iz=0, it_M=0)
 plot_theta_bins(data, k_M, iz=0, it_M=0)
 plt.legend()
 
 # %%
 for i in range(8):
-    plot_theta_bins(forecast, k_M, iz=0, it_M=i)
+    plot_theta_bins(forecast_res, k_M, iz=0, it_M=i)
 plt.legend()
+
+# %%
+with h5.File(savestr) as f:
+    print(f['arinyo_pars'].attrs.keys())
+
+# %%
+with h5.File(savestr) as f:
+    print(f['like_params'].attrs.keys())
 
 # %%

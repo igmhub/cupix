@@ -22,7 +22,6 @@ class Likelihood(object):
         data,
         theory,
         z,
-        free_params=[],
         verbose=False,
         prior_Gauss_rms=None,
         min_log_like=-1e100,
@@ -31,8 +30,6 @@ class Likelihood(object):
         - data (required) is the data to model
         - theory (required) instance of lya_theory
         - z is a single redshift value
-        - free_params is a list of LikelihoodParameter instances that we want to vary in the likelihood. If empty, it 
-            is assumed no parameters will be varied and no priors are applied.
         - if prior_Gauss_rms is None it will use uniform priors
         - min_log_like: use this instead of - infinity"""
 
@@ -49,19 +46,12 @@ class Likelihood(object):
         self.data_iz = np.where(self.data.z == self.z)[0][0]
         if self.verbose:
             print("Likelihood will evaluate redshift of", self.z, "which corresponds to iz =", self.theory_iz, "in theory and iz =", self.data_iz, "in data.")
-        
-        # for priors, we will keep it optional:
-        # if free_param_names is empty, no priors; if it's not empty, set priors on those parameters.
-        # Either Gaussians with widths given by prior_Gauss_rms, or uniform if prior_Gauss_rms is None.
-        if free_params:
-            self.set_Gauss_priors()
-            self.free_param_names = [par.name for par in free_params]
-
 
 
     def get_convolved_Px_AA(self,
         theta_A,
-        like_params=None):
+        like_params=None,
+        return_arinyo_coeffs=False):
 
         """Compute theoretical prediction for Pcross
         Args:
@@ -82,14 +72,24 @@ class Likelihood(object):
         theta_a_arcmin = (self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2.
         if self.verbose:
             print("Computing Px simultaneously for thetas,", theta_a_arcmin, "arcmin")
-        Px_Zam = self.theory.get_px_AA(
-            zs = z,
-            k_AA=k_AA_fine[self.data_iz],
-            theta_arcmin=theta_a_arcmin,
-            like_params=like_params,
-            verbose=self.verbose
-        )
-        
+        if return_arinyo_coeffs:
+            Px_Zam, arinyo = self.theory.get_px_AA(
+                zs = z,
+                k_AA=k_AA_fine[self.data_iz],
+                theta_arcmin=theta_a_arcmin,
+                like_params=like_params,
+                verbose=self.verbose,
+                return_arinyo_coeffs=return_arinyo_coeffs
+            )
+        else:
+            Px_Zam = self.theory.get_px_AA(
+                zs = z,
+                k_AA=k_AA_fine[self.data_iz],
+                theta_arcmin=theta_a_arcmin,
+                like_params=like_params,
+                verbose=self.verbose,
+                return_arinyo_coeffs=return_arinyo_coeffs
+            )
         Px_Zam = np.squeeze(Px_Zam) # reduce from shape (1, ntheta_a, nk_AA) to (ntheta_a, nk_AA)
         # print("Px_Zam shape", Px_Zam.shape)
         # window convolution
@@ -116,8 +116,11 @@ class Likelihood(object):
             # rebin in theta
             Px_ZAM = rebin_theta(V_ZaM_all, Px_ZaM_all)
             Px_ZAM_all.append(Px_ZAM)
-        print(np.asarray(Px_ZAM_all).shape)
-        return np.asarray(Px_ZAM_all)
+        
+        if return_arinyo_coeffs:
+            return np.asarray(Px_ZAM_all), arinyo
+        else:
+            return np.asarray(Px_ZAM_all)
 
 
 
@@ -195,20 +198,13 @@ class Likelihood(object):
         return max(self.min_log_like, log_like)
 
     def log_prob(
-        self, like_params, ignore_log_det_cov=True
+        self, like_params, freepar_names=[], ignore_log_det_cov=True
     ):
         """Compute log likelihood plus log priors for input values"""
 
-        # translate like_params into array of values in cube
-        for par in like_params:
-            value = par.value_in_cube()
-            # Always force parameter to be within range
-            if (value > 1.0) or (value < 0.0):
-                return self.min_log_like
-
         # compute log_prior
         if self.Gauss_priors is not None:
-            log_prior = self.get_log_prior(values)
+            log_prior = self.get_log_prior(like_params, freepar_names)
         else:
             log_prior = 0
         # compute log_like
@@ -226,53 +222,40 @@ class Likelihood(object):
 
 
 
-    def get_log_prior(self, values):
+    def get_log_prior(self, like_params, freepar_names=[]):
         """Compute logarithm of prior"""
 
-        assert len(values) == len(self.free_param_names), "size mismatch"
-
-        # Always force parameter to be within range (for now)
-        if max(values) > 1:
-            return self.min_log_like
-        if min(values) < 0:
-            return self.min_log_like
-    
         # get the initial values
-        fid_values = []
-        for p in self.like_params:
-            if p.name in self.free_param_names:
-                fid_values.append(p.get_value_in_cube(p.ini_value))
-        log_prior = -np.sum(
-            (np.array(fid_values) - values) ** 2 / (2 * self.Gauss_priors**2)
-        )
+        log_prior = 0
+        for par in like_params:
+            if par in freepar_names:
+                log_prior -= (par.ini_value-par.value) ** 2 / (2 * self.Gauss_priors[par.name] ** 2)
         if self.verbose:
             print("log prior is", log_prior)
         return log_prior
 
-    def minus_log_prob(self, values):
+    def minus_log_prob(self, like_params, freepar_names=[]):
         """Return minus log_prob (needed to maximise posterior)"""
-        if self.verbose:
-            print("values at beginning are", values)
-        log_prob = self.log_prob(values)
+        log_prob = self.log_prob(like_params, freepar_names)
         if not np.isfinite(log_prob):
-            print("Non-finite value detected:", values, log_prob)
+            print("Non-finite value detected:", like_params, log_prob)
         print("log prob is", log_prob)
         return -1.0 * log_prob
 
-    def maximise_posterior(
-        self, initial_values=None, method="nelder-mead", tol=1e-4
-    ):
-        """Run scipy minimizer to find maximum of posterior"""
+    # def maximise_posterior(
+    #     self, initial_values=None, method="nelder-mead", tol=1e-4
+    # ):
+    #     """Run scipy minimizer to find maximum of posterior"""
 
-        if not initial_values:
-            initial_values = np.ones(len(self.free_param_names)) * 0.5
+    #     if not initial_values:
+    #         initial_values = np.ones(len(self.free_param_names)) * 0.5
 
-        return minimize(
-            self.minus_log_prob, x0=initial_values, method=method, tol=tol
-        )
+    #     return minimize(
+    #         self.minus_log_prob, x0=initial_values, method=method, tol=tol
+    #     )
 
 
-    def plot_px(self, z, like_params, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False):
+    def plot_px(self, like_params=None, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False):
         import matplotlib.lines as mlines
         """Plot the Px data and theory.
         
@@ -290,52 +273,32 @@ class Likelihood(object):
         if every_other_theta:
             skip = 2
         
-        
-        # if (type(z) is list or type(z) is np.ndarray) and len(z)!=1:
-        assert(len(np.atleast_1d(z))<5), "Too many redshifts passed. Plot fewer."
-        # set a linestyle for every z
-        linestyles = ["solid", "dashed", "dotted", "dashdot"]
-        markers    = ["o", "s", "^", "D"]
-        theory = self.get_convolved_Px_AA(np.atleast_1d(z),np.arange(len(self.data.theta_min_A_arcmin)),like_params)
-        
-        # make iz array in any case
-        if type(z) in [int, np.integer]:
-            z = [z]
-        for theory_redshift_element, iz in enumerate(z):
-            k = (self.data.k_M_edges[iz][:-1]+self.data.k_M_edges[iz][1:])/2.
-            if multiply_by_k:
-                factor = k
-                ylabel = r'$k P_\times$'
-            else:
-                factor = 1.0
-                ylabel = r'$P_\times$ [$\AA$]'
-            for itheta in range(0,len(self.data.theta_min_A_arcmin),skip):
-                if theory_redshift_element==0:
-                    label = r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[itheta])
-                else:
-                    label = None
-                errors = np.diag(np.squeeze(self.data.cov_ZAM[iz, itheta, :, :]))**0.5
-                div = errors
-                divname = 'errors'
-                ax[0].errorbar(k, self.data.Px_ZAM[iz, itheta, :]*factor, errors*factor, label=label, color=colors[itheta], linestyle='none', marker=markers[theory_redshift_element], markersize=5)
-                theory_iz_iA = theory[theory_redshift_element,itheta]
-                if residual_to_theory:
-                    div = theory_iz_iA
-                    divname = 'theory'
-                
-                ax[0].plot(k, theory_iz_iA*factor, color=colors[itheta], linestyle=linestyles[theory_redshift_element], linewidth=2)
-                ax[1].set_xlabel(r'$k [\AA^{-1}]$')
-                ax[1].plot(k, (self.data.Px_ZAM[iz, itheta, :]-theory_iz_iA)/div, color=colors[itheta], marker='o', linestyle='none')
+        theory = self.get_convolved_Px_AA(np.arange(len(self.data.theta_min_A_arcmin)),like_params)
+    
+        k = (self.data.k_M_edges[self.data_iz][:-1]+self.data.k_M_edges[self.data_iz][1:])/2.
+        if multiply_by_k:
+            factor = k
+            ylabel = r'$k P_\times$'
+        else:
+            factor = 1.0
+            ylabel = r'$P_\times$ [$\AA$]'
+        for itheta in range(0,len(self.data.theta_min_A_arcmin),skip):
+            label = r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[itheta])
+            errors = np.diag(np.squeeze(self.data.cov_ZAM[self.data_iz, itheta, :, :]))**0.5
+            div = errors
+            divname = 'errors'
+            ax[0].errorbar(k, self.data.Px_ZAM[self.data_iz, itheta, :]*factor, errors*factor, label=label, color=colors[itheta], linestyle='none', marker='^', markersize=5)
+            theory_iA = theory[itheta]
+            if residual_to_theory:
+                div = theory_iA
+                divname = 'theory'
+            
+            ax[0].plot(k, theory_iA*factor, color=colors[itheta], linewidth=2)
+            ax[1].set_xlabel(r'$k [\AA^{-1}]$')
+            ax[1].plot(k, (self.data.Px_ZAM[self.data_iz, itheta, :]-theory_iA)/div, color=colors[itheta], marker='o', linestyle='none')
         # if more than 1 z plotted, add custom legend for the redshifts: "--, square: z=.., -., diamond: z=.." etc
         ax[0].legend()
         handles, labels = ax[0].get_legend_handles_labels()
-        if len(np.atleast_1d(z))>1:
-            
-            for theory_redshift_element, iz in enumerate(z):
-                line = mlines.Line2D([], [], color='black', linestyle=linestyles[theory_redshift_element], marker=markers[theory_redshift_element], label=f'z={self.data.z[iz]:.2f}')
-                handles.append(line)
-                labels.append(f'z={self.data.z[iz]:.2f}')
-
         ax[1].axhline(0, color='black', linestyle='dashed', linewidth=1)
         ax[1].set_xlabel(r'$k [\AA^{-1}]$')
         ax[0].set_ylabel(ylabel)
@@ -506,16 +469,16 @@ class Likelihood(object):
 
         self.theory.hull.plot_hulls(p1)
 
-    def set_Gauss_priors(self):
+    def set_Gauss_priors(self, free_params):
         """
         Sets Gaussian priors on the parameters
         """
         
         self.Gauss_priors = {}
-        for par in self.free_params:
+        for par in free_params:
             self.Gauss_priors[par] = 1
         
-        for par_like in self.free_params:
+        for par_like in free_params:
             if par_like.Gauss_priors_width is not None:
                 _fid = par_like.ini_value
                 _width = par_like.Gauss_priors_width
@@ -533,42 +496,31 @@ class Likelihood(object):
             self.Gauss_priors = None
 
 
-    def like_parameter_by_name(self, pname):
-        """Find parameter in list of likelihood free parameters"""
-        return [p for p in self.like_params if p.name == pname][0]
 
-    def index_by_name(self, pname):
-        """Find parameter index in list of likelihood free parameters"""
+    # def sampling_point_from_parameters(self):
+    #     """Translate likelihood parameters to array of values (in cube)"""
 
-        return [
-            i for i, parname in enumerate(self.free_param_names) if parname == pname
-        ][0]
+    #     values = np.zeros(len(self.free_param_names))
+    #     for ii, par_name in enumerate(self.free_param_names):
+    #         par = self.like_parameter_by_name(par_name)
+    #         values[ii] = par.value_in_cube()
 
+    #     return values
 
-    def sampling_point_from_parameters(self):
-        """Translate likelihood parameters to array of values (in cube)"""
+    # def parameters_from_sampling_point(self, values):
+    #     """Translate input array of values (in cube) to likelihood parameters"""
 
-        values = np.zeros(len(self.free_param_names))
-        for ii, par_name in enumerate(self.free_param_names):
-            par = self.like_parameter_by_name(par_name)
-            values[ii] = par.value_in_cube()
+    #     if values is None:
+    #         return []
 
-        return values
+    #     assert len(values) == len(self.free_param_names), "size mismatch"
+    #     Npar = len(values)
+    #     like_params = []
+    #     for ip in range(Npar):
+    #         par = self.like_parameter_by_name(self.free_param_names[ip]).get_new_parameter(values[ip])
+    #         like_params.append(par)
 
-    def parameters_from_sampling_point(self, values):
-        """Translate input array of values (in cube) to likelihood parameters"""
-
-        if values is None:
-            return []
-
-        assert len(values) == len(self.free_param_names), "size mismatch"
-        Npar = len(values)
-        like_params = []
-        for ip in range(Npar):
-            par = self.like_parameter_by_name(self.free_param_names[ip]).get_new_parameter(values[ip])
-            like_params.append(par)
-
-        return like_params
+    #     return like_params
 
 
 

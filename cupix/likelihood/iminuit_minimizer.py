@@ -2,37 +2,46 @@ import numpy as np
 import matplotlib.pyplot as plt
 from iminuit import Minuit
 import copy
-
-
-# our own modules
+from cupix.likelihood.likelihood_parameter import par_index, LikelihoodParameter, like_parameter_by_name
 from cupix.likelihood import likelihood
 
 
 class IminuitMinimizer(object):
     """Wrapper around an iminuit minimizer for Lyman alpha likelihood"""
 
-    def __init__(self, like, error=0.02, verbose=False):
+    def __init__(self, like, like_params, free_param_names, error=0.02, verbose=False):
         """Setup minimizer from likelihood."""
 
         self.verbose = verbose
         self.like = like
-
-        ini_values = np.full(len(self.like.free_param_names), 0.5)
-        for i, parname in enumerate(self.like.free_param_names):
-            par = self.like.like_parameter_by_name(parname)
+        self.free_param_names = free_param_names
+        self.like_params = like_params
+        self.out_like_params = None
+        free_params = []
+        for par in self.free_param_names:
+            for lpar in self.like_params:
+                if lpar.name == par:
+                    free_params.append(lpar)
+        assert len(self.free_param_names)==len(free_params), "Couldn't find all desired free parameters in like_params"
+        print("Free params are", free_params)
+        ini_values = np.full(len(self.free_param_names), 0.5)
+        for i,par in enumerate(free_params):
             if par.ini_value is not None:
                 ini_values[i] =  par.get_value_in_cube(par.ini_value)
+        
         if self.verbose:
             print("Setting ini_values (in cube) to:", ini_values)
-
+        # set priors if needed
+        self.like.set_Gauss_priors(free_params)
+        
+        
         # setup iminuit object (errordef=0.5 if using log-likelihood)
 
-        self.minimizer = Minuit(like.minus_log_prob, ini_values, name=self.like.free_param_names)
-        for i,parname in enumerate(self.like.free_param_names):
+        self.minimizer = Minuit(self.minus_log_prob_interface, ini_values, name=self.free_param_names)
+        for i,parname in enumerate(self.free_param_names):
             self.minimizer.limits[parname] = (0.0, 1.0)
         if self.verbose:
             print("Set the iMinuit params to:\n", self.minimizer.params)
-        # self.minimizer = Minuit(like.get_chi2, ini_values)
         self.minimizer.errordef = 0.5
         # error only used to set initial parameter step
         self.minimizer.errors = error
@@ -57,20 +66,21 @@ class IminuitMinimizer(object):
 
         # get best-fit values from minimizer (should check that it was run)
         best_fit_values = np.array(self.minimizer.values)
-        if self.verbose:
-            print("best-fit values =", best_fit_values)
 
-        like_params_to_plot = copy.deepcopy(self.like.like_params)
+        like_params_to_plot = copy.deepcopy(self.like_params)
         for i, lp in enumerate(like_params_to_plot):
-            if lp.name in self.like.free_param_names:
-                index = self.like.free_param_names.index(lp.name)
+            if lp.name in self.free_param_names:
+                
+                
+                index = self.free_param_names.index(lp.name)
                 lp.value = lp.value_from_cube(best_fit_values[index])
+                if self.verbose:
+                    print("best-fit value for", lp.name, "is", lp.value)
 
         # plt.title("iminuit best fit")
         # plot_px(self, z, like_params, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None):    
 
         self.like.plot_px(
-            z = self.like.iz_choice,
             like_params=like_params_to_plot,
             every_other_theta=every_other_theta,
             multiply_by_k=multiply_by_k,
@@ -85,7 +95,6 @@ class IminuitMinimizer(object):
             residual_to_theory=residual_to_theory
         )
 
-        
         return
 
 
@@ -99,8 +108,8 @@ class IminuitMinimizer(object):
             print("cube values =", cube_values)
 
         # get index for this parameter, and normalize value
-        ipar = self.like.index_by_name(pname)
-        par = self.like.like_parameter_by_name(pname)
+        ipar = self.free_param_names.index(pname)
+        par = like_parameter_by_name(self.like_params,pname)
         par_value = par.value_from_cube(cube_values[ipar])
 
         # check if you were asked for errors as well
@@ -111,9 +120,36 @@ class IminuitMinimizer(object):
         else:
             return par_value
 
-        
+    def set_bestfit_like_params(self):
+        print("Assuming minimizer already run.")
+        cube_values = np.array(self.minimizer.values)
+        like_params_temp = [] # list of LikelihoodParameters objects that will get passed through the likelihood functions
+        for i,val in enumerate(cube_values):
+            parname = self.free_param_names[i]
+            par_i = par_index(self.like_params, parname)
+            like_param = self.like_params[par_i]
+            # copy over all but update the current values
+            like_params_temp.append(
+                LikelihoodParameter(
+                name=like_param.name,
+                min_value=like_param.min_value,
+                max_value=like_param.max_value,
+                ini_value=like_param.ini_value,
+                value=like_param.value_from_cube(val)
+                ))
+        self.out_like_params = like_params_temp
 
-    def plot_ellipses(self, pname_x, pname_y, nsig=2, cube_values=False, true_vals=None, true_val_label="true value"):
+    def fit_probability(self):
+        if self.out_like_params is None:
+            self.set_bestfit_like_params()
+        return self.like.fit_probability(self.out_like_params, n_free_p=len(self.free_param_names))
+
+    def chi2(self):
+        if self.out_like_params is None:
+            self.set_bestfit_like_params()
+        return self.like.get_chi2(self.out_like_params)
+
+    def plot_ellipses(self, pname_x, pname_y, nsig=2, cube_values=False, true_vals=None, true_val_label="true value", xrange=None, yrange=None):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot
         - cube_values: if True, will use unit cube values."""
@@ -122,8 +158,8 @@ class IminuitMinimizer(object):
         from numpy import linalg as LA
 
         # figure out order of parameters in free parameters list
-        ix = self.like.index_by_name(pname_x)
-        iy = self.like.index_by_name(pname_y)
+        ix = self.free_param_names.index(pname_x)
+        iy = self.free_param_names.index(pname_y)
 
         # find out best-fit values, errors and covariance for parameters
         val_x = self.minimizer.values[ix]
@@ -134,21 +170,12 @@ class IminuitMinimizer(object):
 
         # rescale from cube values (unless asked not to)
         if not cube_values:
-            par_x = self.like.like_parameter_by_name(pname_x)
+            par_x = like_parameter_by_name(self.like_params, pname_x)
             val_x = par_x.value_from_cube(val_x)
             sig_x = sig_x * (par_x.max_value - par_x.min_value)
-            par_y = self.like.like_parameter_by_name(pname_y)
+            par_y = like_parameter_by_name(self.like_params, pname_y)
             val_y = par_y.value_from_cube(val_y)
             sig_y = sig_y * (par_y.max_value - par_y.min_value)
-            # multiply As by 10^9 for now, otherwise ellipse crashes
-            if pname_x == "As":
-                val_x *= 1e9
-                sig_x *= 1e9
-                pname_x += " x 1e9"
-            if pname_y == "As":
-                val_y *= 1e9
-                sig_y *= 1e9
-                pname_y += " x 1e9"
 
         # shape of ellipse from eigenvalue decomposition of covariance
         w, v = LA.eig(
@@ -184,20 +211,25 @@ class IminuitMinimizer(object):
         if true_vals is not None:
             plt.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
             plt.axhline(true_vals[pname_y], color='grey', linestyle='--')
-                        
             
         plt.xlabel(pname_x)
         plt.ylabel(pname_y)
-        if true_vals is None:
-            plt.xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
-            plt.ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
+        if xrange==None or yrange==None:
+            if true_vals is None:
+                plt.xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
+                plt.ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
+            else:
+                minx = min(val_x - (nsig + 1) * sig_x, true_vals[pname_x]-.1*abs(true_vals[pname_x]))
+                maxx = max(val_x + (nsig + 1) * sig_x, true_vals[pname_x]+.1*abs(true_vals[pname_x]))
+                miny = min(val_y - (nsig + 1) * sig_y, true_vals[pname_y]-.1*abs(true_vals[pname_y]))
+                maxy = max(val_y + (nsig + 1) * sig_y, true_vals[pname_y]+.1*abs(true_vals[pname_y]))
+                plt.ylim([miny,maxy])
+                plt.xlim([minx,maxx])
         else:
-            minx = min(val_x - (nsig + 1) * sig_x, true_vals[pname_x]-.1*abs(true_vals[pname_x]))
-            maxx = max(val_x + (nsig + 1) * sig_x, true_vals[pname_x]+.1*abs(true_vals[pname_x]))
-            miny = min(val_y - (nsig + 1) * sig_y, true_vals[pname_y]-.1*abs(true_vals[pname_y]))
-            maxy = max(val_y + (nsig + 1) * sig_y, true_vals[pname_y]+.1*abs(true_vals[pname_y]))
-            plt.ylim([miny,maxy])
-            plt.xlim([minx,maxx])
+            plt.ylim(yrange)
+            plt.xlim(xrange)
+        plt.axvline(like_parameter_by_name(self.like_params, pname_x).ini_value, color='orange', linestyle='dotted', label='ini value')
+        plt.axhline(like_parameter_by_name(self.like_params, pname_y).ini_value, color='orange', linestyle='dotted')
         plt.legend()
 
     def results_dict_2par(self):
@@ -221,17 +253,38 @@ class IminuitMinimizer(object):
         results_dict['r']=r
         results_dict['par_x']=parname[0]
         results_dict['par_y']=parname[1]
-        prob = self.like.fit_probability(self.minimizer.values)
+        prob = self.fit_probability()
         results_dict['prob'] = prob
-        chi2 = self.like.get_chi2(self.minimizer.values)
+        chi2 = self.get_chi2()
         results_dict['chi2'] = chi2
         return results_dict
 
-    def interface_with_likelihood():
+    def minus_log_prob_interface(self, values):
         # a log like function that ingests the likelihood log_like function
         # but instead of taking parameter dictionaries or LikelihoodParamter objects,
         # takes a list of parameter values in the unit cube, and uses like.free_params information to transform them to physical values before passing to the likelihood log_like function
         # this will be the function that is passed to the minimizer, and will be called by the minimizer with different parameter values in the unit cube
+        
+        assert len(values) == len(self.free_param_names), "Length of iterated values must equal free parameter name list lenghth."
+        
+        like_params_temp = [] # list of LikelihoodParameters objects that will get passed through the likelihood functions
+        for par in self.like_params:
+            if par.name in self.free_param_names:
+                freepar_index = self.free_param_names.index(par.name)
+                # copy over all but update the current values
+                like_params_temp.append(
+                    LikelihoodParameter(
+                    name=par.name,
+                    min_value=par.min_value,
+                    max_value=par.max_value,
+                    ini_value=par.ini_value,
+                    value=par.value_from_cube(values[freepar_index])
+                    ))
+            else:
+                # copy over parameter
+                like_params_temp.append(par)
+
+        return(self.like.minus_log_prob(like_params_temp, self.free_param_names))
 
 def save_analysis_npz(results, filename="analysis_results.npz"):
     """

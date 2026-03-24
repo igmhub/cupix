@@ -10,25 +10,6 @@ from lace.cosmo.thermal_broadening import thermal_broadening_kms
 from forestflow import priors
 from astropy.io import fits
 
-def set_theory(
-    zs, cosmo_dict=None, default_theory='best_fit_arinyo_from_p1d', p3d_label='arinyo', emulator_label=None, k_unit='iAA', verbose=False
-):
-    """Set theory"""
-
-
-    # set theory
-    theory = Theory(
-        zs = zs,
-        cosmo_dict = cosmo_dict,
-        default_lya_theory=default_theory,
-        p3d_label=p3d_label,
-        emulator_label = emulator_label,
-        k_unit = k_unit,
-        verbose=verbose
-    )
-
-    return theory
-
 
 class Theory(object):
     """Translator between the likelihood object and the emulator. This object
@@ -62,6 +43,9 @@ class Theory(object):
         self._load_P3D_model(p3d_label=p3d_label)
         self.default_lya_theory = default_lya_theory
         self.set_default_param_values(tag=default_lya_theory)
+        self.arinyo_par_names = ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]
+        self.igm_par_names = ["Delta2_p", "n_p", "mF", "gamma", "sigT_Mpc", "kF_Mpc", "lambda_P"]
+
         if emulator_label == "forestflow_emu":
             self.emulator = FF_emulator(zs, self.cosmo_dict)
         elif emulator_label is None:
@@ -222,12 +206,7 @@ class Theory(object):
         'colore' to get the Laura's best-fit parameters (arinyo only)."""
 
         self.default_param_dict = {}
-        if 'arinyo' in tag:
-            self.param_names = ["bias", "beta", "q1", "kvav", "av", "bv", "kp", "q2"]
-        elif 'igm' in tag:
-            self.param_names = ["Delta2_p", "n_p", "mF", "gamma", "sigT_Mpc", "kF_Mpc", "lambda_P"]
-        else:
-            raise ValueError("default_lya_theory tag not recognized, parameters not implemented")
+        
         for iz, z in enumerate(self.zs):
             # record the index-z relationship
             self.default_param_dict[f"z_{iz}"] = z
@@ -265,7 +244,8 @@ class Theory(object):
         zs=None,
         like_params={},
         add_silicon=False,
-        verbose=None
+        verbose=None,
+        return_arinyo_coeffs=False
     ):
         """Emulate Px in velocity units, for all redshift bins,
         as a function of input likelihood parameters.
@@ -318,9 +298,22 @@ class Theory(object):
         if self.verbose:
             print("Theory inputs for this redshift evaluation:", {key: theory_inputs[key] for key in theory_inputs if any([f"_{iz}" in key for iz in iz_choice])})
 
-        
+        # First, find out if theory inputs contain all the necessary arinyo coefficients. If so, we will avoid using the emulator.
+        if self.has_all_arinyo_coeffs(iz_choice, theory_inputs):
+            if verbose:
+                print("All Arinyo coefficients found in likelihood parameters, using them")
+            arinyo_coeffs = {}
+            for par in self.arinyo_par_names:
+                try:
+                    arinyo_coeffs[par] = np.zeros(len(iz_choice))
+                    for iiz, iz in enumerate(iz_choice):
+                        par_iz = par + f"_{iz}"
+                        arinyo_coeffs[par][iiz] = theory_inputs[par_iz] # this should never crash
+                except:
+                    print(par, "not found")
+
         # Use the emulator to predict the Arinyo coeffs if they're not already being fed in
-        if "igm" in self.default_lya_theory:
+        else:
             # figure out emulator calls
             emu_call = self.get_emulator_calls(
                 iz_choice=iz_choice,
@@ -336,26 +329,8 @@ class Theory(object):
                         par_iz = par + f"_{iz}"
                         if par_iz in theory_inputs and theory_inputs[par_iz] is not None and not np.isnan(theory_inputs[par_iz]):
                             arinyo_coeffs[par][iiz] = theory_inputs[par_iz]
-                            if verbose:
-                                print("Overwriting emulated coefficient", par, "with user-provided value", theory_inputs[par_iz])
-        
-        elif "arinyo" in self.default_lya_theory:
-            if not self.has_all_arinyo_coeffs(iz_choice, theory_inputs):
-                raise ValueError(
-                "Not all Arinyo coefficients found in likelihood parameters, and/or default values not set for all redshift bins. Please provide values for bias, beta, q1, kvav, av, bv, and kp for all redshift bins, or set default values for all redshift bins using set_default_param_values()"
-            )
-            else:
-                if verbose:
-                    print("All Arinyo coefficients found in likelihood parameters, using them")
-                arinyo_coeffs = {}
-                for par in self.param_names:
-                    arinyo_coeffs[par] = np.zeros(len(iz_choice))
-                    for iz in iz_choice:
-                        par_iz = par + f"_{iz}"
-                        if par_iz in theory_inputs.keys():
-                            arinyo_coeffs[par][iz] = theory_inputs[par_iz]
-                        else:
-                            print("Warning: parameter", par_iz, "not found in theory inputs, setting to 0.")
+                            print("Warning! Overwriting emulated coefficient", par, "with user-provided value", theory_inputs[par_iz])
+            
         
         # activate the arinyo model
         p3d_fun = self.p3d_model.P3D_Mpc_k_mu
@@ -418,7 +393,10 @@ class Theory(object):
         for iz in range(Nz):
             px_AA[iz, :, :] = px_pred_Mpc[iz, :, : len(k_AA[iz])] * dAA_dMpc_z[iz]
 
-        return px_AA
+        if return_arinyo_coeffs:
+            return px_AA, arinyo_coeffs
+        else:
+            return px_AA
         
     def has_all_arinyo_coeffs(self, iz_choice, input_dict):
         """Check if the likelihood parameters have all the Arinyo coefficients"""
@@ -426,7 +404,6 @@ class Theory(object):
         for coeff in arinyo_coeffs:
             for iz in iz_choice:
                 coeff_iz = coeff+f"_{iz}"
-                print(coeff_iz, input_dict[coeff_iz])
                 if coeff_iz not in input_dict.keys() or input_dict[coeff_iz] is None or np.isnan(input_dict[coeff_iz]):
                     return False
         return True

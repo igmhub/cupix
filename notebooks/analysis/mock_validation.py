@@ -19,42 +19,18 @@
 
 # %%
 import numpy as np
-from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
-from cupix.likelihood.input_pipeline import Args
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood
-from lace.cosmo import camb_cosmo, fit_linP
+from cupix.likelihood.lya_theory import Theory
+from cupix.likelihood.forestflow_emu import FF_emulator
+from lace.cosmo import camb_cosmo
 import matplotlib.pyplot as plt
-from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
+from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-import scipy
 from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
-from astropy.io import fits
 import cupix
-import os
-omnuh2 = 0.0006
-mnu = omnuh2 * 93.14
-H0 = 67.36
-omch2 = 0.12
-ombh2 = 0.02237
-As = 2.1e-9
-ns = 0.9649
-nrun = 0.0
-w = -1.0
-omk = 0
-fid_cosmo = {
-    'H0': H0,
-    'omch2': omch2,
-    'ombh2': ombh2,
-    'mnu': mnu,
-    'omk': omk,
-    'As': As,
-    'ns': ns,
-    'nrun': nrun,
-    'w': w
-}
-theory_AA = None
+cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
+# %load_ext autoreload
+# %autoreload 2
 
 # %% [markdown]
 # ## Load the mock data
@@ -68,228 +44,109 @@ analysis_type = 'stack'
 # analysis_type = 'single'
 
 # bin_type = 'unbinned'
-bin_type = 'binned'
+bin_type = 'medium_binned'
+# bin_type = 'coarse_binned'
 if bin_type == 'unbinned':
+    bin_label='unbinned'
     ntheta = 20
-else:
+elif bin_type=='coarse_binned':
+    bin_label='binned'
     ntheta = 5
+elif bin_type=='medium_binned':
+    bin_label='binned'
+    ntheta=18
+
+# %%
+# ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/tru_cont/tru_cont_binned_*
 
 # %%
 if analysis_type == 'stack':
-    MockData = DESI_DR2(f"/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/{mock_type}/{mock_type}_{bin_type}_out_px-zbins_2-thetabins_{ntheta}_w_res_avg50.hdf5", theta_min_cut_arcmin=14, kmax_cut_AA=1)
-    # rescale the cov matrix to be from 1 mock
-    print(f"/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/{mock_type}/{mock_type}_{bin_type}_out_px-zbins_2-thetabins_{ntheta}_w_res_avg50.hdf5")
-    # MockData.cov_ZAM *= np.sqrt(50)
+    # MockData = DESI_DR2(f"/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/{mock_type}/{mock_type}_{bin_label}_out_px-zbins_2-thetabins_{ntheta}_w_res_avg50.hdf5", theta_min_cut_arcmin=10, kM_min_cut_AA=.03, kM_max_cut_AA=1, km_max_cut_AA=1.2)
+    MockData = DESI_DR2(f"/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/{mock_type}/{mock_type}_bf2_{bin_label}_out_px-zbins_4-thetabins_{ntheta}_w_res_avg50_ncov.hdf5", theta_min_cut_arcmin=0, kM_min_cut_AA=.03, kM_max_cut_AA=1, km_max_cut_AA=1.2)
+    MockData.cov_ZAM *= 50
 elif analysis_type == 'single':
     MockData = DESI_DR2(f"/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/analysis-0/{mock_type}/{bin_type}_out_px-zbins_2-thetabins_{ntheta}_w_res.hdf5", theta_min_cut_arcmin=14, kmax_cut_AA=1)
 zs = np.array(MockData.z)
 
 
 # %%
-theory_AA=None
+MockData.theta_centers_arcmin
 
 # %%
-# Load emulator
-if theory_AA is None: # only do this once per notebook
-    sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
-    cc = camb_cosmo.get_camb_results(sim_cosmo, zs=zs, camb_kmax_Mpc=1000)
-    ffemu = FF_emulator(zs, fid_cosmo, cc)
-    ffemu.kp_Mpc = 1 # set pivot point
+zs
 
-    theory_AA = set_theory(ffemu, k_unit='iAA')
-    theory_AA.set_fid_cosmo(zs)
-    theory_AA.emulator = ffemu
+# %% [markdown]
+# Set up theory
 
 # %%
-# Load Laura's CF fits for all redshifts
-cf_bias = np.zeros(len(MockData.z))
-cf_beta = np.zeros(len(MockData.z))
-cf_q1 = np.zeros(len(MockData.z))
-cf_kv = np.zeros(len(MockData.z))
-cf_av = np.zeros(len(MockData.z))
-cf_bv = np.zeros(len(MockData.z))
-cf_kp = np.zeros(len(MockData.z))
-for iz, z in enumerate(MockData.z):
-    with fits.open(f"/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-0/jura-124/raw_bao_unblinding/fits/output_fitter-z-bins/bin_{z}/lyaxlya.fits") as zbin_cf_file:
-        zbin_cf_fit = zbin_cf_file[1].header
-        cf_bias[iz] = zbin_cf_fit['bias_LYA']
-        cf_beta[iz] = zbin_cf_fit['beta_LYA']
-        cf_q1[iz]   = zbin_cf_fit['dnl_arinyo_q1']
-        cf_kv[iz]   = zbin_cf_fit['dnl_arinyo_kv']
-        cf_av[iz]   = zbin_cf_fit['dnl_arinyo_av']
-        cf_bv[iz]   = zbin_cf_fit['dnl_arinyo_bv']
-        cf_kp[iz]   = zbin_cf_fit['dnl_arinyo_kp']
+theory = Theory(zs, default_lya_theory='best_fit_arinyo_from_colore', emulator_label="forestflow_emu", verbose=True)
 
 # %%
-# # original Laura fits
-# like_params = []
-# like_params.append(LikelihoodParameter(
-#     name='bias',
-#     min_value=-1.0,
-#     max_value=1.0,
-#     value=-0.115,
-#     ini_value=-0.095,
-#     Gauss_priors_width=.5
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='beta',
-#     min_value=0.0,
-#     max_value=3.0,    
-#     value = 1.55,
-#     ini_value = 1.35,
-#     Gauss_priors_width=1
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='q1',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.1112,
-#     value = 0.1112,
-#     Gauss_priors_width=0.5
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='kvav',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.0001**0.2694,
-#     value = 0.0001**0.2694
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='av',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.2694,
-#     value = 0.2694
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='bv',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.0002,
-#     value = 0.0002
-#     ))
-# like_params.append(LikelihoodParameter(
-#     name='kp',
-#     min_value=0.0,
-#     max_value=1.0,
-#     ini_value = 0.5740,
-#     value = 0.5740
-#     ))
-
-# %%
-# new Laura fit parameters
-
-like_params = []
-
-like_params.append(LikelihoodParameter(
-    name='bias',
-    min_value=-1.0,
-    max_value=1.0,
-    value=cf_bias,
-    ini_value=-0.3,
-    Gauss_priors_width=.5
-    ))
-like_params.append(LikelihoodParameter(
-    name='beta',
-    min_value=0.0,
-    max_value=3.0,    
-    value = cf_beta,
-    ini_value = 2.3,
-    Gauss_priors_width=1
-    ))
-like_params.append(LikelihoodParameter(
-    name='q1',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.1112,
-    value = cf_q1,
-    Gauss_priors_width=.5
-    ))
-like_params.append(LikelihoodParameter(
-    name='kvav',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.0001**0.2694,
-    value = cf_kv**cf_av
-    ))
-like_params.append(LikelihoodParameter(
-    name='av',
-    min_value=0.0,
-    max_value=2.0,
-    ini_value = 0.2694,
-    value = cf_av
-    ))
-like_params.append(LikelihoodParameter(
-    name='bv',
-    min_value=0.0,
-    max_value=2.0,
-    ini_value = 0.0002,
-    value = cf_bv
-    ))
-like_params.append(LikelihoodParameter(
-    name='kp',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.5740,
-    value = cf_kp
-    ))
-
-# %%
-iz_choice = [1]
-like = Likelihood(MockData, theory_AA, free_param_names=["bias", "beta"], iz_choice=iz_choice, like_params=like_params)
+like = Likelihood(MockData, theory, z=2.2, verbose=False)
 
 # %% [markdown]
 # First, plot the CF best-fit theory model on top of the stack
 
 # %%
-like.plot_px(iz_choice, like_params, multiply_by_k=True, ylim2=[-1,6], every_other_theta=False, show=True,  title=f"Redshift {MockData.z[iz_choice]}, {mock_type}, {analysis_type}", theorylabel=rf'Model from IFAE-QL best-fit $\xi$', datalabel=f'{analysis_type} measurement', xlim=[0,.5], residual_to_theory=False)
+like.plot_px(multiply_by_k=True, every_other_theta=False, xlim=[-.01, .4], datalabel="Mock Data", theorylabel=r"$\xi$ best-fit", show=True)
 
 # %%
-mini = IminuitMinimizer(like, verbose=True)
+# set the likelihood parameters as the Arinyo params with some fiducial values
+arinyo_par_names = theory.arinyo_par_names
+
+like_params = []
+like_params.append(LikelihoodParameter(
+    name=f'bias_{like.theory_iz}',
+    min_value=-.13,
+    max_value=-.1,
+    ini_value=-0.11,
+    value =theory.default_param_dict[f'bias_{like.theory_iz}']
+    ))
+
+like_params.append(LikelihoodParameter(
+    name=f'beta_{like.theory_iz}',
+    min_value=1.3,
+    max_value=2.0,    
+    ini_value = 1.5,
+    value=theory.default_param_dict[f'beta_{like.theory_iz}']
+    # Gauss_priors_width=.5
+    ))
+
+linear = False
+if linear:
+    like_params.append(LikelihoodParameter(
+        name=f'q1_{like.theory_iz}',
+        value =0
+    ))
+
+    like_params.append(LikelihoodParameter(
+        name=f'q2_{like.theory_iz}',
+        value =0
+    ))
+
+    like_params.append(LikelihoodParameter(
+        name=f'kp_{like.theory_iz}',
+        value =10000
+    ))
+
+# %%
+mini = IminuitMinimizer(like, like_params, ['bias_0', 'beta_0'], verbose=False)
+
+# %%
 mini.minimize()
+
+# %%
+mini.plot_best_fit(multiply_by_k=True, every_other_theta=False, xlim=[-.01, .4], datalabel="Mock Data", theorylabel='Best fit', show=True)
+
+# %%
+mini.plot_ellipses("bias_0", "beta_0", nsig=3, cube_values=False, true_vals={'bias_0':like_parameter_by_name(like_params, 'bias_0').value, 'beta_0':like_parameter_by_name(like_params, 'beta_0').value}, true_val_label='Laura fit')
+# mini.plot_ellipses("bias_1", "beta_1", nsig=3, cube_values=False, true_vals={'bias_1':like_parameter_by_name(like_params, 'bias_1').value, 'beta_1':like_parameter_by_name(like_params, 'beta_1').value}, true_val_label='Laura fit')
 
 # %%
 for p in like_params:
     if p.name in like.free_param_names:
         print(mini.minimizer.limits[p.name])
         print(p.value_from_cube(np.asarray(mini.minimizer.limits[p.name])))
-
-
-# %%
-final_values = np.asarray([mini.best_fit_value(pname) for pname in like.free_param_names])
-ini_values   = np.asarray([p.ini_value for p in like_params if p.name in like.free_param_names])
-# priors       = np.asarray([p.Gauss_priors_width for p in like_params if p.name in like.free_param_names])
-priors       = np.asarray([p.value_from_cube(np.asarray(mini.minimizer.limits[p.name])) for p in like_params if p.name in like.free_param_names])
-hesse_errs   = np.asarray([mini.best_fit_value(pname, return_hesse=True)[1] for pname in like.free_param_names])
-true_values  = np.asarray([p.value for p in like_params if p.name in like.free_param_names])
-plt.plot(like.free_param_names, ini_values, 'o', label='Initial values')
-plt.errorbar(like.free_param_names, final_values, yerr= hesse_errs, fmt='x', label='Final values with Hesse errors')
-plt.plot(like.free_param_names, true_values, '*', color='green', label=r"$\xi$ best-fit", markersize=10, alpha=.5)
-# plot the priors as a shaded vertical band per parameter
-for i, param in enumerate(like.free_param_names):
-    plt.fill_between([i-0.2, i+0.2], priors[i][0], priors[i][1], color='gray', alpha=0.3, label='Limits' if i==0 else "")
-plt.ylabel("Parameter values")
-plt.xlabel("Parameters")
-plt.legend(fontsize=15, loc='upper left', ncol=2)
-plt.ylim([-2,5])
-
-
-# %%
-def save_analysis_npz(results, filename="analysis_results.npz"):
-    """
-    results: list or dict of per-analysis dictionaries
-    """
-    out = {}
-
-    if isinstance(results, list):
-        for i, r in enumerate(results):
-            out[f'analysis-{i}'] = r
-    else:  # dict
-        for k, r in results.items():
-            out[str(k)] = r
-
-    # Save each dict as an object
-    np.savez(filename, **out, allow_pickle=True)
 
 
 # %%
