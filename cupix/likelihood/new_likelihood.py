@@ -22,9 +22,9 @@ class Likelihood(object):
         self.data = data
         self.iz = iz
         self.theory = theory
-        assert data.z[iz]==theory.zs[iz], "inconsistent redshifts"
+        assert self.data.z[iz] == self.theory.z, "inconsistent redshifts"
         if self.verbose:
-            print("Likelihood will evaluate redshift bin", self.iz, "corresponds to z =", self.theory.zs[iz])
+            print("Likelihood will evaluate redshift bin", self.iz, "corresponds to z =", self.theory.z)
         
 
     def get_convolved_px(self, params={}):
@@ -35,7 +35,7 @@ class Likelihood(object):
         theta_a = (self.data.theta_min_a_arcmin + self.data.theta_max_a_arcmin)/2.
 
         # evaluate theory at these values (no rebinning, no convolution)
-        Px_Zam = self.theory.get_px_obs(iz=self.iz, theta_arc=theta_a, k_AA=k_m, params=params)
+        Px_Zam = self.theory.get_px_obs(theta_arc=theta_a, k_AA=k_m, params=params)
 
         # number of rebinned k_M and theta_A bins
         N_M = len(self.data.k_M_edges[self.iz]) - 1

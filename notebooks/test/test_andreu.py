@@ -76,7 +76,9 @@ cosmo_params = {"H0": 67.66}
 cosmo = cosmology.Cosmology(cosmo_params_dict=cosmo_params)
 
 # %%
-theory = Theory(zs=data.z, fid_cosmo=cosmo, config={'verbose':True})
+iz=0
+z=data.z[iz]
+theory = Theory(z=z, fid_cosmo=cosmo, config={'verbose':True})
 
 # %%
 # numpy array of kpar values (in inverse AA)
@@ -84,7 +86,7 @@ kp_AA = np.linspace(0.01, 2.0, 1000)
 # numpy array of theta values (in arcmin)
 theta_arc = np.linspace(0.1, 60.0, 100)
 # get a 2D array prediction
-px_obs = theory.get_px_lya_obs(iz=0, theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params={})
+px_obs = theory.get_px_lya_obs(theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params={})
 
 # %%
 # plot the prediction for a couple of theta values
@@ -100,16 +102,16 @@ plt.legend();
 # ### Now make predictions for different parameter values
 
 # %%
-theory.lya_models[0].default_lya_params
+theory.lya_model.default_lya_params
 
 # %%
 # this can be a list of likelihood parameters or a dictionary
 params = {'bias': -0.12, 'beta': 1.6, 'q1': .3}
-px_obs = theory.get_px_lya_obs(iz=0, theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params=params)
+px_obs = theory.get_px_lya_obs(theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params=params)
 
 # %%
 for beta in [0.0, 1.0, 2.0]:
-    px_obs = theory.get_px_lya_obs(iz=0, theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params={'beta':beta})
+    px_obs = theory.get_px_lya_obs(theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params={'beta':beta})
     for it_A in [5]:
         label = 'theta = {:.2f} arcmin, beta={:.2f}'.format(theta_arc[it_A], beta)
         plt.plot(kp_AA, px_obs[it_A], label=label)
@@ -119,7 +121,7 @@ plt.ylabel('Px [Ang]')
 
 # %%
 for q1 in [0.0, 0.5, 0.9]:
-    px_obs = theory.get_px_lya_obs(iz=0, theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params={'q1':q1})
+    px_obs = theory.get_px_lya_obs(theta_arc=theta_arc, k_AA=kp_AA, cosmo=cosmo, params={'q1':q1})
     
     for it_A in [5]:
         label = 'theta = {:.2f} arcmin, q1={:.2f}'.format(theta_arc[it_A], q1)
@@ -134,8 +136,6 @@ plt.ylabel('Px [Ang]')
 # %%
 # first with the old code
 from cupix.likelihood import likelihood
-z=data.z[0]
-print(z)
 like = likelihood.Likelihood(data, theory, z=z, verbose=True)
 
 # %%
@@ -160,7 +160,7 @@ plt.ylabel('Px [Ang]')
 # %%
 # now with the new likelihood class
 from cupix.likelihood import new_likelihood
-new_like = new_likelihood.Likelihood(data=data, theory=theory, iz=0, verbose=True)
+new_like = new_likelihood.Likelihood(data=data, theory=theory, iz=iz, verbose=True)
 
 # %%
 model_px=new_like.get_convolved_px(params={})

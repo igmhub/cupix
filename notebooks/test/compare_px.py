@@ -99,7 +99,9 @@ plt.ylim([10**-3, 1])
 plt.legend()
 
 # %%
-new_theory = theory.Theory(zs=zs, fid_cosmo=cosmo, config={'verbose':True})
+iz=0
+z=zs[iz]
+new_theory = theory.Theory(z=z, fid_cosmo=cosmo, config={'verbose':True})
 
 # %%
 # we use slightly different conventions
@@ -110,7 +112,7 @@ new_params['kp_Mpc'] = model_Arinyo.default_params['kp']
 new_params['kv_Mpc'] = np.exp(np.log(model_Arinyo.default_params['kvav'])/model_Arinyo.default_params['av'])
 
 # %%
-new_p3d = new_theory.get_p3d_lya_Mpc(iz=0, k=k2d, mu=mu2d, params=new_params)
+new_p3d = new_theory.get_p3d_lya_Mpc(k=k2d, mu=mu2d, params=new_params)
 
 # %%
 for ii in [-1, 0]:
@@ -123,7 +125,7 @@ plt.ylim([10**-3, 1])
 plt.legend()
 
 # %%
-test_p3d = new_theory.get_p3d_lya_hcd_Mpc(iz=0, k=k2d, mu=mu2d, params=new_params)
+test_p3d = new_theory.get_p3d_lya_hcd_Mpc(k=k2d, mu=mu2d, params=new_params)
 
 # %%
 for ii in [-1, 0]:
@@ -164,16 +166,14 @@ rperp = np.logspace(-2,2,100) # use the same rperp for each z. We could also inp
 
 # %%
 # we can compute Px from within the Arinyo class using default parameters,
-Px_Mpc_1 = model_Arinyo.Px_Mpc(z=zs[0], kpar_iMpc = kpar, rperp_Mpc = rperp, ari_pp=model_Arinyo.default_params)
+Px_Mpc_1 = model_Arinyo.Px_Mpc(z=z, kpar_iMpc = kpar, rperp_Mpc = rperp, ari_pp=model_Arinyo.default_params)
 
 # we could have also done it outside of the class with the function Px_Mpc:
-Px_Mpc_2 = Px_Mpc(
-    zs[0], kpar, rperp, model_Arinyo.P3D_Mpc_k_mu, p3d_params=model_Arinyo.default_params
-)
+Px_Mpc_2 = Px_Mpc(z, kpar, rperp, model_Arinyo.P3D_Mpc_k_mu, p3d_params=model_Arinyo.default_params)
 print("Detailed method is equal to previous method:", np.allclose(Px_Mpc_1, Px_Mpc_2, atol=1e-15))
 
 # %%
-Px_Mpc_3 = new_theory.get_px_lya_Mpc(iz=0, rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
+Px_Mpc_3 = new_theory.get_px_lya_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
 
 # %%
 print("New method:", np.allclose(Px_Mpc_1, Px_Mpc_3, atol=1e-15))
@@ -182,10 +182,10 @@ print("New method:", np.allclose(Px_Mpc_1, Px_Mpc_3, atol=1e-15))
 # ### Play with contaminants (comoving Mpc)
 
 # %%
-px_lya = new_theory.get_px_lya_Mpc(iz=0, rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
+px_lya = new_theory.get_px_lya_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
 
 # %%
-px_lya_hcd = new_theory.get_px_lya_hcd_Mpc(iz=0, rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
+px_lya_hcd = new_theory.get_px_lya_hcd_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
 
 # %%
 for irt in [0, 50, 70]:
@@ -197,8 +197,8 @@ plt.xlabel(r'$k_\parallel$ [1/Mpc]')
 plt.title('Impact of HCD contamination')
 
 # %%
-px_metal_auto = new_theory.get_px_metal_auto_Mpc(iz=0, rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
-px_metal_cross = new_theory.get_px_metal_cross_Mpc(iz=0, rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
+px_metal_auto = new_theory.get_px_metal_auto_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
+px_metal_cross = new_theory.get_px_metal_cross_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
 
 # %%
 for irt in [0, 50, 70]:
@@ -211,7 +211,7 @@ plt.xlabel(r'$k_\parallel$ [1/Mpc]')
 plt.title('Impact of metal contamination')
 
 # %%
-px_sky = new_theory.get_px_sky_Mpc(iz=0, rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
+px_sky = new_theory.get_px_sky_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
 
 # %%
 for irt in [0, 50, 70]:
@@ -223,7 +223,7 @@ plt.xlabel(r'$k_\parallel$ [1/Mpc]')
 plt.title('Impact of correlated sky residuals (x10)')
 
 # %%
-cont_dist = new_theory.get_continuum_distortion_Mpc(iz=0, kp_Mpc=kpar, params=new_params)
+cont_dist = new_theory.get_continuum_distortion_Mpc(kp_Mpc=kpar, params=new_params)
 
 # %%
 for irt in [0, 50, 70]:
@@ -242,24 +242,24 @@ theta_arc = 5.0
 k_AA = np.linspace(0.01,1.0, 1000)
 
 # %%
-px_lya = new_theory.get_px_lya_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
+px_lya = new_theory.get_px_lya_obs(theta_arc=theta_arc, k_AA=k_AA, params=new_params)
 
 # %%
-px_lya_hcd = new_theory.get_px_lya_hcd_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, cosmo=cosmo, params=new_params)
+px_lya_hcd = new_theory.get_px_lya_hcd_obs(theta_arc=theta_arc, k_AA=k_AA, cosmo=cosmo, params=new_params)
 
 # %%
-px_metal_auto = new_theory.get_px_metal_auto_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
+px_metal_auto = new_theory.get_px_metal_auto_obs(theta_arc=theta_arc, k_AA=k_AA, params=new_params)
 
 # %%
-px_metal_cross = new_theory.get_px_metal_cross_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
+px_metal_cross = new_theory.get_px_metal_cross_obs(theta_arc=theta_arc, k_AA=k_AA, params=new_params)
 
 # %%
-px_sky = new_theory.get_px_sky_obs(iz=0, theta_arc=theta_arc, k_AA=k_AA, params=new_params)
+px_sky = new_theory.get_px_sky_obs(theta_arc=theta_arc, k_AA=k_AA, params=new_params)
 if px_sky.shape[0]==1:
     px_sky = px_sky.squeeze()
 
 # %%
-cont_dist = new_theory.get_continuum_distortion_obs(iz=0, k_AA=k_AA, params=new_params)
+cont_dist = new_theory.get_continuum_distortion_obs(k_AA=k_AA, params=new_params)
 
 # %%
 plt.semilogx(k_AA, px_lya, label='Lya')

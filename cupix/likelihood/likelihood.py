@@ -43,10 +43,9 @@ class Likelihood(object):
             raise ValueError("Likelihood computation not implemented for more than one redshift at once. Please pass a single redshift value.")
         self.z = z
         self.theory = theory
-        self.theory_iz = np.where(self.theory.zs == self.z)[0][0]
         self.data_iz = np.where(self.data.z == self.z)[0][0]
         if self.verbose:
-            print("Likelihood will evaluate redshift of", self.z, "which corresponds to iz =", self.theory_iz, "in theory and iz =", self.data_iz, "in data.")
+            print("Likelihood will evaluate redshift of", self.z, "which corresponds to iz =", self.data_iz, "in data.")
         
         # for priors, we will keep it optional:
         # if free_param_names is empty, no priors; if it's not empty, set priors on those parameters.
