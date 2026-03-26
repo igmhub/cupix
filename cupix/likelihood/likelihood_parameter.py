@@ -7,8 +7,8 @@ class LikelihoodParameter(object):
     def __init__(
         self,
         name,
-        min_value,
-        max_value,
+        min_value=None,
+        max_value=None,
         ini_value=None,
         value=None,
         Gauss_priors_width=None,
@@ -83,8 +83,6 @@ class LikelihoodParameter(object):
 
 def likeparam_from_dict(params_dict):
     # takes a dictionary of parameter names and values, and returns a list of LikelihoodParameter objects
-    if params_dict is None:
-        return []
     like_params = []
     for name, value in params_dict.items():
         like_params.append(LikelihoodParameter(name=name, min_value=-1000, max_value=1000, value=value))
@@ -93,8 +91,6 @@ def likeparam_from_dict(params_dict):
 
 def dict_from_likeparam(like_params):
     # takes a list of LikelihoodParameter objects, and returns a dictionary of parameter names and values
-    if like_params is None:
-        return {}
     params_dict = {}
     for param in like_params:
         params_dict[param.name] = param.value
@@ -107,12 +103,14 @@ def format_like_params_dict(iz_choice, param_dict):
     and transform units where necessary.
     """
     formatted_param_dict = {}
-    for iz in range(20): # assume there will never be more than 20 redshift bins
+    iz_choice = np.atleast_1d(iz_choice)
+    for iz in iz_choice:
         for key in param_dict.keys():
             if key.endswith(f"_{iz}"):
                 formatted_param_dict[key] = param_dict[key]
             elif iz_choice.size == 1:
                 # if there is only 1 redshift bin, allow parameters without _{iz} format, and apply to the single redshift bin
+                # warning: if a parameter is called param_{iz} but iz does not exist in iz_choice, this could result in strange behavior like mF_2_1
                 formatted_param_dict[key+f"_{iz_choice[0]}"] = param_dict[key]
             else:
                 print("Warning: parameter", key, "not in correct format, must end in _{integer} to specify redshift bin when evaluating multiple redshift bins. This parameter will be ignored.")
@@ -125,3 +123,15 @@ def par_index(like_param_list, par_name):
         if param.name == par_name:
             return i
     raise ValueError("Parameter with name " + par_name + " not found in list of LikelihoodParameter objects.")
+
+
+def like_parameter_by_name(like_params, pname):
+    """Find parameter in list of likelihood free parameters"""
+    return [p for p in like_params if p.name == pname][0]
+
+def index_by_name(like_params, pname):
+    """Find parameter index by name from list of likelihood free parameters"""
+
+    return [
+        i for i, param in enumerate(like_params) if param.name == pname
+    ][0]

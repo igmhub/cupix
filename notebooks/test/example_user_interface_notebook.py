@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %%
@@ -18,7 +18,7 @@ import numpy as np
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.lya_theory import Theory
 from cupix.likelihood.forestflow_emu import FF_emulator
-from lace.cosmo import cosmology
+from lace.cosmo import camb_cosmo
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
@@ -33,10 +33,10 @@ cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # ### Step 1: Load some data
 
 # %%
-data_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/binned_out_px-zbins_4-thetabins_9_w_res.hdf5"
-# "../../data/px_measurements/forecast/forecast_ffcentral_cosmo_igm_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
+data_file = "../../data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
+
 data = DESI_DR2(data_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
-# kmax_cut determines max of the widely-binned k; finely-binned k will still be fully used for the window matrix application
+# kM_max_cut determines max of the widely-binned k; km_max_cut cuts the finely-binned k that goes into the window matrix
 
 # %%
 # native binning (no rebinning)
@@ -79,27 +79,33 @@ plot_theta_bins(data, k_M, iz=0, it_M=0)
 
 # %%
 z = data.z
-cosmo = cosmology.Cosmology(cosmo_params_dict={'H0': 67})
+print("Input data file has redshift at,", z)
+cosmo = {'H0': 67}
 # default_theory options are:
 # 'best_fit_arinyo_from_p1d': best fit to the DESI DR1 P1D data from Chaves+2026
 # 'best_fit_igm_from_p1d': same but for IGM parameters
 # 'best_fit_arinyo_from_colore': best fit to xi from colore mocks. Only works for z=2.2, 2.4, 2.6, 2.8
-theory_p1d = Theory(z, fid_cosmo=cosmo, default_lya_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
-# theory_colore = set_theory(z, bkgd_cosmo=cosmo, default_theory='best_fit_arinyo_from_colore', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory_p1d = Theory(z, cosmo_dict=cosmo, default_lya_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+# theory_colore = Theory(z, bkgd_cosmo=cosmo, default_lya_theory='best_fit_arinyo_from_colore', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+
+# %%
+# check full cosmo dictionary to see what other default parameters were used
+theory_p1d.cosmo_dict
 
 # %%
 theory_p1d.default_param_dict
 
 # %%
-# you can get a parameter by specifying its name and redshift:
-# print(theory_colore.get_param('q1', iz_choice=2))
-print(theory_p1d.get_param('mF', iz_choice=2))
+# you can get a parameter by specifying its name and redshift.
+# in this case, the forecast file only has 1 redshift so iz_choice can only be 0, but for data with more redshifts this can be other values
+# print(theory_colore.get_param('q1', iz_choice=0))
+print(theory_p1d.get_param('mF', iz_choice=0))
 # or by only naming it without an index, if you want all redshift values
 # theory_colore.get_param('q1')
 print(theory_p1d.get_param('mF'))
 # or by naming it with the underscore
-# theory_colore.get_param('q1_2')
-print(theory_p1d.get_param('sigT_Mpc_3'))
+# theory_colore.get_param('q1_0')
+print(theory_p1d.get_param('sigT_Mpc_0'))
 
 # %%
 # theory = theory_colore
@@ -132,11 +138,11 @@ plt.title(f'Theory prediction for z={z}')
 # ### Now make predictions for different parameter values
 
 # %%
-# this could be a list of likelihood parameters, but easier to write it here as a dictionary
+# this can be a list of likelihood parameters or a dictionary
 params = {'bias': 0.1, 'beta': 1.6, 'q1': .3}
 # params = {'mF': 1., 'n_p': .3}
-# this would only modify the input parameters, and leave others (like k_p or av) unchanged
-Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params=params, zs=2.4)
+# this will only modify the input parameters, and leave others unchanged
+Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params=params, zs=[z])
 
 # %%
 # plot the prediction for a couple of theta values
@@ -148,21 +154,20 @@ plt.title(f'Theory prediction for z={z}')
 plt.legend()
 
 # %%
-z_eval = 2.4
 for mF in [0.7, 0.8, 0.9]:
     # these would use the initial values for other params
-    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'mF':mF}, zs=z_eval) 
+    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'mF':mF}, zs=[z]) 
     iz = 0
     for it in [0]:
         label = 'theta = {} arcmin, mF={}'.format(theta_arc[it], mF)
         plt.plot(kp_AA, Px_model[iz][it], label=label)
-plt.title(f'Theory prediction for z={z_eval}')
+plt.title(f'Theory prediction for z={z}')
 plt.legend()
 
 # %%
 for kF in [8,9,10]:
     # these would use the initial values for other params
-    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'kF_Mpc':kF}, zs=2.4) 
+    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'kF_Mpc':kF}, zs=[z]) 
     iz = 0
     z  = theory.zs[iz]
     for it in [0]:
@@ -176,7 +181,7 @@ plt.ylabel('Px [Ang]')
 # %%
 for sigT in [.09,.12,.16]:
     # these would use the initial values for other params
-    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'sigT_Mpc':sigT}, zs=2.4) 
+    Px_model = theory.get_px_AA(k_AA=kp_AA, theta_arcmin=theta_arc, like_params={'sigT_Mpc':sigT}, zs=[z])
     iz = 0
     z  = theory.zs[iz]
     for it in [0]:
@@ -191,7 +196,7 @@ plt.ylabel('Px [Ang]')
 # ### Set up the likelihood with one redshift 
 
 # %%
-likelihood = Likelihood(data, theory, z=2.6, verbose=True)
+likelihood = Likelihood(data, theory, z=z, verbose=True)
 
 # %%
 data.theta_centers_arcmin
@@ -210,7 +215,7 @@ Px_convolved = likelihood.get_convolved_Px_AA(theta_A=it)
 
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_convolved), label='convolved Px')
 # without convolution, it would have been:
-Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=2.6)
+Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=[z])
 # Px_model always has shape [Nz, Nt_A, Nk_M], so we need to specify the redshift and theta bin indices or just squeeze the result
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_model), label='unconvolved Px') 
 plt.legend()
@@ -231,7 +236,7 @@ Px_convolved = likelihood.get_convolved_Px_AA(theta_A=it, like_params=params)
 # plot the convolved Px. Always has shape Nt_A, Nk_M so we need to specify the theta bin index or just squeeze the result
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_convolved), label='convolved Px')
 # without convolution, it would have been:
-Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=2.6, like_params=params)
+Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=[z], like_params=params)
 # Px_model always has shape [Nz, Nt_A, Nk_M], so we need to specify the redshift and theta bin indices or just squeeze the result
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_model), label='unconvolved Px') 
 plt.legend()
@@ -240,8 +245,7 @@ plt.ylabel('Px [Ang]')
 
 
 # plot the data on top
-iz_data = np.where(np.isclose(data.z, 2.6))[0][0]
-plot_theta_bins(data, k_M, iz=iz_data, it_M=it_M)
+plot_theta_bins(data, k_M, iz=likelihood.data_iz, it_M=it_M)
 
 
 # %%
@@ -275,7 +279,7 @@ Px_convolved = likelihood.get_convolved_Px_AA(theta_A=it, like_params=like_param
 # plot the convolved Px. Always has shape Nt_A, Nk_M so we need to specify the theta bin index or just squeeze the result
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_convolved), label='convolved Px')
 # without convolution, it would have been:
-Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=2.6, like_params=like_params)
+Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=[z], like_params=like_params)
 # Px_model always has shape [Nz, Nt_A, Nk_M], so we need to specify the redshift and theta bin indices or just squeeze the result
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_model), label='unconvolved Px') 
 plt.legend()
@@ -284,8 +288,7 @@ plt.ylabel('Px [Ang]')
 
 
 # plot the data on top
-iz_data = np.where(np.isclose(data.z, 2.6))[0][0]
-plot_theta_bins(data, k_M, iz=iz_data, it_M=it_M)
+plot_theta_bins(data, k_M, iz=likelihood.data_iz, it_M=it_M)
 
 
 # %% [markdown]
@@ -303,6 +306,56 @@ likelihood.get_chi2(like_params=like_params)
 # pass nothing
 likelihood.get_chi2()
 
+# %% [markdown]
+# If data_file is the forecast file, you can pass the truth, including the correct cosmology
+
 # %%
+param_mode = 'arinyo' # enter the type of parameters you want
+truth_params = {}
+with h5.File(data_file) as f:
+    for cosmo_par in f['cosmo_params'].attrs.keys():
+        cosmo[cosmo_par] = f['cosmo_params'].attrs[cosmo_par]
+    if param_mode=='igm':
+        for like_par in f['like_params'].attrs.keys():
+            truth_params[like_par] = f['like_params'].attrs[like_par]
+    elif param_mode=='arinyo':
+        for arinyo_par in f['arinyo_pars'].attrs.keys():
+            truth_params[arinyo_par] = f['arinyo_pars'].attrs[arinyo_par]
+print("Passing forecast cosmology to theory object:", cosmo)
+theory = Theory(zs, cosmo_dict=cosmo, default_lya_theory='best_fit_arinyo_from_p1d', emulator_label="forestflow_emu", verbose=True)
+# check the parameters
+print("Truth params are:")
+for p, val in truth_params.items():
+    print(p, val)
+
+# %%
+likelihood = Likelihood(data, theory, z=z, verbose=True)
+
+# %%
+# still a bad chi2 if we don't pass the correct theory params
+likelihood.get_chi2()
+
+# %%
+like_params = []
+
+
+arinyo_par_names_iz = [par+"_0" for par in theory.arinyo_par_names]
+def update_likepar_list(like_params, par_names):
+    for par in par_names:
+        like_params.append(LikelihoodParameter(
+    name=par,
+    value = truth_params[par]
+    ))
+    return like_params
+
+like_params = update_likepar_list(like_params, arinyo_par_names_iz)
+
+for par in like_params:
+    print(par.name, par.value)
+
+
+# %%
+# now should be a nearly-0 chi2 passing the exact truth theory params
+likelihood.get_chi2(like_params)
 
 # %%
