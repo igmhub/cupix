@@ -19,189 +19,133 @@
 
 # %%
 import numpy as np
-from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
-from cupix.likelihood.input_pipeline import Args
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood
-from lace.cosmo import camb_cosmo, fit_linP
+from cupix.likelihood.lya_theory import Theory
+from cupix.likelihood.forestflow_emu import FF_emulator
+from lace.cosmo import camb_cosmo
 import matplotlib.pyplot as plt
-from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
+from cupix.likelihood.likelihood_parameter import LikelihoodParameter, par_index, dict_from_likeparam
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-import scipy
+import h5py as h5
 from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+import cupix
+import pandas as pd
+cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # %load_ext autoreload
 # %autoreload 2
 
-# %%
-
-# Load emulator
-z = np.array([2.2])
-omnuh2 = 0.0006
-mnu = omnuh2 * 93.14
-H0 = 67.36
-omch2 = 0.12
-ombh2 = 0.02237
-As = 2.1e-9
-ns = 0.9649
-nrun = 0.0
-w = -1.0
-omk = 0
-fid_cosmo = {
-    'H0': H0,
-    'omch2': omch2,
-    'ombh2': ombh2,
-    'mnu': mnu,
-    'omk': omk,
-    'As': As,
-    'ns': ns,
-    'nrun': nrun,
-    'w': w
-}
-sim_cosmo = camb_cosmo.get_cosmology_from_dictionary(fid_cosmo)
-cc = camb_cosmo.get_camb_results(sim_cosmo, zs=z, camb_kmax_Mpc=1000)
+# %% [markdown]
+# ### Step 1: Import a noiseless forecast
 
 # %%
-ffemu = FF_emulator(z, fid_cosmo, cc)
-ffemu.kp_Mpc = 1 # set pivot point
+forecast_file = f"{cupixpath}/data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
+forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
+param_mode = 'arinyo'
+##### Get the truth from forecast file ######
+forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
+# get default theory that was used for forecast
+with h5.File(forecast_file, 'r') as f:
+    default_theory_label = f['metadata'].attrs['true_lya_theory']
+print(f"Default theory label: {default_theory_label}")
+zs = forecast.z
+iz_choice = 0
+z_choice  = zs[iz_choice]
+cosmo = {}
+truth_params = {}
+with h5.File(forecast_file) as f:
+    for cosmo_par in f['cosmo_params'].attrs.keys():
+        cosmo[cosmo_par] = f['cosmo_params'].attrs[cosmo_par]
+    if param_mode=='igm':
+        for like_par in f['like_params'].attrs.keys():
+            truth_params[like_par] = f['like_params'].attrs[like_par]
+    elif param_mode=='arinyo':
+        for arinyo_par in f['arinyo_pars'].attrs.keys():
+            truth_params[arinyo_par] = f['arinyo_pars'].attrs[arinyo_par]
+print("Passing forecast cosmology to theory object:", cosmo)
+theory = Theory(zs, cosmo_dict=cosmo, default_lya_theory='best_fit_arinyo_from_p1d', emulator_label="forestflow_emu", verbose=True)
+# check the parameters
+print("Truth params are:")
+for p, val in truth_params.items():
+    print(p, val)
 
 # %%
-theory_AA = set_theory(ffemu, k_unit='iAA')
-theory_AA.set_fid_cosmo(z)
-theory_AA.emulator = ffemu
-
-# %%
-# MockData = Px_Lyacolore("binned_out_trucont_px-zbins_2-thetabins_18.hdf5", theta_min_cut_arcmin=11, kmax_cut_AA=1)
-MockData = DESI_DR2("binned_out_trucont_px-zbins_2-thetabins_10_res.hdf5", theta_min_cut_arcmin=15, kmax_cut_AA=1)
-# MockData = Px_Lyacolore("binned_out_trucont_px-zbins_2-thetabins_10_res.hdf5", kmax_cut_AA=1)
-
-# %%
-MockData.theta_min_A_arcmin, MockData.theta_max_A_arcmin
+like = Likelihood(forecast, theory, z=z_choice, verbose=True)
 
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
+arinyo_par_names = theory.arinyo_par_names
 
 like_params = []
 like_params.append(LikelihoodParameter(
-    name='bias',
-    min_value=-1.0,
-    max_value=0,
-    ini_value=-0.115,
-    value =-0.115,
-    Gauss_priors_width=.05
-    ))
-like_params.append(LikelihoodParameter(
-    name='beta',
-    min_value=0.0,
-    max_value=2.0,    
-    ini_value = 1.55,
-    value=1.55,
-    Gauss_priors_width=.5
-    ))
-like_params.append(LikelihoodParameter(
-    name='q1',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.1112,
-    value=0.1112,
-    Gauss_priors_width=0.111
-    ))
-like_params.append(LikelihoodParameter(
-    name='kvav',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.0001**0.2694,
-    value=0.0001**0.2694,
-    Gauss_priors_width=0.0003**0.2694,
-    ))
-like_params.append(LikelihoodParameter(
-    name='av',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.2694,
-    value=0.2694,
-    Gauss_priors_width=0.27
-    ))
-like_params.append(LikelihoodParameter(
-    name='bv',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.0002,
-    value=0.0002,
-    Gauss_priors_width=0.0002
-    ))
-like_params.append(LikelihoodParameter(
-    name='kp',
-    min_value=0.0,
-    max_value=1.0,
-    ini_value = 0.5740,
-    value=0.5740,
-    Gauss_priors_width=0.5
+    name='bias_0',
+    min_value=-.13,
+    max_value=-.1,
+    ini_value=-0.11,
+    value =truth_params['bias_0']
     ))
 
+like_params.append(LikelihoodParameter(
+    name='q1_0',
+    min_value=0,
+    max_value=1,
+    ini_value=.2,
+    value =truth_params['q1_0']
+    ))
 
-# likelihood_params = []
-# likelihood_params.append(LikelihoodParameter(
-#     name='Delta2_p',
-#     min_value=-1.0,
-#     max_value=1.0,
+# like_params.append(LikelihoodParameter(
+#     name='beta_0',
+#     min_value=1.3,
+#     max_value=2.0,    
+#     ini_value = 1.5,
+#     value=truth_params['beta_0'],
+#     # Gauss_priors_width=.5
 #     ))
-# likelihood_params.append(LikelihoodParameter(
-#     name='n_p',
-#     min_value=-1.0,
-#     max_value=1.0,
-#     ))
-# likelihood_params.append(LikelihoodParameter(
-#     name='mF',
-#     min_value=-1.0,
-#     max_value=1.0,
-#     ))
-# likelihood_params.append(LikelihoodParameter(
-#     name='gamma',
-#     min_value=-1.0,
-#     max_value=1.0,
-#     ))
-# likelihood_params.append(LikelihoodParameter(
-#     name='kF_Mpc',
-#     min_value=-1.0,
-#     max_value=1.0,
-#     ))
-# likelihood_params.append(LikelihoodParameter(
-#     name='sigT_Mpc',
-#     min_value=-1.0,
-#     max_value=1.0,
-#     ))
+
+def update_likepar_list(like_params, par_names):
+    for par in par_names:
+        like_params.append(LikelihoodParameter(
+    name=par,
+    value = truth_params[par]
+    ))
+        print(par, truth_params[par])
+    return like_params
+
+truth_pars_to_add = []
+for par in arinyo_par_names:
+    added=False
+    for lp in like_params:
+        if lp.name == par + "_0":
+            added = True
+    if not added:
+        truth_pars_to_add.append(par+"_0")
+print(truth_pars_to_add)
+
+
+like_params = update_likepar_list(like_params, truth_pars_to_add)
+
 
 # %%
-like = Likelihood(MockData, theory_AA, free_param_names=["bias", "beta"], iz_choice=0, like_params=like_params, verbose=False)
-
-# %%
-mini = IminuitMinimizer(like, verbose=False)
+mini = IminuitMinimizer(like, like_params, ['bias_0', 'q1_0'], verbose=True)
 
 # %%
 mini.minimize()
 
 # %%
-mini.best_fit_value("beta", return_hesse=True), mini.best_fit_value("bias", return_hesse=True)
-
-# %%
-prob = like.fit_probability(mini.minimizer.values)
-
-
-# %%
-prob
-
-# %%
 mini.plot_best_fit(multiply_by_k=True, every_other_theta=False, xlim=[-.01, .4], datalabel="Mock Data", show=True)
 
 # %%
-mini.minimizer.values
+mini.best_fit_value("q1_0", return_hesse=True), mini.best_fit_value("bias_0", return_hesse=True)
 
 # %%
-like.get_chi2(mini.minimizer.values)
+prob = mini.fit_probability()
+print("Probability of fit", prob)
+chi2 = mini.chi2()
+print("chi2 of fit", chi2)
+
 
 # %%
-mini.plot_ellipses("bias", "beta", nsig=2, cube_values=False)
+from cupix.likelihood.likelihood_parameter import like_parameter_by_name
+mini.plot_ellipses("bias_0", "q1_0", nsig=3, cube_values=False, true_vals={'bias_0':-1*like_parameter_by_name(like_params, 'bias_0').value, 'q1_0':like_parameter_by_name(like_params, 'q1_0').value}, xrange=[-.122, -.11], yrange=[.2,.4])
 
 # %%
 nparam = np.arange(5)+1
