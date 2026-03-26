@@ -21,6 +21,7 @@ class Theory(object):
         """
 
         self.verbose = config.get('verbose', False)
+        self.zs = z
         self.z = z
 
         # this could also be specified from the config 
@@ -66,8 +67,9 @@ class Theory(object):
     def get_px_AA(self, 
         k_AA,
         theta_arcmin,
-        z=None,
+        zs=None,
         like_params={},
+        return_arinyo_coeffs=False,
         verbose=None
     ):
         if verbose is None:
@@ -80,7 +82,7 @@ class Theory(object):
         if verbose:
             print('params_dict', params_dict)
 
-        assert z == self.z, "Input redshift does not match one in theory"
+        assert zs == self.z, "Input redshift does not match one in theory"
 
         if self.verbose:
             print('Theta bins (arcmin)', theta_arcmin)

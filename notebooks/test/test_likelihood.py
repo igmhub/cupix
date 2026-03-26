@@ -76,7 +76,7 @@ Px_convolved = old_like.get_convolved_Px_AA(theta_A=it_A)
 # plot the convolved Px. Always has shape Nt_A, Nk_M so we need to specify the theta bin index or just squeeze the result
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_convolved), label='convolved Px')
 # without convolution, it would have been:
-Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, z=[z])
+Px_model = theory.get_px_AA(k_AA=data.k_M_centers_AA, theta_arcmin=theta_bin_choice, zs=[z])
 # Px_model always has shape [Nz, Nt_A, Nk_M], so we need to specify the redshift and theta bin indices or just squeeze the result
 plt.plot(data.k_M_centers_AA, np.squeeze(Px_model), label='unconvolved Px') 
 plt.legend()
