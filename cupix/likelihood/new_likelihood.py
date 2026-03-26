@@ -79,6 +79,14 @@ class Likelihood(object):
             return chi2
 
 
+    def get_log_like(self, params={}, return_info=False):
+        log_like, info = self._compute_log_like(params=params)
+        if return_info:
+            return log_like, info
+        else:
+            return log_like
+
+
     def _compute_log_like(self, params={}):
 
         # get model prediction, including convolution

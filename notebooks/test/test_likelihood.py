@@ -28,6 +28,7 @@ from lace.cosmo import cosmology
 from cupix.likelihood.theory import Theory
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 
+
 # %% [markdown]
 # ### Setup data
 
