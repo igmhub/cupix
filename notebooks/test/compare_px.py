@@ -285,3 +285,5 @@ plt.ylabel(r'$P_\times(\theta, q) ~/ ~ P_\times^{\alpha}(\theta, q) $')
 plt.xlabel(r'q [1/AA]')
 plt.title(r'Impact of contamination at z = {:.2f}, $\theta={:.2f}$ arcmin'.format(zs[0], theta_arc))
 plt.savefig('px_cont.png')
+
+# %%

@@ -40,7 +40,8 @@ class Likelihood(object):
         # number of rebinned k_M and theta_A bins
         N_M = len(self.data.k_M_edges[self.iz]) - 1
         N_A = len(self.data.theta_max_A_arcmin)
-        print('Working with {} k bins, and {} theta bins'.format(N_M, N_A))
+        if self.verbose:
+            print('Working with {} k bins, and {} theta bins'.format(N_M, N_A))
 
         # window convolution
         # loop through the large-theta bins from the data
@@ -82,7 +83,8 @@ class Likelihood(object):
 
         # get model prediction, including convolution
         model_px = self.get_convolved_px(params=params)
-        print('shape model_px', model_px.shape)
+        if self.verbose:
+            print('shape model_px', model_px.shape)
         N_A, N_M = model_px.shape
 
         # compute log like contributions from each theta bin
