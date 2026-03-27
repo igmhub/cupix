@@ -21,8 +21,9 @@ class Theory(object):
         """
 
         self.verbose = config.get('verbose', False)
-        self.zs = z
         self.z = z
+        # this is only needed temporarily while working with old likelihood
+        self.zs = z
 
         # this could also be specified from the config 
         if fid_cosmo is None:
@@ -63,7 +64,7 @@ class Theory(object):
         return cosmo
 
 
-    # currently needed by the likelihood class, keeping the format as is
+    # currently needed by the old likelihood class, keeping the format as is
     def get_px_AA(self, 
         k_AA,
         theta_arcmin,
