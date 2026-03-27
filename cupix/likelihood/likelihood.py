@@ -182,7 +182,9 @@ class Likelihood(object):
         log_like += np.sum(log_like_all)
 
         end = time.time()
-        print(f"Log-likelihood computed in {end - start:.2f} seconds")
+        if self.verbose:
+            print(f"Log-likelihood computed in {end - start:.2f} seconds")
+
         if np.any(np.isnan(log_like)):
             return null_out
         
@@ -239,7 +241,8 @@ class Likelihood(object):
         log_prob = self.log_prob(like_params, freepar_names)
         if not np.isfinite(log_prob):
             print("Non-finite value detected:", like_params, log_prob)
-        print("log prob is", log_prob)
+        if self.verbose:
+            print("log prob is", log_prob)
         return -1.0 * log_prob
 
     # def maximise_posterior(

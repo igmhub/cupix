@@ -28,10 +28,10 @@ class LyaModel(object):
         if self.verbose: print('LyaModel::setup_from_config')
 
         # setup default values for parameters
-        self.default_lya_model = config.get('default_lya_theory', 'best_fit_arinyo_from_p1d')
+        self.default_lya_model = config.get('default_lya_model', 'best_fit_arinyo_from_p1d')
         if 'igm' in self.default_lya_model:
             # default values of mF, T0, gamma and kF_kms
-            self.default_igm_params = self.get_default_igm_params()
+            self.default_igm_params = self.get_default_igm_params(config)
             self.default_lya_params = None
             # setup emulator
             emulator_label = config.get('emulator_label', 'forest_mpg')
@@ -39,21 +39,25 @@ class LyaModel(object):
             self.emulator = self.get_emulator(emulator_label, Nrealizations)
         else:
             # default values of Lya params (bias, beta, arinyo)
-            self.default_lya_params = self.get_default_lya_params()
+            self.default_lya_params = self.get_default_lya_params(config)
             self.default_igm_params = None
             self.emulator = None
 
         return
 
 
-    def get_default_igm_params(self):
+    def get_default_igm_params(self, config):
         # here we should get the default values based on default_lya_model string and z
+        print('FINISH get_default_igm_params')
         igm_params = {'mF': 0.8, 'T0': 1e4, 'gamma': 1.6, 'kF_kms': 0.1}
+        print('use config dictorionary to update values')
         return igm_params
 
 
-    def get_default_lya_params(self):
+    def get_default_lya_params(self, config):
+        if self.verbose: print('LyaModel::get_default_lya_params')
         # here we should get the default values based on default_lya_model string and z
+        print('FINISH get_default_lya_params')
         lya_params = {'bias': -0.12, 'beta': 1.5}
         lya_params['q1'] = 0.5
         lya_params['q2'] = 0.0
@@ -62,6 +66,11 @@ class LyaModel(object):
         # these are in Mpc units
         lya_params['kv_Mpc'] = 0.2
         lya_params['kp_Mpc'] = 10.0
+        # update parameters if present in config
+        for par in lya_params:
+            if par in config:
+                lya_params[par] = config[par]
+
         return lya_params
 
 
