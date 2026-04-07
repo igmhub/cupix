@@ -8,3 +8,4 @@ __pycache__/
 cupix.egg-info
 *.pdf
 data/chi2_scans/*
+*.npz

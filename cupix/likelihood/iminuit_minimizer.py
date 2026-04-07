@@ -4,7 +4,8 @@ from iminuit import Minuit
 import copy
 from cupix.likelihood.likelihood_parameter import par_index, LikelihoodParameter, like_parameter_by_name
 from cupix.likelihood import likelihood
-
+import os
+import cupix
 
 class IminuitMinimizer(object):
     """Wrapper around an iminuit minimizer for Lyman alpha likelihood"""
@@ -63,7 +64,6 @@ class IminuitMinimizer(object):
 
     def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False):
         """Plot best-fit P1D vs data."""
-
         # get best-fit values from minimizer (should check that it was run)
         best_fit_values = np.array(self.minimizer.values)
 
@@ -77,9 +77,12 @@ class IminuitMinimizer(object):
                 if self.verbose:
                     print("best-fit value for", lp.name, "is", lp.value)
 
-        # plt.title("iminuit best fit")
-        # plot_px(self, z, like_params, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None):    
-
+        if title is None:
+            title=f"iminuit best fit for z={self.like.z}"
+        p = self.fit_probability()
+        if theorylabel is None:
+            theorylabel = "Theory"
+        theorylabel += f", p={p}"
         self.like.plot_px(
             like_params=like_params_to_plot,
             every_other_theta=every_other_theta,
@@ -144,10 +147,10 @@ class IminuitMinimizer(object):
             self.set_bestfit_like_params()
         return self.like.fit_probability(self.out_like_params, n_free_p=len(self.free_param_names))
 
-    def chi2(self):
+    def chi2(self, return_all=False):
         if self.out_like_params is None:
             self.set_bestfit_like_params()
-        return self.like.get_chi2(self.out_like_params)
+        return self.like.get_chi2(self.out_like_params, return_all=return_all)
 
     def plot_ellipses(self, pname_x, pname_y, nsig=2, cube_values=False, true_vals=None, true_val_label="true value", xrange=None, yrange=None):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
@@ -164,29 +167,36 @@ class IminuitMinimizer(object):
         # find out best-fit values, errors and covariance for parameters
         val_x = self.minimizer.values[ix]
         val_y = self.minimizer.values[iy]
+        C = np.array([
+            [self.minimizer.covariance[ix, ix],
+            self.minimizer.covariance[ix, iy]],
+            [self.minimizer.covariance[iy, ix],
+            self.minimizer.covariance[iy, iy]]
+        ])
         sig_x = self.minimizer.errors[ix]
         sig_y = self.minimizer.errors[iy]
-        r = self.minimizer.covariance[ix, iy] / sig_x / sig_y
-
+        
         # rescale from cube values (unless asked not to)
         if not cube_values:
             par_x = like_parameter_by_name(self.like_params, pname_x)
-            val_x = par_x.value_from_cube(val_x)
-            sig_x = sig_x * (par_x.max_value - par_x.min_value)
             par_y = like_parameter_by_name(self.like_params, pname_y)
+            scale_x = (par_x.max_value - par_x.min_value)
+            scale_y = (par_y.max_value - par_y.min_value)
+            C[ix, ix] *= scale_x**2
+            C[iy, iy] *= scale_y**2
+            C[ix, iy] *= scale_x * scale_y
+            C[iy, ix] *= scale_x * scale_y
+            val_x = par_x.value_from_cube(val_x)
             val_y = par_y.value_from_cube(val_y)
-            sig_y = sig_y * (par_y.max_value - par_y.min_value)
+            sig_x *= scale_x
+            sig_y *= scale_y
 
         # shape of ellipse from eigenvalue decomposition of covariance
         w, v = LA.eig(
-            np.array(
-                [
-                    [sig_x**2, sig_x * sig_y * r],
-                    [sig_x * sig_y * r, sig_y**2],
-                ]
+            np.array(C
             )
         )
-
+        
         # semi-major and semi-minor axis of ellipse
         a = np.sqrt(w[0])
         b = np.sqrt(w[1])
@@ -232,30 +242,18 @@ class IminuitMinimizer(object):
         plt.axhline(like_parameter_by_name(self.like_params, pname_y).ini_value, color='orange', linestyle='dotted')
         plt.legend()
 
-    def results_dict_2par(self):
+    def results_dict(self):
         """Return dictionary with best-fit results and covariance matrix."""
         results_dict = {}
-        for parname in self.like.free_param_names:
+        for parname in self.free_param_names:
             bestfit, err = self.best_fit_value(parname, return_hesse=True)
             results_dict[parname] = bestfit
             results_dict[parname+'_err'] = err
         covariance = self.minimizer.covariance
         results_dict['cov'] = covariance
-
-        ## save the following for the sake of plotting ellipses:
-        ix = self.like.index_by_name(self.like.free_param_names[0])
-        iy = self.like.index_by_name(self.like.free_param_names[1])
-
-        # find out best-fit values, errors and covariance for parameters
-        sig_x = self.minimizer.errors[ix]
-        sig_y = self.minimizer.errors[iy]
-        r = self.minimizer.covariance[ix, iy] / sig_x / sig_y
-        results_dict['r']=r
-        results_dict['par_x']=parname[0]
-        results_dict['par_y']=parname[1]
         prob = self.fit_probability()
         results_dict['prob'] = prob
-        chi2 = self.get_chi2()
+        chi2 = self.chi2()
         results_dict['chi2'] = chi2
         return results_dict
 
@@ -285,6 +283,16 @@ class IminuitMinimizer(object):
                 like_params_temp.append(par)
 
         return(self.like.minus_log_prob(like_params_temp, self.free_param_names))
+
+    def save_results(self, outfile=None, outpath=None):
+        results_dict = self.results_dict()
+        if outpath is None:
+            repo = os.path.dirname(cupix.__path__[0])
+            outpath = os.path.join(repo, "data", "fitter_results")
+        if outfile is None:
+            outfile = f"iminuit_results.npz"
+        savepath = os.path.join(outpath, outfile)
+        save_analysis_npz(results_dict, filename=savepath)
 
 def save_analysis_npz(results, filename="analysis_results.npz"):
     """

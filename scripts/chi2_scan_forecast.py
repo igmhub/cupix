@@ -17,12 +17,13 @@ cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 
 # --------- fixed settings ---------------
 savepath  = "/pscratch/sd/m/mlokken/desi-lya/px/"
-forecast_file = f"{cupixpath}/data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
+# forecast_file = f"{cupixpath}/data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
+forecast_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
 # "central" uses the central simulation in the training set
 # "random" randomly selects points within the minimum and maximum range of each training parameter
 add_noise = False
 test = False
-grid_density = 32
+grid_density = 16# 32
 
 # ---------- command-line inputs ---------------
 param_mode = sys.argv[1].lower() # "igm" or "arinyo"
@@ -58,7 +59,7 @@ with h5.File(forecast_file, 'r') as f:
     default_theory_label = f['metadata'].attrs['true_lya_theory']
 print(f"Default theory label: {default_theory_label}")
 zs = forecast.z
-iz_choice = 0
+iz_choice = 3
 z_choice  = zs[iz_choice]
 cosmo = {}
 truth_params = {}
