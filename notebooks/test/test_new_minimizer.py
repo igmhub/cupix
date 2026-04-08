@@ -27,10 +27,8 @@ import h5py as h5
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
-#from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.new_likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-#from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 from cupix.likelihood.new_minimizer import IminuitMinimizer
 import cupix
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
@@ -85,7 +83,6 @@ like = Likelihood(data=forecast, theory=theory, iz=iz, verbose=True)
 
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
-free_param_names=['bias', 'q1']
 like_params = []
 like_params.append(LikelihoodParameter(
     name='bias',
@@ -94,7 +91,13 @@ like_params.append(LikelihoodParameter(
     ini_value=-.11,
     value =-.11
     ))
-
+like_params.append(LikelihoodParameter(
+    name='beta',
+    min_value=0.5,
+    max_value=2.5,
+    ini_value=1.5,
+    value =1.5
+    ))
 like_params.append(LikelihoodParameter(
     name='q1',
     min_value=0,
@@ -107,7 +110,7 @@ for par in like_params:
 
 
 # %%
-mini = IminuitMinimizer(like, like_params, free_param_names, verbose=True)
+mini = IminuitMinimizer(like, free_params=like_params, verbose=True)
 
 # %%
 mini.verbose=False
@@ -116,31 +119,25 @@ mini.like.theory.verbose=False
 mini.minimize()
 
 # %%
-#mini.plot_best_fit(multiply_by_k=True, every_other_theta=False, xlim=[-.01, .4], datalabel="Mock Data", show=True)
-
-# %%
-mini.best_fit_value("q1", return_hesse=True), mini.best_fit_value("bias", return_hesse=True)
-
-# %%
-#prob = mini.fit_probability()
-#print("Probability of fit", prob)
-#chi2 = mini.chi2()
-#print("chi2 of fit", chi2)
-
+mini.minimizer
 
 # %%
 true_lya_params
 
 # %%
-mini.set_bestfit_like_params()
-for par in mini.out_like_params:
-    print(par.name, par.value)
+mini.get_best_fit_params()
 
 # %%
-mini.plot_ellipses("bias", "q1", nsig=3, cube_values=False, 
-                   true_vals={'bias':true_lya_params['bias'], 'q1':true_lya_params['q1']}, 
-                   xrange=[-.12, -.11], yrange=[.2,.4])
+chi2 = mini.get_best_fit_chi2()
+print("chi2 of fit", chi2)
 
 # %%
+#mini.plot_best_fit(multiply_by_k=True, every_other_theta=False, xlim=[-.01, .4], datalabel="Mock Data", show=True)
 
 # %%
+mini.get_best_fit_value("q1", return_hesse=True), mini.get_best_fit_value("bias", return_hesse=True)
+
+# %%
+#mini.plot_ellipses("bias", "q1", nsig=3, cube_values=False, 
+#                   true_vals={'bias':true_lya_params['bias'], 'q1':true_lya_params['q1']}, 
+#                   xrange=[-.12, -.11], yrange=[.2,.4])

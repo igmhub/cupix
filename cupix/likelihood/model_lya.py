@@ -75,8 +75,6 @@ class LyaModel(object):
         # update parameters if present in config
         for par in lya_params:
             if par in config:
-                # be loud, since this should be rare for now
-                print('update default Lya param', config[par])
                 lya_params[par] = config[par]
 
         if self.verbose: print('final values', lya_params)
