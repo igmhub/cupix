@@ -497,7 +497,9 @@ class Theory(object):
 
         # pixel smoothing 
         x = x_Mpc * kp_Mpc / 2.0
-        smooth = (np.sin(x)/x)**2
+        smooth = np.ones_like(x)
+        mask = x>0
+        smooth[mask] = (np.sin(x[mask])/x[mask])**2
 
         Px_sky = b_noise_Mpc * np.outer(xi_noise, smooth)
 

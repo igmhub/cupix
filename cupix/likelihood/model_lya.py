@@ -4,7 +4,17 @@ import numpy as np
 # our modules below
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 import forestflow
+from forestflow import priors
 from forestflow.P3D_cINN import P3DEmulator
+
+
+
+def lya_params_from_forestflow_params(ff_params):
+    lya_params = ff_params.copy()
+    lya_params['kp_Mpc'] = lya_params.pop('kp')
+    kvav = lya_params.pop('kvav')
+    lya_params['kv_Mpc'] = np.exp( np.log(kvav) / lya_params['av'] )
+    return lya_params
 
 
 
@@ -56,20 +66,20 @@ class LyaModel(object):
 
     def get_default_lya_params(self, config):
         if self.verbose: print('LyaModel::get_default_lya_params')
-        # here we should get the default values based on default_lya_model string and z
-        print('FINISH get_default_lya_params')
-        lya_params = {'bias': -0.12, 'beta': 1.5}
-        lya_params['q1'] = 0.5
-        lya_params['q2'] = 0.0
-        lya_params['av'] = 0.3
-        lya_params['bv'] = 1.5
-        # these are in Mpc units
-        lya_params['kv_Mpc'] = 0.2
-        lya_params['kp_Mpc'] = 10.0
+
+        prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
+        ff_params = prior_info['mean']
+        if self.verbose: print('initial values', ff_params)
+
+        lya_params = lya_params_from_forestflow_params(ff_params)
         # update parameters if present in config
         for par in lya_params:
             if par in config:
+                # be loud, since this should be rare for now
+                print('update default Lya param', config[par])
                 lya_params[par] = config[par]
+
+        if self.verbose: print('final values', lya_params)
 
         return lya_params
 
@@ -137,20 +147,17 @@ class LyaModel(object):
         emu_params['n_p'] = linP_params['n_p']
 
         # use emulator to estimate Lya params
-        lya_params = self.emulator.predict_Arinyos(emu_params=emu_params)
+        ff_params = self.emulator.predict_Arinyos(emu_params=emu_params)
         if self.verbose:
             print('igm params', igm_params)
             print('emu params', emu_params)
-            print('lya params', lya_params)
+            print('ff params', ff_params)
 
         # we use slightly different names in cupix
-        lya_params['kp_Mpc'] = lya_params.pop('kp')
-        kvav = lya_params.pop('kvav')
-        av = lya_params['av']
-        # kvav = kv^av
-        lya_params['kv_Mpc'] = np.exp( np.log(kvav) / av )
+        lya_params = lya_params_from_forestflow_params(ff_params)
         if self.verbose:
-            print('updated lya params', lya_params)
+            print('lya params', lya_params)
 
         return lya_params
+
 
