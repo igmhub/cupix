@@ -114,7 +114,7 @@ class Likelihood(object):
         return log_like, info
 
 
-    def plot_px(self, params=None, multiply_by_k=True, every_other_theta=False, show=True,
+    def plot_px(self, params={}, multiply_by_k=True, every_other_theta=False, show=True,
                 theorylabel=None, datalabel=None, plot_fname=None,
                 ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False):
         """Plot the Px data and theory."""

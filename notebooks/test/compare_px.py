@@ -46,7 +46,7 @@ from forestflow.pcross import Px_Mpc, Px_Mpc_detailed
 # First, choose a redshift and $k$ range. Initialize an instance of the Arinyo class for this redshift given cosmology calculations from Camb.
 
 # %%
-zs = np.array([2, 2.5])  # set target redshift
+zs = np.array([2.2, 2.6])  # set target redshift
 
 
 # %%
@@ -188,7 +188,8 @@ px_lya = new_theory.get_px_lya_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
 px_lya_hcd = new_theory.get_px_lya_hcd_Mpc(rt_Mpc=rperp, kp_Mpc=kpar, params=new_params)
 
 # %%
-for irt in [0, 50, 70]:
+#for irt in [0, 50, 70, 90]:
+for irt in range(90,100,2):
     plt.semilogx(kpar, px_lya[irt], label='rt = {:.3f} Mpc'.format(rperp[irt]))
     plt.semilogx(kpar, px_lya_hcd[irt], ls=':')
 plt.legend()
@@ -285,8 +286,5 @@ plt.ylabel(r'$P_\times(\theta, q) ~/ ~ P_\times^{\alpha}(\theta, q) $')
 plt.xlabel(r'q [1/AA]')
 plt.title(r'Impact of contamination at z = {:.2f}, $\theta={:.2f}$ arcmin'.format(zs[0], theta_arc))
 plt.savefig('px_cont.png')
-
-# %%
-a=3
 
 # %%

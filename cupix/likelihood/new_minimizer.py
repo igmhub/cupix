@@ -157,7 +157,9 @@ class IminuitMinimizer(object):
             return best_fit_values[ipar]
 
 
-    def plot_ellipses(self, pname_x, pname_y, nsig=2, true_vals=None, true_val_label="true value", xrange=None, yrange=None):
+    def plot_ellipses(self, pname_x, pname_y, nsig=2, 
+                      true_vals=None, true_val_label="true value", 
+                      show_ini_vals=False, xrange=None, yrange=None):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot. """
 
@@ -215,6 +217,7 @@ class IminuitMinimizer(object):
             plt.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
             plt.axhline(true_vals[pname_y], color='grey', linestyle='--')
             
+        # set range of axes
         plt.xlabel(pname_x)
         plt.ylabel(pname_y)
         if xrange==None or yrange==None:
@@ -231,8 +234,12 @@ class IminuitMinimizer(object):
         else:
             plt.ylim(yrange)
             plt.xlim(xrange)
-        plt.axvline(self.ini_values[ix], color='orange', linestyle='dotted', label='ini value')
-        plt.axhline(self.ini_values[iy], color='orange', linestyle='dotted')
+
+        # show initial values (if asked for)
+        if show_ini_vals:
+            plt.axvline(self.ini_values[ix], color='orange', linestyle='dotted', label='ini value')
+            plt.axhline(self.ini_values[iy], color='orange', linestyle='dotted')
+
         plt.legend()
 
 

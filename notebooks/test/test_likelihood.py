@@ -116,7 +116,7 @@ print(old_chi2, new_chi2)
 # %%
 # chi2 scan for bias
 N=20
-bias_arr = np.linspace(-0.120, -0.115, N)
+bias_arr = np.linspace(-0.123, -0.117, N)
 chi2_arr = np.zeros(N)
 new_like.verbose=False
 new_like.theory.verbose=False
@@ -130,7 +130,7 @@ plt.ylabel('chi2');
 # %%
 # chi2 scan for ns
 N=20
-ns_arr = np.linspace(0.90, 1.0, N)
+ns_arr = np.linspace(0.95, 1.1, N)
 chi2_arr = np.zeros(N)
 new_like.verbose=False
 new_like.theory.verbose=False
@@ -205,5 +205,8 @@ old_chi2=old_like.get_chi2(like_params=like_params)
 
 # %%
 print(old_chi2, new_chi2)
+
+# %%
+a=3
 
 # %%
