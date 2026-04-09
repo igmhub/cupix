@@ -36,7 +36,7 @@ from cupix.likelihood.new_minimizer import IminuitMinimizer
 
 # %%
 fname = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-data = DESI_DR2(fname, kM_max_cut_AA=1, km_max_cut_AA=1.2)
+data = DESI_DR2(fname, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=1.5)
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -78,25 +78,9 @@ def plot_z_bin(iz, its_M):
 
 
 # %%
-plot_z_bin(iz=0, its_M=range(5))
-
-# %%
-plot_z_bin(iz=0, its_M=range(5,10))
-
-
-# %%
-def plot_z_bin_two_panels(iz):
-    plt.figure(figsize=(10, 4))
-    plt.subplot(1, 2, 1)
-    plot_z_bin(iz, its_M=range(5))
-    plt.subplot(1, 2, 2)
-    plot_z_bin(iz, its_M=range(5,10))
-    plt.tight_layout(w_pad=3)
-
-
-# %%
 for iz in range(4):
-    plot_z_bin_two_panels(iz=iz)
+    plt.figure(figsize=[8,3])
+    plot_z_bin(iz=iz, its_M=range(Nt_A))
 
 # %% [markdown]
 # ## Step 2: setup theory objects, with and without contaminants (one per z)
@@ -151,7 +135,7 @@ def compare_theta_bin(iz, it_M):
 
 # %%
 # one z, multiple theta
-for it_M in [2, 4, 6, 8]:
+for it_M in range(Nt_A):
     plt.figure()
     compare_theta_bin(iz=2, it_M=it_M)
 
@@ -189,41 +173,110 @@ for par in like_params:
     print(par.name)
 
 # %%
-minis_lya = []
-for iz, z in enumerate(zs):
-    mini = IminuitMinimizer(likes_lya[iz], free_params=like_params, verbose=True)
-    mini.verbose=False
-    mini.like.verbose=False
-    mini.like.theory.verbose=False
-    mini.minimize()
-    minis_lya.append(mini)
+# do this only for one z bin
+fit_iz=1
+mini_lya = IminuitMinimizer(likes_lya[fit_iz], free_params=like_params, verbose=True)
+mini_cont = IminuitMinimizer(likes_cont[fit_iz], free_params=like_params, verbose=True)
 
 # %%
-minis_cont = []
-for iz, z in enumerate(zs):
-    mini = IminuitMinimizer(likes_cont[iz], free_params=like_params, verbose=True)
-    mini.verbose=False
-    mini.like.verbose=False
-    mini.like.theory.verbose=False
-    mini.minimize()
-    minis_cont.append(mini)
+mini_lya.silence()
+mini_lya.minimize()
 
 # %%
-for iz, z in enumerate(zs):
-    print('z = ', z)
-    mini = minis_lya[iz]
-    print(mini.minimizer)
+mini_cont.silence()
+mini_cont.minimize()
 
 # %%
-for iz, z in enumerate(zs):
-    print('z = ', z)
-    mini = minis_cont[iz]
-    print(mini.minimizer)
+# number of data points (per z bin)
+Ndp = Nt_A * Nk_M
+chi2_lya = mini_lya.get_best_fit_chi2()
+chi2_cont = mini_cont.get_best_fit_chi2()
+print(Ndp, chi2_lya, chi2_cont)
+
+# %% [markdown]
+# ## Step 5: fit for contaminants
 
 # %%
-for iz, z in enumerate(zs):
-    chi2_lya = minis_lya[iz].get_best_fit_chi2()
-    chi2_cont = minis_cont[iz].get_best_fit_chi2()
-    print(z, chi2_lya, chi2_cont)
+print('HCD', mini_cont.like.theory.cont_model.default_hcd_params)
+print('Metal', mini_cont.like.theory.cont_model.default_metal_params)
+print('Sky', mini_cont.like.theory.cont_model.default_sky_params)
+print('Cont', mini_cont.like.theory.cont_model.default_continuum_params)
+
+# %%
+# set the likelihood parameters as the Arinyo params with some fiducial values
+like_params = []
+free_b_H=False
+free_b_X=True
+free_b_noise_Mpc=False
+free_kC_Mpc=False
+like_params.append(LikelihoodParameter(
+    name='bias',
+    min_value=-.5,
+    max_value=-.05,
+    ini_value=-.15,
+    value =-.15
+    ))
+like_params.append(LikelihoodParameter(
+    name='beta',
+    min_value=0.5,
+    max_value=2.5,
+    ini_value=1.5,
+    value =1.5
+    ))
+if free_b_H:
+    like_params.append(LikelihoodParameter(
+        name='b_H',
+        min_value=-0.1,
+        max_value=-0.0,
+        ini_value=-0.02,
+        value = -0.02
+        ))
+if free_b_X:
+    like_params.append(LikelihoodParameter(
+        name='b_X',
+        min_value=-0.1,
+        max_value=-0.0,
+        ini_value=-0.01,
+        value = -0.01
+        ))
+if free_b_noise_Mpc:
+    like_params.append(LikelihoodParameter(
+        name='b_noise_Mpc',
+        min_value=1e-4,
+        max_value=1e-1,
+        ini_value=0.01,
+        value = 0.01
+        ))
+if free_kC_Mpc:
+    like_params.append(LikelihoodParameter(
+        name='kCb_Mpc',
+        min_value=1e-3,
+        max_value=1e-1,
+        ini_value=0.01,
+        value = 0.01
+        ))    
+for par in like_params:
+    print(par.name)
+
+# %%
+mini = IminuitMinimizer(likes_cont[fit_iz], free_params=like_params, verbose=True)
+
+# %%
+mini.silence()
+mini.minimize()
+
+# %%
+mini.get_best_fit_chi2()
+
+# %%
+mini.plot_ellipses(pname_x='bias', pname_y='beta', nsig=2)
+
+# %%
+mini.plot_ellipses(pname_x='bias', pname_y='b_X', nsig=2)
+
+# %%
+mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, xlim=[-.01, .6], datalabel="DR2 (z = {})".format(zs[fit_iz]), show=True)
+
+# %%
 
 # %%
