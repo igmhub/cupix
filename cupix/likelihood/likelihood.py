@@ -266,18 +266,17 @@ class Likelihood(object):
         z (int or np.ndarray): index of redshift to plot, or array or indices
         every_other_theta (bool): if True, plots only half the theta bins
         """
-        
+
         plt.rcParams.update({'font.size': 20})
         # plot all theta on one, easily distinguishable colors
         colors = plt.cm.tab10(np.linspace(0,1,len(self.data.theta_min_A_arcmin)))
         fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
-        
+
         skip = 1
         if every_other_theta:
             skip = 2
         
         theory = self.get_convolved_Px_AA(np.arange(len(self.data.theta_min_A_arcmin)),like_params)
-    
         k = (self.data.k_M_edges[self.data_iz][:-1]+self.data.k_M_edges[self.data_iz][1:])/2.
         if multiply_by_k:
             factor = k
@@ -305,7 +304,6 @@ class Likelihood(object):
         ax[1].axhline(0, color='black', linestyle='dashed', linewidth=1)
         ax[1].set_xlabel(r'$k [\AA^{-1}]$')
         ax[0].set_ylabel(ylabel)
-        
         ax[1].set_ylabel(f'(Data-Theory)/{divname}')
         # ax[1].legend()
         if ylim2 is None:
