@@ -113,3 +113,84 @@ class Likelihood(object):
 
         return log_like, info
 
+
+    def plot_px(self, params=None, multiply_by_k=True, every_other_theta=False, show=True,
+                theorylabel=None, datalabel=None, plot_fname=None,
+                ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False):
+        """Plot the Px data and theory."""
+        import matplotlib.pyplot as plt
+        import matplotlib.lines as mlines
+
+        # get theory prediction
+        model_px = self.get_convolved_px(params=params)
+        Nt_A, Nk_M = model_px.shape
+
+        # plot all theta on one, easily distinguishable colors
+        plt.rcParams.update({'font.size': 20})
+        colors = plt.cm.tab10(np.linspace(0, 1, Nt_A))
+        fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
+        skip = 1
+        if every_other_theta:
+            skip = 2
+
+        # central value of k bins
+        k_M = (self.data.k_M_edges[self.iz][:-1] + self.data.k_M_edges[self.iz][1:])/2.
+        if multiply_by_k:
+            factor = k_M
+            ylabel = r'$k P_\times$'
+        else:
+            factor = 1.0
+            ylabel = r'$P_\times$ [$\AA$]'
+
+        # loop over theta bins (skipping some if needed)
+        for it_A in range(0, Nt_A, skip):
+            label = r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[it_A])
+            errors = np.diag(np.squeeze(self.data.cov_ZAM[self.iz, it_A, :, :]))**0.5
+            div = errors
+            divname = 'errors'
+            ax[0].errorbar(k_M, self.data.Px_ZAM[self.iz, it_A, :]*factor, errors*factor, label=label, color=colors[it_A], linestyle='none', marker='^', markersize=5)
+            theory_iA = model_px[it_A]
+            if residual_to_theory:
+                div = theory_iA
+                divname = 'theory'
+
+            ax[0].plot(k_M, theory_iA*factor, color=colors[it_A], linewidth=2)
+            ax[1].set_xlabel(r'$k [\AA^{-1}]$')
+            ax[1].plot(k_M, (self.data.Px_ZAM[self.iz, it_A, :] - theory_iA)/div, color=colors[it_A], marker='o', linestyle='none')
+
+        # if more than 1 z plotted, add custom legend for the redshifts: "--, square: z=.., -., diamond: z=.." etc
+        ax[0].legend()
+        handles, labels = ax[0].get_legend_handles_labels()
+        ax[1].axhline(0, color='black', linestyle='dashed', linewidth=1)
+        ax[1].set_xlabel(r'$k [\AA^{-1}]$')
+        ax[0].set_ylabel(ylabel)
+        ax[1].set_ylabel(f'(Data-Theory)/{divname}')
+        # ax[1].legend()
+
+        # set range limits
+        if ylim2 is None:
+            ax[1].set_ylim([-3,3])
+        else:
+            ax[1].set_ylim(ylim2)
+        if ylim is not None:
+            ax[0].set_ylim(ylim)
+        if xlim is not None:
+            ax[1].set_xlim(xlim)
+
+        if theorylabel is None:
+            theorylabel = 'Theory prediction, windowed'
+        if datalabel is None:
+            datalabel='Data'
+        if title is not None:
+            plt.suptitle(title)
+
+        handles.append(plt.Line2D([], [], color='black', linestyle='solid', label=theorylabel))
+        handles.append(plt.Line2D([], [], color='black', marker='o', linestyle='none', label=datalabel))
+        ax[0].legend(handles=handles, loc='upper right', fontsize='small')
+        if plot_fname is not None:
+            plt.savefig(plot_fname + ".pdf")
+            plt.savefig(plot_fname + ".png")
+        else:
+            if show:
+                plt.show()
+        return

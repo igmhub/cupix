@@ -42,6 +42,14 @@ class IminuitMinimizer(object):
         # self.minimizer.errors = error
 
 
+    def silence(self):
+        """set verbose=False in all classes"""
+        self.verbose=False
+        self.like.verbose=False
+        self.like.theory.verbose=False
+        return
+
+
     def get_params_dict_from_values(self, values):
         """Given array of floats, construct params dictionary"""
 
@@ -87,20 +95,23 @@ class IminuitMinimizer(object):
             self.minimizer.hesse()
 
 
-    def minimize_if_needed(self, compute_hesse=True):
+    def _minimize_if_needed(self, compute_hesse=True):
         """Check that we have computed the best fit already"""
 
         if self.minimizer.valid == False:
             self.minimize(compute_hesse=compute_hesse)
         else:
             if self.verbose: print('already minimized')
+            if self.minimizer.covariance is None and compute_hesse == True:
+                if self.verbose: print('compute Hessian')
+                self.minimizer.hesse()
 
 
     def get_best_fit_params(self):
         """Run minimizer if needed, return dictionary"""
 
         # make sure you have run the minimizer
-        self.minimize_if_needed(compute_hesse=False)
+        self._minimize_if_needed(compute_hesse=False)
 
         # get best-fit values from minimizer (should check this is really the best-fit)
         best_fit_values = self.minimizer.values 
@@ -126,7 +137,7 @@ class IminuitMinimizer(object):
         - return_hess: set to true to return also Gaussian error"""
 
         # make sure you have run the minimizer
-        self.minimize_if_needed(compute_hesse=return_hesse)
+        self._minimize_if_needed(compute_hesse=return_hesse)
 
         # get index for this parameter
         ipar = self.free_param_names.index(pname)
@@ -146,60 +157,15 @@ class IminuitMinimizer(object):
             return best_fit_values[ipar]
 
 
-
-
-
-
-    def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, theorylabel=None, datalabel=None, plot_fname=None, ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False):
-        """Plot best-fit P1D vs data."""
-
-        print('FINISH')
-        exit()
-
-
-        # get best-fit values from minimizer (should check that it was run)
-        best_fit_values = np.array(self.minimizer.values)
-
-        like_params_to_plot = copy.deepcopy(self.like_params)
-        for i, lp in enumerate(like_params_to_plot):
-            if lp.name in self.free_param_names:
-                
-                
-                index = self.free_param_names.index(lp.name)
-                lp.value = lp.value_from_cube(best_fit_values[index])
-                if self.verbose:
-                    print("best-fit value for", lp.name, "is", lp.value)
-
-        self.like.plot_px(
-            like_params=like_params_to_plot,
-            every_other_theta=every_other_theta,
-            multiply_by_k=multiply_by_k,
-            xlim=xlim,
-            ylim=ylim,
-            show=show,
-            theorylabel=theorylabel,
-            datalabel=datalabel,
-            plot_fname=plot_fname,
-            ylim2=ylim2,
-            title=title,
-            residual_to_theory=residual_to_theory
-        )
-
-        return
-
-
-
-    def plot_ellipses(self, pname_x, pname_y, nsig=2, cube_values=False, true_vals=None, true_val_label="true value", xrange=None, yrange=None):
+    def plot_ellipses(self, pname_x, pname_y, nsig=2, true_vals=None, true_val_label="true value", xrange=None, yrange=None):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
-        - nsig: number of sigma contours to plot
-        - cube_values: if True, will use unit cube values."""
+        - nsig: number of sigma contours to plot. """
 
         from matplotlib.patches import Ellipse
         from numpy import linalg as LA
 
-
-        print('FINISH')
-        exit()
+        # make sure you have run the minimizer
+        self._minimize_if_needed(compute_hesse=True)
 
         # figure out order of parameters in free parameters list
         ix = self.free_param_names.index(pname_x)
@@ -211,15 +177,6 @@ class IminuitMinimizer(object):
         sig_x = self.minimizer.errors[ix]
         sig_y = self.minimizer.errors[iy]
         r = self.minimizer.covariance[ix, iy] / sig_x / sig_y
-
-        # rescale from cube values (unless asked not to)
-        if not cube_values:
-            par_x = like_parameter_by_name(self.like_params, pname_x)
-            val_x = par_x.value_from_cube(val_x)
-            sig_x = sig_x * (par_x.max_value - par_x.min_value)
-            par_y = like_parameter_by_name(self.like_params, pname_y)
-            val_y = par_y.value_from_cube(val_y)
-            sig_y = sig_y * (par_y.max_value - par_y.min_value)
 
         # shape of ellipse from eigenvalue decomposition of covariance
         w, v = LA.eig(
@@ -234,7 +191,8 @@ class IminuitMinimizer(object):
         # semi-major and semi-minor axis of ellipse
         a = np.sqrt(w[0])
         b = np.sqrt(w[1])
-        print("a, b", a, b)
+        if self.verbose: print("Ellipse has a, b =", a, b)
+
         # figure out inclination angle of ellipse
         alpha = np.arccos(v[0, 0])
         if v[1, 0] < 0:
@@ -250,6 +208,7 @@ class IminuitMinimizer(object):
             )
             ell.set_alpha(0.6 / isig)
             fig.add_artist(ell)
+
         # plot a marker at the central value
         plt.plot(val_x, val_y, "ro", label="best fit")
         if true_vals is not None:
@@ -272,9 +231,37 @@ class IminuitMinimizer(object):
         else:
             plt.ylim(yrange)
             plt.xlim(xrange)
-        plt.axvline(like_parameter_by_name(self.like_params, pname_x).ini_value, color='orange', linestyle='dotted', label='ini value')
-        plt.axhline(like_parameter_by_name(self.like_params, pname_y).ini_value, color='orange', linestyle='dotted')
+        plt.axvline(self.ini_values[ix], color='orange', linestyle='dotted', label='ini value')
+        plt.axhline(self.ini_values[iy], color='orange', linestyle='dotted')
         plt.legend()
+
+
+    def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, 
+                      theorylabel=None, datalabel=None, plot_fname=None, 
+                      ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False):
+        """Plot best-fit PX vs data."""
+
+        # obtain dictionary of best-fit parameters (will minimize if needed)
+        best_fit_params = self.get_best_fit_params()
+
+        # use plotting tool in likelihood object to plot data and theory
+        self.like.plot_px(
+            params=best_fit_params,
+            every_other_theta=every_other_theta,
+            multiply_by_k=multiply_by_k,
+            xlim=xlim,
+            ylim=ylim,
+            show=show,
+            theorylabel=theorylabel,
+            datalabel=datalabel,
+            plot_fname=plot_fname,
+            ylim2=ylim2,
+            title=title,
+            residual_to_theory=residual_to_theory
+        )
+
+        return
+
 
 
     def results_dict_2par(self):

@@ -1,7 +1,6 @@
 import copy
 import numpy as np
 
-# our modules below
 
 
 class ContaminantsModel(object):
