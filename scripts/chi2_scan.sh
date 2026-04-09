@@ -11,5 +11,4 @@
 
 module load python
 conda activate cupix
-cd $PSCRATCH/desi-lya/px/
-srun -n 128 -c 1 /global/common/software/desi/users/mlokken/cupix/scripts/chi2_scan_mock.py arinyo tight bias beta
+srun -n 64 -c 1 python /global/common/software/desi/users/mlokken/cupix/scripts/chi2_scan_mock.py arinyo tight all bias beta

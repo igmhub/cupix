@@ -24,7 +24,7 @@ class IminuitMinimizer(object):
                 if lpar.name == par:
                     free_params.append(lpar)
         assert len(self.free_param_names)==len(free_params), "Couldn't find all desired free parameters in like_params"
-        print("Free params are", free_params)
+        print("Free params are", free_param_names)
         ini_values = np.full(len(self.free_param_names), 0.5)
         for i,par in enumerate(free_params):
             if par.ini_value is not None:
@@ -292,6 +292,7 @@ class IminuitMinimizer(object):
         if outfile is None:
             outfile = f"iminuit_results.npz"
         savepath = os.path.join(outpath, outfile)
+        print("Saving results to", savepath)
         save_analysis_npz(results_dict, filename=savepath)
 
 def save_analysis_npz(results, filename="analysis_results.npz"):
@@ -310,3 +311,59 @@ def save_analysis_npz(results, filename="analysis_results.npz"):
     # Save each dict as an object
     np.savez(filename, **out, allow_pickle=True)
 
+def plot_ellipses(val_x, val_y, pname_x, pname_y, sig_x, sig_y, cov, nsig=2, true_vals=None, true_val_label="true value", xrange=None, yrange=None):
+        """Plot Gaussian contours for parameters (pname_x,pname_y)
+        - nsig: number of sigma contours to plot
+        - cube_values: if True, will use unit cube values."""
+
+        from matplotlib.patches import Ellipse
+        from numpy import linalg as LA
+        
+        # shape of ellipse from eigenvalue decomposition of covariance
+        w, v = LA.eig(
+            np.array(cov
+            )
+        )
+        
+        # semi-major and semi-minor axis of ellipse
+        a = np.sqrt(w[0])
+        b = np.sqrt(w[1])
+
+        # figure out inclination angle of ellipse
+        alpha = np.arccos(v[0, 0])
+        if v[1, 0] < 0:
+            alpha = -alpha
+        # compute angle in degrees (expected by matplotlib)
+        alpha_deg = alpha * 180 / np.pi
+
+        # make plot
+        fig = plt.subplot(111)
+        for isig in range(1, nsig + 1):
+            ell = Ellipse(
+                (val_x, val_y), 2 * isig * a, 2 * isig * b, angle=alpha_deg
+            )
+            ell.set_alpha(0.6 / isig)
+            fig.add_artist(ell)
+        # plot a marker at the central value
+        plt.plot(val_x, val_y, "ro", label="best fit")
+        if true_vals is not None:
+            plt.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
+            plt.axhline(true_vals[pname_y], color='grey', linestyle='--')
+            
+        plt.xlabel(pname_x)
+        plt.ylabel(pname_y)
+        if xrange==None or yrange==None:
+            if true_vals is None:
+                plt.xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
+                plt.ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
+            else:
+                minx = min(val_x - (nsig + 1) * sig_x, true_vals[pname_x]-.1*abs(true_vals[pname_x]))
+                maxx = max(val_x + (nsig + 1) * sig_x, true_vals[pname_x]+.1*abs(true_vals[pname_x]))
+                miny = min(val_y - (nsig + 1) * sig_y, true_vals[pname_y]-.1*abs(true_vals[pname_y]))
+                maxy = max(val_y + (nsig + 1) * sig_y, true_vals[pname_y]+.1*abs(true_vals[pname_y]))
+                plt.ylim([miny,maxy])
+                plt.xlim([minx,maxx])
+        else:
+            plt.ylim(yrange)
+            plt.xlim(xrange)
+        plt.legend()

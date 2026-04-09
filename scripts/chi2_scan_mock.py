@@ -1,4 +1,4 @@
-# Run a chi2 scan for a given set of parameters, using the forecast data.
+# Run a chi2 scan for a given set of parameters, using the mock data.
 import numpy as np
 import sys
 from cupix.likelihood.likelihood import Likelihood
@@ -29,7 +29,7 @@ cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # --------- fixed settings ---------------
 savepath  = "/pscratch/sd/m/mlokken/desi-lya/px/"
 # forecast_file = f"{cupixpath}/data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
-forecast_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+mock_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
 # "central" uses the central simulation in the training set
 # "random" randomly selects points within the minimum and maximum range of each training parameter
 add_noise = False
@@ -39,11 +39,12 @@ grid_density = 128
 # ---------- command-line inputs ---------------
 param_mode = sys.argv[1].lower() # "igm" or "arinyo"
 param_range = sys.argv[2].lower() # use the full parameter space of the Gadget simulations ('broad') or small user-defined ranges ('tight')?
+iz_choice = sys.argv[3] # which redshift bin to use for the chi2 scan? (0, 1, 2, 3, or 'all')
 if param_mode == 'Arinyo':
     param_mode = 'arinyo'
 pars_to_test = []
-for par in sys.argv[3:]:
-    pars_to_test.append(par)   
+for par in sys.argv[4:]:
+    pars_to_test.append(par)
 # -------------------------- --------------------------
 print("Testing", pars_to_test)
 assert param_range in ['tight','broad'], "Parameter range argument not supported"
@@ -63,131 +64,136 @@ if param_mode == "igm":
 elif param_mode == "arinyo":
     pars = arinyo_pars
 
+if type(iz_choice) == str and iz_choice.lower() == 'all':
+    iz_choice = [0, 1, 2, 3]
+else:
+    iz_choice = [int(iz_choice)]
 
-
-##### Get the truth from forecast file ######
-forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
+##### Get the truth from mock file ######
+mock = DESI_DR2(mock_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 # get theory
-zs = forecast.z
-iz_choice = 3
-z_choice  = zs[iz_choice]
+zs = mock.z
 theory = Theory(zs, cosmo_dict=None, default_lya_theory='best_fit_arinyo_from_colore', emulator_label="forestflow_emu", verbose=False)
+for iz in iz_choice:
+    z_choice  = zs[iz]
+ 
+    ###############################################
+    ## set the ranges ##
+    
+    ranges_dict = {"beta":[theory.default_param_dict[f'beta_{iz}']-.2, theory.default_param_dict[f'beta_{iz}']+.2], "bias":[theory.default_param_dict[f'bias_{iz}']-.02, theory.default_param_dict[f'bias_{iz}']+.02], "q1":[0.15,0.45], "mF":[0.8,0.83], "T0":[8000,12000], "gamma":[1.2,1.9]} # can input the ranges manually here
+    print(ranges_dict)
+    like = Likelihood(mock, theory, z=z_choice, verbose=False)
 
-###############################################
-## set the ranges ##
-ranges_dict = {"beta":[1.2,2.0], "bias":[-0.2,-0.1], "q1":[0.15,0.45], "mF":[0.8,0.83], "T0":[8000,12000], "gamma":[1.2,1.9]} # can input the ranges manually here
-like = Likelihood(forecast, theory, z=z_choice, verbose=False)
+    ranges = []
+    if param_range=='broad':
+        for par_to_test in pars_to_test:
+            # get the min/ max values of parameters from the training simulations
+            gadget_short_info_file = cupixpath + '/data/emulator/ff_training_info.csv'
+            train_test_info = pd.read_csv(gadget_short_info_file)
+            train_test_z = np.where(abs(z_choice-train_test_info["z"])<.2)[0][0]
+            min_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_min']
+            max_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_max']
+            ranges.append(np.linspace(min_par_val, max_par_val, grid_density))
+    elif param_range=='tight':
+        for par_to_test in pars_to_test:
+            print(par_to_test)
+            if par_to_test in ranges_dict.keys():
+                print(par_to_test, ranges_dict[par_to_test][0], ranges_dict[par_to_test][1])
+                ranges.append(np.linspace(ranges_dict[par_to_test][0], ranges_dict[par_to_test][1], grid_density))
+            else:
+                sys.exit(f"Error: no ranges dictionary specified for {par_to_test}.")
+    ################################################
+    ## Set up grid for chi2 scan
+    if rank == 0:
+        # Only rank 0 creates the full grid
+        grid = np.meshgrid(*ranges, indexing='ij')
+        points = np.stack(grid, axis=-1).reshape(-1, len(pars_to_test))
+        N = len(points)
+        print("total points =", N)
+    else:
+        points = None
+        N = None
 
-ranges = []
-if param_range=='broad':
-    for par_to_test in pars_to_test:
-        # get the min/ max values of parameters from the training simulations
-        gadget_short_info_file = cupixpath + '/data/emulator/ff_training_info.csv'
-        train_test_info = pd.read_csv(gadget_short_info_file)
-        train_test_z = np.where(abs(z_choice-train_test_info["z"])<.2)[0][0]
-        min_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_min']
-        max_par_val = train_test_info.iloc[train_test_z][f'{par_to_test}_max']
-        ranges.append(np.linspace(min_par_val, max_par_val, grid_density))
-elif param_range=='tight':
-    for par_to_test in pars_to_test:
-        print(par_to_test)
-        if par_to_test in ranges_dict.keys():
-            print(par_to_test, ranges_dict[par_to_test][0], ranges_dict[par_to_test][1])
-            ranges.append(np.linspace(ranges_dict[par_to_test][0], ranges_dict[par_to_test][1], grid_density))
-        else:
-            sys.exit(f"Error: no ranges dictionary specified for {par_to_test}.")
-################################################
-## Set up grid for chi2 scan
-if rank == 0:
-    # Only rank 0 creates the full grid
-    grid = np.meshgrid(*ranges, indexing='ij')
-    points = np.stack(grid, axis=-1).reshape(-1, len(pars_to_test))
-    N = len(points)
-    print("total points =", N)
-else:
-    points = None
-    N = None
+    # Broadcast the total number of points to all ranks
+    N = comm.bcast(N, root=0)
 
-# Broadcast the total number of points to all ranks
-N = comm.bcast(N, root=0)
+    # Scatter points evenly to all ranks
+    # Calculate counts per rank
+    counts = [(N // size) + (1 if i < N % size else 0) for i in range(size)]
+    starts = [sum(counts[:i]) for i in range(size)]
+    my_count = counts[rank]
+    my_start = starts[rank]
 
-# Scatter points evenly to all ranks
-# Calculate counts per rank
-counts = [(N // size) + (1 if i < N % size else 0) for i in range(size)]
-starts = [sum(counts[:i]) for i in range(size)]
-my_count = counts[rank]
-my_start = starts[rank]
-
-# Rank 0 sends points to others
-if rank == 0:
-    for i in range(1, size):
-        comm.Send(points[starts[i]:starts[i]+counts[i]], dest=i, tag=77)
-    my_points = points[:counts[0]]
-else:
-    my_points = np.empty((my_count, len(pars_to_test)), dtype=float)
-    comm.Recv(my_points, source=0, tag=77)
-
-
-# my_points should have shape: (N_total_points, npars)
-# Each rank computes chi2 on its subset
-pars_to_test_iz = [par+f"_{iz_choice}" for par in pars_to_test]
-my_chi2 = np.array([compute_chi2(p, pars_to_test_iz, like) for p in my_points])
+    # Rank 0 sends points to others
+    if rank == 0:
+        for i in range(1, size):
+            comm.Send(points[starts[i]:starts[i]+counts[i]], dest=i, tag=77)
+        my_points = points[:counts[0]]
+    else:
+        my_points = np.empty((my_count, len(pars_to_test)), dtype=float)
+        comm.Recv(my_points, source=0, tag=77)
 
 
-# Gather all results to rank 0
-if rank == 0:
-    chi2_save = np.empty(N, dtype=float)
-else:
-    chi2_save = None
-
-comm.Gatherv(sendbuf=my_chi2,
-                recvbuf=(chi2_save, counts, starts, MPI.DOUBLE),
-                root=0)
-if rank==0:
-    chi2_save = np.array(chi2_save)
-
-    # reshape chi2 back to grid shape
-    chi2_grid = chi2_save.reshape(grid[0].shape)
-    min_chi2 = np.amin(chi2_grid)
-    fig, ax = plt.subplots()
-
-    # plot
-    if len(pars_to_test)==1:
-        x_ = grid[0]
-        ax.plot(x_, chi2_grid-min_chi2)
-        ax.set_xlabel(pars_to_test[0])
-        ax.set_ylabel(r'$\Delta \chi^2$')
-        ax.legend()
-        plt.savefig(f"{savepath}/plots/chi2_scans/chi2_{pars_to_test[0]}_mock")
-
-    elif len(pars_to_test)==2:
-        x_ = grid[0]
-        y_ = grid[1]
-
-        ndof = len(pars_to_test)
-        cs = ax.contourf(x_, y_, chi2_grid-min_chi2, levels=[2.30, 6.17, 11.8], cmap=plt.cm.bone)
-        ax.set_xlabel(pars_to_test[0])
-        ax.set_ylabel(pars_to_test[1])
-        cbar = fig.colorbar(cs)
-        cbar.set_label(r'$\Delta \chi^2$')
-        plt.savefig(f"{savepath}/plots/chi2_scans/chi2_{pars_to_test[0]}_{pars_to_test[1]}_mock")
+    # my_points should have shape: (N_total_points, npars)
+    # Each rank computes chi2 on its subset
+    pars_to_test_iz = [par+f"_{iz_choice}" for par in pars_to_test]
+    my_chi2 = np.array([compute_chi2(p, pars_to_test_iz, like) for p in my_points])
 
 
-    np.savez(f"{savepath}/data/chi2_scans/chi2_{pars_to_test[0]}_mock", chi2=chi2_grid, forecast_file=forecast_file)
+    # Gather all results to rank 0
+    if rank == 0:
+        chi2_save = np.empty(N, dtype=float)
+    else:
+        chi2_save = None
+
+    comm.Gatherv(sendbuf=my_chi2,
+                    recvbuf=(chi2_save, counts, starts, MPI.DOUBLE),
+                    root=0)
+    if rank==0:
+        chi2_save = np.array(chi2_save)
+
+        # reshape chi2 back to grid shape
+        chi2_grid = chi2_save.reshape(grid[0].shape)
+        min_chi2 = np.amin(chi2_grid)
+        fig, ax = plt.subplots()
+
+        # plot
+        if len(pars_to_test)==1:
+            x_ = grid[0]
+            ax.plot(x_, chi2_grid-min_chi2)
+            ax.set_xlabel(pars_to_test[0])
+            ax.set_ylabel(r'$\Delta \chi^2$')
+            ax.legend()
+            plt.savefig(f"{savepath}/plots/chi2_scans/chi2_{pars_to_test[0]}_mock_{z_choice:.1f}.pdf")
+
+        elif len(pars_to_test)==2:
+            x_ = grid[0]
+            y_ = grid[1]
+
+            ndof = len(pars_to_test)
+            cs = ax.contourf(x_, y_, chi2_grid-min_chi2, levels=[2.30, 6.17, 11.8], cmap=plt.cm.bone)
+            ax.set_xlabel(pars_to_test[0])
+            ax.set_ylabel(pars_to_test[1])
+            cbar = fig.colorbar(cs)
+            cbar.set_label(r'$\Delta \chi^2$')
+            plt.savefig(f"{savepath}/plots/chi2_scans/chi2_{pars_to_test[0]}_{pars_to_test[1]}_mock_{z_choice:.1f}.pdf")
 
 
-# work-in-progress for higher dimensions
+        np.savez(f"{savepath}/data/chi2_scans/chi2_{pars_to_test[0]}_mock_{z_choice:.1f}.npz", chi2=chi2_grid, mock_file=mock_file)
 
-# plot every parameter combination
-# pairs = list(combinations(pars_to_test, 2))
-# print("Will plot parameter combos", pairs)
 
-# Add the contour line levels to the colorbar
+    # work-in-progress for higher dimensions
 
-# print("chi2 shape", chi2_grid.shape)
-# for pair in pairs:
-#     mesh_loc_x = pars_to_test.index(pair[0])
-#     mesh_loc_y = pars_to_test.index(pair[1])
-#     x_ = grid[mesh_loc_x]
-#     y_ = grid[mesh_loc_y]
-#     plt.contour(x_, y_, chi2_grid)
+    # plot every parameter combination
+    # pairs = list(combinations(pars_to_test, 2))
+    # print("Will plot parameter combos", pairs)
+
+    # Add the contour line levels to the colorbar
+
+    # print("chi2 shape", chi2_grid.shape)
+    # for pair in pairs:
+    #     mesh_loc_x = pars_to_test.index(pair[0])
+    #     mesh_loc_y = pars_to_test.index(pair[1])
+    #     x_ = grid[mesh_loc_x]
+    #     y_ = grid[mesh_loc_y]
+    #     plt.contour(x_, y_, chi2_grid)

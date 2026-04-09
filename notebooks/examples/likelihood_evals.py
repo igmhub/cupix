@@ -176,7 +176,7 @@ for i in range(len(par_vals)):
         best = par_vals[i]
         print(f"New best fit found with chi2={chi2_i} at mF={best}")
         best_chi2 = chi2_i
-    
+
 
 # %%
 par_i = par_index(like_params, par_to_test)
