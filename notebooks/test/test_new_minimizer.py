@@ -113,9 +113,7 @@ for par in like_params:
 mini = IminuitMinimizer(like, free_params=like_params, verbose=True)
 
 # %%
-mini.verbose=False
-mini.like.verbose=False
-mini.like.theory.verbose=False
+mini.silence()
 mini.minimize()
 
 # %%
@@ -132,12 +130,21 @@ chi2 = mini.get_best_fit_chi2()
 print("chi2 of fit", chi2)
 
 # %%
-#mini.plot_best_fit(multiply_by_k=True, every_other_theta=False, xlim=[-.01, .4], datalabel="Mock Data", show=True)
+mini.plot_best_fit(multiply_by_k=False, every_other_theta=True, xlim=[-.01, .4], datalabel="Mock Data", show=True)
 
 # %%
 mini.get_best_fit_value("q1", return_hesse=True), mini.get_best_fit_value("bias", return_hesse=True)
 
+
 # %%
-#mini.plot_ellipses("bias", "q1", nsig=3, cube_values=False, 
-#                   true_vals={'bias':true_lya_params['bias'], 'q1':true_lya_params['q1']}, 
-#                   xrange=[-.12, -.11], yrange=[.2,.4])
+def plot_ellipses(pname_x, pname_y):
+    mini.plot_ellipses(pname_x, pname_y, nsig=3, true_vals={pname_x: true_lya_params[pname_x], pname_y: true_lya_params[pname_y]}) 
+
+
+# %%
+plot_ellipses('bias','beta')
+
+# %%
+plot_ellipses('bias','q1')
+
+# %%
