@@ -35,12 +35,24 @@ class ContaminantsModel(object):
         # here we should get the default values based on the config and z
         # L_H in Mpc, not Mpc/h
         hcd_params = {'b_H': -0.02, 'beta_H': 0.5, 'L_H_Mpc': 5.0/0.67}
+
+        # update parameters if present in config
+        for par in hcd_params:
+            if par in config:
+                hcd_params[par] = config[par]
+
         return hcd_params
 
 
     def get_default_metal_params(self, config):
         # here we should get the default values based on the config and z
         metal_params = {'b_X': -0.005, 'beta_X': 0.5}
+
+        # update parameters if present in config
+        for par in metal_params:
+            if par in config:
+                metal_params[par] = config[par]
+
         return metal_params
 
 
@@ -50,12 +62,24 @@ class ContaminantsModel(object):
         # b_noise here in Mpc, not Mpc/h
         Delta_rp = 4 / 0.67
         sky_params = {'b_noise_Mpc': a_noise * Delta_rp}
+
+        # update parameters if present in config
+        for par in sky_params:
+            if par in config:
+                sky_params[par] = config[par]
+
         return sky_params
 
 
     def get_default_continuum_params(self, config):
         # here we should get the default values based on the config and z
         continuum_params = {'kC_Mpc': 0.02 * 0.67, 'pC': 1}
+
+        # update parameters if present in config
+        for par in continuum_params:
+            if par in config:
+                continuum_params[par] = config[par]
+
         return continuum_params
 
 
