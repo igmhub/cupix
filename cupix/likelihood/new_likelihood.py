@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
+from scipy.stats.distributions import chi2 as chi2_scipy
 
 class Likelihood(object):
     """Likelihood class, holds data, theory, and knows about parameters"""
@@ -86,6 +87,21 @@ class Likelihood(object):
         else:
             return log_like
 
+    def get_probability(self, params={}, n_free_p=0):
+        """Compute probability given number of degrees of freedom"""
+        chi2 = self.get_chi2(
+            params=params, return_info=False
+        )
+        ndata = self.ndata()
+        if self.verbose:
+            print("number of data points", ndata, "chi2", chi2, "number free params", n_free_p)
+        prob = chi2_scipy.sf(chi2, ndata - n_free_p)
+        return prob
+
+    def ndata(self):
+        """Compute number of degrees of freedom in data"""
+        ndata = self.data.Px_ZAM[self.iz].size
+        return ndata
 
     def _compute_log_like(self, params={}):
 

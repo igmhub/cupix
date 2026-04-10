@@ -344,7 +344,7 @@ class Theory(object):
         """
         if p3d_label == 'arinyo':
             from forestflow.model_p3d_arinyo import ArinyoModel
-            arinyo = ArinyoModel(fid_cosmo=self.fid_cosmo)
+            arinyo = ArinyoModel(cosmo=self.cosmo_dict) # set model
         else:
             sys.exit("Error: no P3D model specified. Please choose a valid P3D model. Current option are 'arinyo'.")
         

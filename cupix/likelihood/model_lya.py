@@ -1,11 +1,13 @@
 import copy
 import numpy as np
-
+import os
+from astropy.io import fits
 # our modules below
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 import forestflow
 from forestflow import priors
 from forestflow.P3D_cINN import P3DEmulator
+import cupix
 
 
 
@@ -58,19 +60,43 @@ class LyaModel(object):
 
     def get_default_igm_params(self, config):
         # here we should get the default values based on default_lya_model string and z
-        print('FINISH get_default_igm_params')
-        igm_params = {'mF': 0.8, 'T0': 1e4, 'gamma': 1.6, 'kF_kms': 0.1}
-        print('use config dictorionary to update values')
+        print('Martine has added back in the P1D IGM priors, make sure this works as expected')
+        prior_info = priors.get_IGM_priors(z=self.z, tag='DESI_DR1_P1D')
+        igm_params = prior_info['mean']
+        # update parameters if present in config
+        for par in igm_params:
+            if par in config:
+                igm_params[par] = config[par]
+        # igm_params = {'mF': 0.8, 'T0': 1e4, 'gamma': 1.6, 'kF_kms': 0.1}
+        # print('use config dictorionary to update values')
         return igm_params
 
 
     def get_default_lya_params(self, config):
         if self.verbose: print('LyaModel::get_default_lya_params')
 
-        prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
-        ff_params = prior_info['mean']
+        if 'colore' in self.default_lya_model.lower():
+            assert self.z in [2.2, 2.4, 2.6, 2.8], "For tag 'best_fit_arinyo_from_colore', redshifts must be in [2.2, 2.4, 2.6, 2.8]"
+            # Load Laura's CF fits for all redshifts
+            cupixpath = os.path.dirname(cupix.__path__[0])
+            ff_params = {}
+            with fits.open(cupixpath+f"/data/colore_xi/bin_{self.z:.1f}/lyaxlya.fits") as zbin_cf_file:
+                zbin_cf_fit = zbin_cf_file[1].header
+                ff_params['bias'] = zbin_cf_fit['bias_LYA']
+                ff_params['beta'] = zbin_cf_fit['beta_LYA']
+                ff_params['q1'] = zbin_cf_fit['dnl_arinyo_q1']
+                ff_params['kvav'] = zbin_cf_fit['dnl_arinyo_kv']**zbin_cf_fit['dnl_arinyo_av']
+                ff_params['av'] = zbin_cf_fit['dnl_arinyo_av']
+                ff_params['bv'] = zbin_cf_fit['dnl_arinyo_bv']
+                ff_params['kp'] = zbin_cf_fit['dnl_arinyo_kp']
+                if 'dnl_arinyo_q2' in zbin_cf_fit:
+                    ff_params['q2'] = zbin_cf_fit['dnl_arinyo_q2']
+                else:
+                    ff_params['q2'] = 0
+        elif 'desi_dr1_p1d' in self.default_lya_model.lower():
+            prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
+            ff_params = prior_info['mean']
         if self.verbose: print('initial values', ff_params)
-
         lya_params = lya_params_from_forestflow_params(ff_params)
         # update parameters if present in config
         for par in lya_params:
@@ -80,6 +106,7 @@ class LyaModel(object):
         if self.verbose: print('final values', lya_params)
 
         return lya_params
+
 
 
     def get_emulator(self, emulator_label, Nrealizations):
