@@ -96,8 +96,17 @@ class LyaModel(object):
         elif 'desi_dr1_p1d' in self.default_lya_model.lower():
             prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
             ff_params = prior_info['mean']
+        else:
+            print("unknown default_lya_model", self.default_lya_model)
+            #raise ValueError("unknown default_lya_model", self.default_lya_model)
+
+            # ANDREU: we should clarify the if / elif / else above
+            prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
+            ff_params = prior_info['mean']
+
         if self.verbose: print('initial values', ff_params)
         lya_params = lya_params_from_forestflow_params(ff_params)
+
         # update parameters if present in config
         for par in lya_params:
             if par in config:
