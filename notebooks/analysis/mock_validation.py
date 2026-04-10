@@ -6,21 +6,21 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %%
 import numpy as np
-from cupix.likelihood.new_likelihood import Likelihood
+from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.new_minimizer import IminuitMinimizer
+from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 import cupix
 from lace.cosmo import cosmology
 # %load_ext autoreload
@@ -80,7 +80,7 @@ cosmo = cosmology.Cosmology()
 for z in zs:
     theories_xi.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_colore'}))
     theories_new.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_colore', 'q1':0, 'q2':0, 'kp':10000})) # linear theory
-                                                             
+
 
 # %%
 likes_lya_xi = []
@@ -156,7 +156,7 @@ for key in outfile.keys():
     print(outfile[key])
 
 # %%
-from cupix.likelihood.new_minimizer import plot_ellipses
+from cupix.likelihood.iminuit_minimizer import plot_ellipses
 # plot results without minimizer object
 zs = [2.2, 2.4, 2.6, 2.8]
 iz = 0

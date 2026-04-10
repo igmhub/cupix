@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -26,10 +26,8 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-#from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
-from cupix.likelihood.new_likelihood import Likelihood
+from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.new_minimizer import IminuitMinimizer
 
 # %% [markdown]
 # ## Step 1: Read the data from DESI DR2 and plot it
