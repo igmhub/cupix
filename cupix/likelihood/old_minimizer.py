@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 from iminuit import Minuit
 import copy
 from cupix.likelihood.likelihood_parameter import par_index, LikelihoodParameter, like_parameter_by_name
-from cupix.likelihood import likelihood
 import os
 import cupix
 

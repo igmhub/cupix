@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -26,6 +26,8 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.likelihood.theory import Theory
+from cupix.likelihood import old_likelihood
+from cupix.likelihood import new_likelihood
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 
 
@@ -62,8 +64,7 @@ theory = Theory(z=z, fid_cosmo=cosmo, config={'verbose':True})
 
 # %%
 # first with the old code
-from cupix.likelihood import likelihood
-old_like = likelihood.Likelihood(data, theory, z=z, verbose=True)
+old_like = old_likelihood.Likelihood(data, theory, z=z, verbose=True)
 
 # %%
 # get the convolved Px for a chosen theta bin
@@ -89,7 +90,6 @@ plt.ylabel('Px [Ang]')
 
 # %%
 # now with the new likelihood class
-from cupix.likelihood import new_likelihood
 new_like = new_likelihood.Likelihood(data=data, theory=theory, iz=iz, verbose=True)
 
 # %%
@@ -130,7 +130,7 @@ plt.ylabel('chi2');
 # %%
 # chi2 scan for ns
 N=20
-ns_arr = np.linspace(0.95, 1.1, N)
+ns_arr = np.linspace(0.95, 1.01, N)
 chi2_arr = np.zeros(N)
 new_like.verbose=False
 new_like.theory.verbose=False
@@ -205,8 +205,5 @@ old_chi2=old_like.get_chi2(like_params=like_params)
 
 # %%
 print(old_chi2, new_chi2)
-
-# %%
-a=3
 
 # %%

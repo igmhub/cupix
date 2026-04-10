@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -27,9 +27,9 @@ import h5py as h5
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
-from cupix.likelihood.likelihood import Likelihood
+from cupix.likelihood.old_likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.old_minimizer import IminuitMinimizer
 import cupix
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 
@@ -137,7 +137,5 @@ for par in mini.out_like_params:
 mini.plot_ellipses("bias", "q1", nsig=3, cube_values=False, 
                    true_vals={'bias':true_lya_params['bias'], 'q1':true_lya_params['q1']}, 
                    xrange=[-.12, -.11], yrange=[.2,.4])
-
-# %%
 
 # %%
