@@ -27,7 +27,7 @@ import h5py as h5
 from lace.cosmo import cosmology
 from cupix.likelihood.theory import Theory
 from cupix.likelihood import old_likelihood
-from cupix.likelihood import new_likelihood
+from cupix.likelihood import likelihood
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 
 
@@ -90,7 +90,7 @@ plt.ylabel('Px [Ang]')
 
 # %%
 # now with the new likelihood class
-new_like = new_likelihood.Likelihood(data=data, theory=theory, iz=iz, verbose=True)
+new_like = likelihood.Likelihood(data=data, theory=theory, iz=iz, verbose=True)
 
 # %%
 model_px=new_like.get_convolved_px(params={})

@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -27,15 +27,17 @@ import h5py as h5
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
-from cupix.likelihood.new_likelihood import Likelihood
+from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.new_minimizer import IminuitMinimizer
+from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 
 # %% [markdown]
 # ### Read the data from DESI DR2 (large angular separations only)
 
 # %%
-fname = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
 data = DESI_DR2(fname, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=10.0)
 
 # %%

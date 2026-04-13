@@ -33,7 +33,25 @@ from cupix.likelihood.theory import Theory
 # ## Step 1: Read the data from DESI DR2 and plot it
 
 # %%
-fname = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
+fnames = []
+fnames.append(basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5")
+fnames.append(basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5")
+fnames.append(basedir + "binned_out_px-zbins_4-thetabins_10_w_res.hdf5")
+#fnames.append(basedir + "binned_out_px-zbins_4-thetabins_20_w_res.hdf5")
+for fname in fnames:
+    data = DESI_DR2(fname, kM_max_cut_AA=1, km_max_cut_AA=1.)
+    Nz, Nt_a, Nk_M, Nk_m = data.U_ZaMn.shape
+    print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_m={Nk_m}")
+    # rebinned values
+    Nz, Nt_A, Nk_M = data.Px_ZAM.shape
+    print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
+    print('--------')
+
+# %%
+#fname = basedir + "binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
 data = DESI_DR2(fname, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 
 # %%

@@ -35,7 +35,9 @@ from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 # ## Step 1: Read the data from DESI DR2 and plot it
 
 # %%
-fname = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
 data = DESI_DR2(fname, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=1.5)
 
 # %%
@@ -271,7 +273,7 @@ mini.plot_ellipses(pname_x='bias', pname_y='beta', nsig=2)
 mini.plot_ellipses(pname_x='bias', pname_y='b_X', nsig=2)
 
 # %%
-mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, xlim=[-.01, .6], datalabel="DR2 (z = {})".format(zs[fit_iz]), show=True)
+mini.plot_best_fit(multiply_by_k=False, every_other_theta=True, xlim=[-.01, .6], datalabel="DR2 (z = {})".format(zs[fit_iz]), show=True)
 
 # %%
 
