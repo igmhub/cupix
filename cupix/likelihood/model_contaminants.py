@@ -58,10 +58,18 @@ class ContaminantsModel(object):
 
     def get_default_sky_params(self, config):
         # here we should get the default values based on the config and z
+
+        # here we are mapping values from xi3d (Guy et al. 2024)
         a_noise = 4e-4
         # b_noise here in Mpc, not Mpc/h
         Delta_rp = 4 / 0.67
         sky_params = {'b_noise_Mpc': a_noise * Delta_rp}
+
+        # update parameters based on preliminary fits of DESI DR2
+        if self.z_lya == 2.2:
+            sky_params['b_noise_Mpc'] = 0.0035
+        else:
+            sky_params['b_noise_Mpc'] = 0.00125
 
         # update parameters if present in config
         for par in sky_params:
@@ -72,8 +80,17 @@ class ContaminantsModel(object):
 
 
     def get_default_continuum_params(self, config):
+
         # here we should get the default values based on the config and z
         continuum_params = {'kC_Mpc': 0.02 * 0.67, 'pC': 1}
+
+        # for now, use these values obtained from preliminary fits on mocks
+        if self.z_lya == 2.2:
+            continuum_params['kC_Mpc'] = 0.019
+            continuum_params['pC'] = 0.63
+        else:
+            continuum_params['kC_Mpc'] = 0.012
+            continuum_params['pC'] = 0.45
 
         # update parameters if present in config
         for par in continuum_params:
