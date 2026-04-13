@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -146,7 +146,7 @@ def plot_px_ratios(rt=10.0):
     for i in range(N):
         plt.semilogx(k, pxs[i] / pxs[iref], label=r'$n_s={:.3f}$'.format(nss[i]))
     plt.xlabel('k [1/Mpc]')
-    plt.ylabel(r'ratio of $P_{{3D}} (k, \mu={:.1f})$'.format(rt))
+    plt.ylabel(r'ratio of $P_\times (k_\parallel, r_\perp={:.1f} ~ Mpc)$'.format(rt))
     plt.legend()
     plt.ylim([0.8,1.2])
 
