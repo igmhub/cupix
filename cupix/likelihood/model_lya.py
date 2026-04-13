@@ -59,16 +59,15 @@ class LyaModel(object):
 
 
     def get_default_igm_params(self, config):
-        # here we should get the default values based on default_lya_model string and z
-        print('Martine has added back in the P1D IGM priors, make sure this works as expected')
+        # here we get the default values based on default_lya_model string and z
+        if self.verbose: print('LyaModel::get_default_igm_params')
         prior_info = priors.get_IGM_priors(z=self.z, tag='DESI_DR1_P1D')
         igm_params = prior_info['mean']
         # update parameters if present in config
         for par in igm_params:
             if par in config:
                 igm_params[par] = config[par]
-        # igm_params = {'mF': 0.8, 'T0': 1e4, 'gamma': 1.6, 'kF_kms': 0.1}
-        # print('use config dictorionary to update values')
+        if self.verbose: print('default values', igm_params)
         return igm_params
 
 
@@ -93,7 +92,7 @@ class LyaModel(object):
                     ff_params['q2'] = zbin_cf_fit['dnl_arinyo_q2']
                 else:
                     ff_params['q2'] = 0
-        elif 'desi_dr1_p1d' in self.default_lya_model.lower():
+        elif 'p1d' in self.default_lya_model.lower():
             prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
             ff_params = prior_info['mean']
         else:
@@ -157,8 +156,7 @@ class LyaModel(object):
                     lya_params[key] = params[key]
 
         return lya_params
-
-
+    
     def emulate_lya_params(self, cosmo, igm_params):
         """Use emulator to translate IGM params and cosmo to Lya params"""
 
@@ -166,12 +164,15 @@ class LyaModel(object):
         emu_params = {}
         emu_params['mF'] = igm_params['mF']
         emu_params['gamma'] = igm_params['gamma']
-
+        emu_params['sigT_Mpc'] = igm_params['sigT_Mpc']
+        emu_params['kF_Mpc'] = igm_params['kF_Mpc']
+        ### MARTINE: these lines are no longer needed if our defualts are sigT_Mpc already. commenting them in case we want in the future again. ###
         # these igm params are not in the correct units for the emulator
-        dkms_dMpc = cosmo.get_dkms_dMpc(self.z)
-        sigT_kms = thermal_broadening_kms(igm_params['T0'])
-        emu_params['sigT_Mpc'] = sigT_kms / dkms_dMpc
-        emu_params['kF_Mpc'] = igm_params['kF_kms'] * dkms_dMpc
+        # dkms_dMpc = cosmo.get_dkms_dMpc(self.z)
+        # sigT_kms = thermal_broadening_kms(igm_params['T0'])
+        # emu_params['sigT_Mpc'] = sigT_kms / dkms_dMpc
+        # emu_params['kF_Mpc'] = igm_params['kF_kms'] * dkms_dMpc
+        #####
 
         # amplitude and slope of linear power at kp = 0.7 1/Mpc
         #kp_Mpc = self.emulator.kp_Mpc
@@ -179,7 +180,6 @@ class LyaModel(object):
         linP_params = cosmo.get_linP_Mpc_params(z=self.z, kp_Mpc=kp_Mpc)
         emu_params['Delta2_p'] = linP_params['Delta2_p']
         emu_params['n_p'] = linP_params['n_p']
-
         # use emulator to estimate Lya params
         ff_params = self.emulator.predict_Arinyos(emu_params=emu_params)
         if self.verbose:
