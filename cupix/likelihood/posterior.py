@@ -64,7 +64,7 @@ class Posterior(object):
 
         for name,value in params.items():
             ip = self.get_param_index(param_name=name)
-            chi2_prior += self.free_params[ip].get_log_prior(value)
+            chi2_prior += self.free_params[ip].get_prior_chi2(value)
 
         log_prior = -0.5 * chi2_prior
 

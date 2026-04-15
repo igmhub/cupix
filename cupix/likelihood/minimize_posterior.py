@@ -15,10 +15,12 @@ class Minimizer(object):
         free_params = self.post.free_params
         free_param_names = []
         ini_values = []
+        param_errors = []
         Np = len(free_params)
         for ip in range(Np):
             free_param_names.append(free_params[ip].name)
             ini_values.append(free_params[ip].ini_value)
+            param_errors.append(free_params[ip].delta)
 
         if self.verbose:
             print('Free parameters in minimizer')
@@ -40,7 +42,7 @@ class Minimizer(object):
         self.minimizer.errordef = 0.5
 
         # error only used to set initial parameter step
-        # self.minimizer.errors = error
+        self.minimizer.errors = param_errors
 
 
     def silence(self):

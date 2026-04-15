@@ -10,6 +10,7 @@ class FreeParameter(object):
         max_value=None,
         ini_value=None,
         true_value=None,
+        delta=None,
         gauss_prior_mean=None,
         gauss_prior_width=None,
         latex_label=None
@@ -19,6 +20,7 @@ class FreeParameter(object):
         self.max_value = max_value
         self.ini_value = ini_value
         self.true_value = true_value
+        self.delta = delta
         self.gauss_prior_mean = gauss_prior_mean
         self.gauss_prior_width = gauss_prior_width
         if latex_label is not None:
@@ -29,7 +31,7 @@ class FreeParameter(object):
         return
 
 
-    def get_log_prior(self, value):
+    def get_prior_chi2(self, value):
         assert self.gauss_prior_mean is not None
         assert self.gauss_prior_width is not None
         return ( (value-self.gauss_prior_mean) / self.gauss_prior_width)**2

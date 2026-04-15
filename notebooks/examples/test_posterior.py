@@ -28,8 +28,9 @@ from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.posterior import Posterior
 from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.posterior import Posterior
+from cupix.likelihood.minimize_posterior import Minimizer
 import cupix
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 
@@ -41,6 +42,9 @@ forecast_file = f"{cupixpath}/data/px_measurements/forecast/forecast_ffcentral_r
 forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 iz = 0
 z = forecast.z[iz]
+
+# %% [markdown]
+# ### Step 2: Setup theory / likelihood (using true parameters from forecast)
 
 # %%
 true_cosmo_params = {}
@@ -83,6 +87,9 @@ like = Likelihood(data=forecast, theory=theory, iz=iz, verbose=True)
 # %%
 like.get_chi2()
 
+# %% [markdown]
+# ### Step 3: Setup free parameters and posterior
+
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
 bias = FreeParameter(
@@ -91,6 +98,7 @@ bias = FreeParameter(
     max_value=-0.01,
     ini_value=-0.1,
     true_value=true_lya_params['bias'],
+    delta=0.01,
     gauss_prior_mean=true_lya_params['bias'],
     gauss_prior_width=0.02,    
 )
@@ -99,6 +107,7 @@ beta = FreeParameter(
     min_value=0.1,
     max_value=5.0,
     ini_value=1.5,
+    delta=0.1,
     true_value=true_lya_params['beta'],
     gauss_prior_mean=true_lya_params['beta'],
     gauss_prior_width=0.2,    
@@ -112,19 +121,13 @@ for par in free_params:
 post = Posterior(like, free_params, config={'verbose': True})
 
 # %%
-params = {'bias': -0.1, 'beta': 1.5}
-
-# %%
-post.get_log_posterior(params=params)
-
-# %%
-post.get_log_posterior()
+test = post.get_log_posterior()
 
 # %%
 post.get_log_prior()
 
-# %%
-from cupix.likelihood.minimize_posterior import Minimizer
+# %% [markdown]
+# ### Step 4: Setup posterior minimizer
 
 # %%
 mini = Minimizer(post, config={'verbose':True})
@@ -136,6 +139,7 @@ true_post = post.get_log_posterior(params=true_params)
 print(true_chi2, true_post, -0.5*true_chi2)
 
 # %%
+mini.silence()
 betas = np.linspace(beta.true_value-0.1, beta.true_value+0.1, 11)
 chi2 = [post.like.get_chi2(params={'beta': beta}) for beta in betas]
 plt.plot(betas, chi2)
@@ -149,8 +153,6 @@ plt.axvline(x=beta.true_value, color='gray', ls=':')
 
 # %%
 mini.silence()
-mini.verbose=True
-mini.post.verbose=True
 mini.minimize()
 
 # %%
