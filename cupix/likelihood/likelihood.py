@@ -27,6 +27,28 @@ class Likelihood(object):
         if self.verbose:
             print("Likelihood will evaluate redshift bin", self.iz, "corresponds to z =", self.theory.z)
         
+    def generate_px_forecast(self, params={}, add_noise=False):
+        """ generate a px datavector from the theory and the data window,
+        optionally adding noise from the data cov
+        this is mostly useful for saving forecasts, otherwise one can just call get_convolved_px directly """
+        
+        cosmo = self.theory.get_cosmology()
+        if 'igm' in self.theory.lya_model.default_lya_model:
+            # we may want to save the lya params in the output file
+            lya_params = self.theory.lya_model.get_lya_params(cosmo, params)
+        else:
+            lya_params = {}
+        px_theory = self.get_convolved_px(params)
+        if add_noise:
+            for theta_A_ind, thetabin in enumerate(px_theory):
+                pure_dv = px_theory[theta_A_ind]
+                cov = self.data.cov_ZAM[self.iz, theta_A_ind,:, :]
+                L = np.linalg.cholesky(cov)
+                n = np.random.normal(size=pure_dv.shape)
+                noisy_dv = pure_dv + np.dot(L, n)
+                px_theory[theta_A_ind] = noisy_dv
+        return px_theory, lya_params
+    
 
     def get_convolved_px(self, params={}):
         # array with discrete k values (inverse Angstroms)
@@ -67,7 +89,7 @@ class Likelihood(object):
             # rebin in theta
             Px_ZAM = rebin_theta(V_ZaM_all, Px_ZaM_all)
             Px_ZAM_all.append(Px_ZAM)
-
+        
         return np.asarray(Px_ZAM_all)
 
 
