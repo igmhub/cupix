@@ -91,31 +91,38 @@ like.get_chi2()
 # ### Step 3: Setup free parameters and posterior
 
 # %%
+# start a bit off
+ini_bias = 1.05 * true_lya_params['bias']
+ini_beta = 0.9 * true_lya_params['beta']
+
+# %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
 bias = FreeParameter(
     name='bias',
     min_value=-0.5,
     max_value=-0.01,
-    ini_value=-0.1,
+    ini_value=ini_bias,
     true_value=true_lya_params['bias'],
     delta=0.01,
-    gauss_prior_mean=true_lya_params['bias'],
-    gauss_prior_width=0.02,    
+    gauss_prior_mean=ini_bias,
+    gauss_prior_width=0.05,    
 )
 beta = FreeParameter(
     name='beta',
     min_value=0.1,
     max_value=5.0,
-    ini_value=1.5,
+    ini_value=ini_beta,
     delta=0.1,
     true_value=true_lya_params['beta'],
-    gauss_prior_mean=true_lya_params['beta'],
+    gauss_prior_mean=ini_beta,
     gauss_prior_width=0.2,    
 )
+
+
+# %%
 free_params = [bias, beta]
 for par in free_params:
-    print(par.name, par.true_value)
-
+    print(par.name, par.ini_value, par.true_value)
 
 # %%
 post = Posterior(like, free_params, config={'verbose': True})
@@ -162,6 +169,7 @@ best_chi2 = like.get_chi2(params=best_params)
 print(best_chi2)
 
 # %%
-mini.plot_ellipses('bias','beta')
+# these should not agree perfectly, since our prior is a bit off
+mini.plot_ellipses('bias','beta', true_vals=true_params)
 
 # %%
