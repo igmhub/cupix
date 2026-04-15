@@ -1,15 +1,14 @@
 import copy
 import numpy as np
-import os
 from astropy.io import fits
+import pandas as pd
 # our modules below
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 import forestflow
 from forestflow import priors
 from forestflow.P3D_cINN import P3DEmulator
-import cupix
-
-
+from cupix.utils.utils import get_path_repo
+import warnings
 
 def lya_params_from_forestflow_params(ff_params):
     lya_params = ff_params.copy()
@@ -61,8 +60,26 @@ class LyaModel(object):
     def get_default_igm_params(self, config):
         # here we get the default values based on default_lya_model string and z
         if self.verbose: print('LyaModel::get_default_igm_params')
-        prior_info = priors.get_IGM_priors(z=self.z, tag='DESI_DR1_P1D')
-        igm_params = prior_info['mean']
+        if 'p1d' in self.default_lya_model.lower():
+            prior_info = priors.get_IGM_priors(z=self.z, tag='DESI_DR1_P1D')
+            igm_params = prior_info['mean']
+        elif 'gadget' in self.default_lya_model.lower():
+            # apply the model from the central gadget sims
+            gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
+            train_test_info = pd.read_csv(gadget_short_info_file)
+            igm_params = {}
+            # Martine note: at some point we can make this a smooth function of z
+            z_diffs = abs(train_test_info['z']-self.z)
+            iz_closest = np.argmin(z_diffs)
+            assert(z_diffs[iz_closest]<0.2), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
+            if self.verbose: print('closest training redshift', train_test_info['z'][iz_closest])
+            igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
+            for par in igm_parnames:
+                if par+"_central" in train_test_info.columns:
+                    igm_params[par] = train_test_info[par+"_central"][iz_closest]
+                else:
+                    print("Parameter", par, "not found in training info file for redshift", self.z)
+
         # update parameters if present in config
         for par in igm_params:
             if par in config:
@@ -77,9 +94,8 @@ class LyaModel(object):
         if 'colore' in self.default_lya_model.lower():
             assert self.z in [2.2, 2.4, 2.6, 2.8], "For tag 'best_fit_arinyo_from_colore', redshifts must be in [2.2, 2.4, 2.6, 2.8]"
             # Load Laura's CF fits for all redshifts
-            cupixpath = os.path.dirname(cupix.__path__[0])
             ff_params = {}
-            with fits.open(cupixpath+f"/data/colore_xi/bin_{self.z:.1f}/lyaxlya.fits") as zbin_cf_file:
+            with fits.open(get_path_repo('cupix')+f"/data/colore_xi/bin_{self.z:.1f}/lyaxlya.fits") as zbin_cf_file:
                 zbin_cf_fit = zbin_cf_file[1].header
                 ff_params['bias'] = zbin_cf_fit['bias_LYA']
                 ff_params['beta'] = zbin_cf_fit['beta_LYA']
@@ -95,6 +111,20 @@ class LyaModel(object):
         elif 'p1d' in self.default_lya_model.lower():
             prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
             ff_params = prior_info['mean']
+        elif 'gadget' in self.default_lya_model.lower():
+            # apply the best-fit model from the central gadget sims
+            gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
+            train_test_info = pd.read_csv(gadget_short_info_file)
+            # Martine note: at some point we can make this a smooth function of z
+            iz_traintest = np.where((train_test_info['z']-self.z) < 0.05)[0][0]
+            assert(len(iz_traintest) == 1), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
+            ff_params = {}
+            ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+            for par in ff_parnames:
+                if par+"_central" in train_test_info.columns:
+                    ff_params[par] = train_test_info[par+"_central"][iz_traintest]
+                else:
+                    print("Parameter", par, "not found in training info file for redshift", self.z)
         else:
             print("unknown default_lya_model", self.default_lya_model)
             #raise ValueError("unknown default_lya_model", self.default_lya_model)
