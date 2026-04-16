@@ -31,23 +31,16 @@ class Likelihood(object):
         """ generate a px datavector from the theory and the data window,
         optionally adding noise from the data cov
         this is mostly useful for saving forecasts, otherwise one can just call get_convolved_px directly """
-        
-        cosmo = self.theory.get_cosmology()
-        if 'igm' in self.theory.lya_model.default_lya_model:
-            # we may want to save the lya params in the output file
-            lya_params = self.theory.lya_model.get_lya_params(cosmo, params)
-        else:
-            lya_params = {}
-        px_theory = self.get_convolved_px(params)
+        px_theory = self.get_convolved_px(params=params)
         if add_noise:
-            for theta_A_ind, thetabin in enumerate(px_theory):
+            for theta_A_ind in range(px_theory.shape[0]):
                 pure_dv = px_theory[theta_A_ind]
                 cov = self.data.cov_ZAM[self.iz, theta_A_ind,:, :]
                 L = np.linalg.cholesky(cov)
                 n = np.random.normal(size=pure_dv.shape)
                 noisy_dv = pure_dv + np.dot(L, n)
                 px_theory[theta_A_ind] = noisy_dv
-        return px_theory, lya_params
+        return px_theory
     
 
     def get_convolved_px(self, params={}):

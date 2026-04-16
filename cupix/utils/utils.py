@@ -2,7 +2,6 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-from importlib.resources import files
 
 def purge_chains(ln_prop_chains, nsplit=8, abs_diff=2):
     """Purge emcee chains that have not converged"""
