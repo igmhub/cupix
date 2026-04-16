@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %% [markdown]
@@ -19,9 +19,9 @@
 # %%
 import numpy as np
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.lya_theory import set_theory
+from cupix.likelihood.lya_theory import Theory
 from cupix.likelihood.forestflow_emu import FF_emulator
-from lace.cosmo import camb_cosmo
+from lace.cosmo import cosmology
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter, par_index, dict_from_likeparam
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
@@ -41,14 +41,8 @@ mode = 'cosmo_igm' # if the parameters you want to test are mean-flux, etc
 # mode = 'arinyo' # if the parameters you want to test are Arinyo params
 
 # %%
-forecast_file = f"{cupixpath}/data/px_measurements/forecast//forecast_ffcentral_igm_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
-# forecast_file = f"../../data/px_measurements/forecast/forecast_ffcentral_{mode}_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
-forecast = DESI_DR2(forecast_file, kmax_cut_AA=1)
-# get default theory from forecast
-with h5.File(forecast_file, 'r') as f:
-    default_theory_label = f['metadata'].attrs['true_lya_theory']
-print(f"Default theory label: {default_theory_label}")
-
+forecast_file = f"../../data/px_measurements/forecast/forecast_ffcentral_igm_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless.hdf5"
+forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 
 # %% [markdown]
 # ### Step 2: Load the emulator with Nrealizations = 1000
@@ -67,7 +61,7 @@ ns = 0.9649
 nrun = 0.0
 w = -1.0
 omk = 0
-cosmo = {
+cosmo_dict = {
     'H0': H0,
     'omch2': omch2,
     'ombh2': ombh2,
@@ -78,8 +72,11 @@ cosmo = {
     'nrun': nrun,
     'w': w
 }
+fid_cosmo = cosmology.Cosmology(cosmo_params_dict=cosmo_dict)
+#fid_cosmo = cosmology.Cosmology(label='Planck18')
 
-theory = set_theory(z, bkgd_cosmo=cosmo, default_theory=default_theory_label, p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory = Theory(z, fid_cosmo=fid_cosmo, default_lya_theory='best_fit_igm_from_p1d', 
+                p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 
 
 # %% [markdown]
@@ -116,9 +113,8 @@ like = Likelihood(forecast, theory, z=z_choice, verbose=True)
 
 # %%
 # make sure theory matches forecast data at central value
-theta_A_index = 5
-like_params = None # only use the default cosmo+IGM theory, not like_params as it contains the evaluated Arinyo params
-Px_convolved = like.get_convolved_Px_AA(theta_A=theta_A_index, like_params=like_params)[0] 
+theta_A_index = 8
+Px_convolved = like.get_convolved_Px_AA(theta_A=theta_A_index, like_params=like_params)[0]
 
 # %%
 plt.plot(forecast.k_M_centers_AA, forecast.Px_ZAM[iz_choice, theta_A_index])
@@ -191,5 +187,11 @@ plt.axvline(like_params[par_i].value, color='red', label='truth')
 plt.title(f'chi2 vs {par_to_test}')
 # plt.ylim([0,25])
 plt.legend()
+
+# %%
+
+# %%
+
+# %%
 
 # %%

@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-
 def purge_chains(ln_prop_chains, nsplit=8, abs_diff=2):
     """Purge emcee chains that have not converged"""
     minval = np.median(ln_prop_chains) - abs_diff
@@ -92,14 +91,14 @@ def get_path_repo(name_repo):
     Returns the file path to the root directory of a specified repository.
 
     This function checks the name of the repository and imports the corresponding module
-    (`cup1d` or `lace`) to obtain the directory path. If the repository name matches a part
+    (`cupix` or `lace`) to obtain the directory path. If the repository name matches a part
     of the path, it returns the path directly; otherwise, it appends the repository name to the
     path and returns the resulting full path.
 
     Parameters:
     ----------
     name_repo : str
-        The name of the repository. Expected values are "cup1d" or "lace".
+        The name of the repository. Expected values are "cupix" or "lace".
 
     Returns:
     -------
@@ -114,7 +113,7 @@ def get_path_repo(name_repo):
     Notes:
     -----
     - The function uses the `__path__` attribute of the imported repository modules to determine the root directory.
-    - The repository name should exactly match one of the recognized values ("cup1d" or "lace").
+    - The repository name should exactly match one of the recognized values ("cupix" or "lace").
     """
     if name_repo == "cupix":
         import cupix

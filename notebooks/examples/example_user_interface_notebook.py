@@ -6,42 +6,39 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %%
 import numpy as np
-from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.lya_theory import Theory
-from cupix.likelihood.forestflow_emu import FF_emulator
-from lace.cosmo import camb_cosmo
 import matplotlib.pyplot as plt
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
-from cupix.px_data.data_DESI_DR2 import DESI_DR2
 import h5py as h5
-import cupix
-import pandas as pd
-cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # %load_ext autoreload
 # %autoreload 2
+
+# %%
+from lace.cosmo import cosmology
+from cupix.px_data.data_DESI_DR2 import DESI_DR2
+from cupix.likelihood.likelihood_parameter import LikelihoodParameter
+from cupix.likelihood.old_likelihood import Likelihood
+from cupix.likelihood.old_theory import Theory
 
 # %% [markdown]
 # ### Step 1: Load some data
 
 # %%
 data_file = "../../data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
-
 data = DESI_DR2(data_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 # kM_max_cut determines max of the widely-binned k; km_max_cut cuts the finely-binned k that goes into the window matrix
 
 # %%
 # native binning (no rebinning)
 Nz, Nt_a, Nk_M, Nk_m = data.U_ZaMn.shape
-print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_M={Nk_M}, Nk_m={Nk_m}")
+print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_m={Nk_m}")
 # rebinned values
 Nz, Nt_A, Nk_M = data.Px_ZAM.shape
 print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
@@ -80,17 +77,19 @@ plot_theta_bins(data, k_M, iz=0, it_M=0)
 # %%
 z = data.z
 print("Input data file has redshift at,", z)
-cosmo = {'H0': 67}
+cosmo_dict = {'H0': 67}
+cosmo = cosmology.Cosmology(cosmo_params_dict=cosmo_dict)
 # default_theory options are:
 # 'best_fit_arinyo_from_p1d': best fit to the DESI DR1 P1D data from Chaves+2026
 # 'best_fit_igm_from_p1d': same but for IGM parameters
 # 'best_fit_arinyo_from_colore': best fit to xi from colore mocks. Only works for z=2.2, 2.4, 2.6, 2.8
-theory_p1d = Theory(z, cosmo_dict=cosmo, default_lya_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+theory_p1d = Theory(z, fid_cosmo=cosmo, default_lya_theory='best_fit_igm_from_p1d', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 # theory_colore = Theory(z, bkgd_cosmo=cosmo, default_lya_theory='best_fit_arinyo_from_colore', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
 
 # %%
 # check full cosmo dictionary to see what other default parameters were used
-theory_p1d.cosmo_dict
+#theory_p1d.fid_cosmo.print_info()
+theory_p1d.fid_cosmo.get_background_params()
 
 # %%
 theory_p1d.default_param_dict
@@ -312,17 +311,19 @@ likelihood.get_chi2()
 # %%
 param_mode = 'arinyo' # enter the type of parameters you want
 truth_params = {}
+true_cosmo_dict = {}
 with h5.File(data_file) as f:
     for cosmo_par in f['cosmo_params'].attrs.keys():
-        cosmo[cosmo_par] = f['cosmo_params'].attrs[cosmo_par]
+        true_cosmo_dict[cosmo_par] = f['cosmo_params'].attrs[cosmo_par]
     if param_mode=='igm':
         for like_par in f['like_params'].attrs.keys():
             truth_params[like_par] = f['like_params'].attrs[like_par]
     elif param_mode=='arinyo':
         for arinyo_par in f['arinyo_pars'].attrs.keys():
             truth_params[arinyo_par] = f['arinyo_pars'].attrs[arinyo_par]
-print("Passing forecast cosmology to theory object:", cosmo)
-theory = Theory(zs, cosmo_dict=cosmo, default_lya_theory='best_fit_arinyo_from_p1d', emulator_label="forestflow_emu", verbose=True)
+print("Passing forecast cosmology to theory object:", true_cosmo_dict)
+true_cosmo = cosmology.Cosmology(cosmo_params_dict=true_cosmo_dict)
+theory = Theory(zs, fid_cosmo=true_cosmo, default_lya_theory='best_fit_arinyo_from_p1d', emulator_label="forestflow_emu", verbose=True)
 # check the parameters
 print("Truth params are:")
 for p, val in truth_params.items():
@@ -337,7 +338,6 @@ likelihood.get_chi2()
 
 # %%
 like_params = []
-
 
 arinyo_par_names_iz = [par+"_0" for par in theory.arinyo_par_names]
 def update_likepar_list(like_params, par_names):
