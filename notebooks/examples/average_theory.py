@@ -38,7 +38,7 @@ from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
 # true continuum
 true_fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
-data = DESI_DR2(true_fname, kM_max_cut_AA=0.3, km_max_cut_AA=0.35, theta_min_cut_arcmin=5.0)
+data = DESI_DR2(true_fname, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=10.0)
 
 # %% [markdown]
 # ### Start by fitting bias/beta from the stack of true-continuum mocks (one-z at a time)
@@ -73,8 +73,8 @@ for par in free_params:
 iz=1
 z=data.z[iz]
 theory = Theory(z=z, fid_cosmo=cosmo, config={'verbose': True, 'default_lya_model': default_lya_model})
-like = Likelihood(data=data, theory=theory, iz=iz, verbose=True)
-mini = IminuitMinimizer(like, free_params=free_params, verbose=True)
+like = Likelihood(data=data, theory=theory, iz=iz)
+mini = IminuitMinimizer(like, free_params=free_params)
 
 # %%
 # number of data points (per z bin)
@@ -98,8 +98,6 @@ params = mini.get_best_fit_params()
 print(params)
 model_px = mini.like.get_convolved_px(params=params)
 
-
-# %%
 
 # %%
 def plot_theta_bin(it_A):
@@ -147,17 +145,172 @@ def compare_px_averaging(it_a, Nt=11):
     ax[0].plot(k_m, mean_Px, label="weighted average")
     ax[0].legend()
     ax[0].set_ylabel(r'$P_\times(\theta, k_\parallel) [\AA]$')
+    ax[0].axhline(y=0.0, ls=':', color='gray')
     # now residuals
     ax[1].plot(k_m, mid_Px / mid_Px, label=r"$\theta = {:.2f}'$".format(theta_mid))
     ax[1].plot(k_m, mean_Px / mid_Px, label="weighted average")
     ax[1].set_xlabel(r'$k_\parallel [1/ \AA]$')
     ax[1].set_ylabel(r'ratio of $P_\times(\theta, k_\parallel)$')
+    ax[1].set_ylim([0.95, 1.05])
+    ax[1].axhline(y=0.99, ls=':', color='gray')
+    ax[1].axhline(y=1.01, ls=':', color='gray')
 
 
 # %%
 compare_px_averaging(it_a=0)
 
 # %%
-compare_px_averaging(it_a=3)
+compare_px_averaging(it_a=7)
+
+# %% [markdown]
+# ## Modify get_convolved_px to do the theta averaging
+
+# %%
+iz = like.iz
+k_m = like.data.k_m[like.iz]
+theta_a_mid = (like.data.theta_min_a_arcmin + like.data.theta_max_a_arcmin)/2.
+Nk_m = len(k_m)
+Nt_a = len(theta_a_mid)
+print(Nk_m, Nt_a)
+
+# %%
+Px_Zam_mid = like.theory.get_px_obs(theta_arc=theta_a_mid, k_AA=k_m)
+
+
+# %%
+def compute_fine_thetas(it_a, N):
+    theta_min=like.data.theta_min_a_arcmin[it_a]
+    theta_max=like.data.theta_max_a_arcmin[it_a]
+    #print(it_a, ' bin, with range', theta_min, '< theta <', theta_max)
+    dtheta=(theta_max-theta_min)/N
+    #print('dtheta = ', dtheta)
+    thetas = np.linspace(theta_min + 0.5*dtheta, theta_max-0.5*dtheta, N)
+    return thetas
+
+
+# %%
+# average factor 
+N=10
+compute_fine_thetas(it_a=2, N=N)
+
+# %%
+fine_thetas = np.concatenate( [ compute_fine_thetas(it_a=it_a, N=N) for it_a in range(Nt_a) ] , axis=0 )
+fine_thetas.shape
+
+# %%
+Px_Zam_fine = like.theory.get_px_obs(theta_arc=fine_thetas, k_AA=k_m)
+Px_Zam_fine.shape
+
+# %%
+# option one: compute the mean within the bin
+M = Px_Zam_fine.shape[0] // N
+L = Px_Zam_fine.shape[1]
+print(N, M, L)
+Px_Zam_mean = Px_Zam_fine.reshape(M, N, L).mean(axis=1)
+print(Px_Zam_mean.shape)
+
+# %%
+# option two: weighted average, using theta as weights
+weights = fine_thetas
+Px_Zam_w = (
+    (Px_Zam_fine.reshape(-1, N, Px_Zam_fine.shape[1]) *
+     weights.reshape(-1, N)[:, :, None]).sum(axis=1)
+    / weights.reshape(-1, N).sum(axis=1)[:, None]
+)
+print(Px_Zam_w.shape)
+
+
+# %%
+def compare_px_averaging(it_a):
+    fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
+    ax[0].plot(k_m, Px_Zam_mid[it_a], label=r"$\theta = {:.2f}'$".format(theta_a_mid[it_a]))
+    ax[0].plot(k_m, Px_Zam_mean[it_a], label="mean")
+    ax[0].plot(k_m, Px_Zam_w[it_a], label="weighted average")
+    ax[0].legend()
+    ax[0].set_ylabel(r'$P_\times(\theta, k_\parallel) [\AA]$')
+    ax[0].axhline(y=0.0, ls=':', color='gray')
+    # now residuals
+    ax[1].plot(k_m, Px_Zam_mid[it_a] / Px_Zam_mid[it_a])
+    ax[1].plot(k_m, Px_Zam_mean[it_a] / Px_Zam_mid[it_a])
+    ax[1].plot(k_m, Px_Zam_w[it_a] / Px_Zam_mid[it_a])
+    ax[1].set_xlabel(r'$k_\parallel [1/ \AA]$')
+    ax[1].set_ylabel(r'ratio of $P_\times(\theta, k_\parallel)$')
+    ax[1].axhline(y=1.01, ls=':', color='gray')
+    ax[1].axhline(y=0.99, ls=':', color='gray')
+    ax[1].set_ylim([0.95, 1.05])
+
+
+# %%
+compare_px_averaging(it_a=0)
+
+# %%
+compare_px_averaging(it_a=2)
+
+# %%
+compare_px_averaging(it_a=5)
+
+# %% [markdown]
+# ### Now use the new code in the likelihood
+
+# %%
+like.N_theta_average=1
+px_model_mid = like.get_convolved_px()
+
+# %%
+like.N_theta_average=10
+px_model_ave = like.get_convolved_px()
+
+
+# %%
+def compare_px_averaging(it_A):
+    k_M = data.k_M_centers_AA
+    theta = data.theta_centers_arcmin[it_A]
+    Px = data.Px_ZAM[like.iz][it_A]
+    sig_Px = np.sqrt(np.diagonal(data.cov_ZAM[like.iz][it_A]))
+    fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
+    ax[0].errorbar(k_M, Px, sig_Px)
+    ax[0].plot(k_M, px_model_mid[it_A], label=r"$\theta = {:.2f}'$".format(theta))
+    ax[0].plot(k_M, px_model_ave[it_A], label='theta averaged')
+    ax[0].axhline(y=0, ls=':', color='gray')
+    ax[0].legend()
+    ax[0].set_ylabel(r'$P_\times(\theta, k_\parallel) [\AA]$')
+    # now residuals
+    ax[1].plot(k_M, px_model_mid[it_A] / px_model_ave[it_A])
+    ax[1].plot(k_M, px_model_ave[it_A] / px_model_ave[it_A])
+    ax[1].set_xlabel(r'$k_\parallel [1/ \AA]$')
+    ax[1].set_ylabel(r'ratio of $P_\times(\theta, k_\parallel)$')
+    ax[1].axhline(y=1.01, ls=':', color='gray')
+    ax[1].axhline(y=0.99, ls=':', color='gray')
+    ax[1].set_ylim([0.95, 1.05])
+
+
+# %%
+compare_px_averaging(it_A=3)
+
+# %%
+compare_px_averaging(it_A=7)
+
+# %% [markdown]
+# ### Compare timing and best fits
+
+# %%
+for N in [1, 10, 100]:
+    print(N, 'theta values per bin')
+    like = Likelihood(data=data, theory=theory, iz=iz, config={'N_theta_average':N})
+    # %timeit like.get_chi2()
+
+# %%
+for N in [1, 10, 100]:
+    print('------- {} theta values per bin ---------'.format(N))
+    like = Likelihood(data=data, theory=theory, iz=iz, config={'N_theta_average':N})
+    mini = IminuitMinimizer(like, free_params=free_params)
+    mini.silence()
+    mini.minimize(compute_hesse=False)
+    chi2 = mini.get_best_fit_chi2()
+    best_fit = mini.get_best_fit_params()
+    print('best fit chi2 and params')
+    print(chi2, best_fit)
+
+# %%
 
 # %%

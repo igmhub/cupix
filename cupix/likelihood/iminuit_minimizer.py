@@ -62,8 +62,6 @@ class IminuitMinimizer(object):
         for ip in range(Np):
             name = self.free_param_names[ip]
             params[name] = values[ip]
-        if self.verbose:
-            print('params', params)
             
         return params
 
@@ -78,6 +76,9 @@ class IminuitMinimizer(object):
 
         # here we could add priors eventually 
         minus_log_prob = - log_like - 0.0
+
+        if self.verbose:
+            print(log_like, ' , params =', params)
 
         return minus_log_prob
 
