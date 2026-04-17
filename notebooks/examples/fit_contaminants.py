@@ -110,7 +110,7 @@ for iz,z in enumerate(zs):
 # %%
 likes = []
 for iz, z in enumerate(zs):
-    likes.append(Likelihood(data=data, theory=theories[iz], iz=iz, verbose=False))
+    likes.append(Likelihood(data=data, theory=theories[iz], iz=iz, config={'verbose':False}))
 
 # %%
 # plot data vs default theory for each z

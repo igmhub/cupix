@@ -91,7 +91,7 @@ for b_H in [-0.01, -0.02, -0.04, -0.08]:
     free_params[0].ini_value = theory.lya_model.default_lya_params['bias']
     assert free_params[1].name == 'beta'
     free_params[1].ini_value = theory.lya_model.default_lya_params['beta']
-    like = Likelihood(data=data, theory=theory, iz=iz, verbose=False)
+    like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':False})
     mini = IminuitMinimizer(like, free_params=free_params, verbose=False)
     minis[b_H] = mini
 
@@ -150,7 +150,9 @@ def plot_theta_bin(it_A):
 plot_theta_bin(0)
 
 # %%
-plot_theta_bin(12)
+plot_theta_bin(8)
+
+# %%
 
 # %%
 
