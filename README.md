@@ -44,6 +44,12 @@ cd cupix
 pip install -e .
 ``` 
 
+#### Additional packages:
+- If you want to profile the code, please install the line_profiler tool:
+```
+conda install line_profiler
+```
+
 #### NERSC users:
 
 - You need to compile ``mpi4py`` package on NERSC (see [here](https://docs.nersc.gov/development/languages/python/parallel-python/#mpi4py-in-your-custom-conda-environment)).

@@ -16,15 +16,9 @@
 # %%
 import numpy as np
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.generate_fake_data import FakeData
 from cupix.likelihood.theory import Theory
-import forestflow
-from forestflow.archive import GadgetArchive3D
 import matplotlib.pyplot as plt
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
-import cupix
 import os
 from pathlib import Path
 import pandas as pd
@@ -42,11 +36,23 @@ print(cupixpath)
 # ## Set up the forecast configuration
 
 # %%
-# --------- settings ---------
-param_mode = "igm" # "igm" or "arinyo"
+# --------- user settings --------
+lya_model  = "best_fit_arinyo_from_p1d" # options: "central_igm_from_gadget", "random_igm_from_gadget", "best_fit_arinyo_from_p1d", "best_fit_igm_from_p1d", "best_fit_arinyo_from_colore"
 add_noise  = False
-lya_model  = "default_igm_from_gadget" # other option is gadget_simulation
+params = {} # input a dictionary of specific params and values if you want to modify the default theory for the forecast
 # --------------------------
+
+assert 'igm' in lya_model or 'arinyo' in lya_model, "lya_model must contain either 'igm' or 'arinyo'"
+
+
+if 'gadget' in lya_model:
+    # set forecast location
+    if "central" in lya_model:
+        floc = "central" # "central" or "random"
+    elif "random" in lya_model:
+        floc = "random"
+else:
+    floc = ""
 
 # %%
 # input the data file from which the covariance matrix and binning configurations will be used
@@ -61,20 +67,11 @@ theories = []
 # set the default cosmology
 cosmo = cosmology.Cosmology()
 
-if 'gadget' in lya_model:
-    # choose forecast location
-    floc = "central" # "central" or "random"
-    # "central" uses the central simulation in the training set
-    # "random" randomly selects points within the minimum and maximum range of each training parameter
-else:
-    floc = ""
-
 # set the Gadget central theory values
-if 'gadget' in lya_model and floc=="central":
+if ('gadget' in lya_model and 'central' in lya_model) or 'colore' in lya_model or 'p1d' in lya_model:
     for z in data.z:
         print(z)
         theories.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': True, 'default_lya_model':lya_model}))
-        
 
 # %%
 # prepare to generate and write fake data
@@ -87,20 +84,18 @@ else:
 
 if floc=="random":
     rng = np.random.default_rng()
-    forecast_str = f"_{rng.choice(1000):03d}"
+    rand_str = f"_{rng.choice(1000):03d}"
 else:
-    forecast_str = ""
+    rand_str = ""
 
-if 'gadget' in lya_model:
-    ftype = 'gadget'
-savestr = f"{filepath}/forecast_{ftype}{floc}{forecast_str}_{data_label}_{Path(data_file).stem}_{noise_str}.hdf5"
+savestr = f"{filepath}/fcast_{lya_model}{rand_str}_{data_label}_{Path(data_file).stem}_{noise_str}.hdf5"
 if os.path.exists(savestr):
     print("File already exists at", savestr)
 else:
     print("Will generate forecast and save to", savestr)
 
 # %%
-if floc=='random':
+if 'gadget' in lya_model and floc=='random':
     theories = []
     gadget_short_info_file = cupixpath + '/data/emulator/ff_training_info.csv'
     train_test_info = pd.read_csv(gadget_short_info_file)
@@ -110,19 +105,19 @@ if floc=='random':
         ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
         sim_iz = np.argmin(np.abs(train_test_info['z'] - z))
         assert np.isclose(train_test_info['z'][sim_iz], z), "Redshift in training info file does not match data redshift"
-        if param_mode == "igm":
+        if 'igm' in lya_model:
             pars = igm_parnames
-        elif param_mode == "arinyo":
+        elif "arinyo" in lya_model:
             pars = ff_parnames
         # randomly select a value within the min and max range of each parameter at this redshift
-        params = {}
+        gadget_params = {}
         for par in pars:
             if par+"_min" not in train_test_info.columns or par+"_max" not in train_test_info.columns:
                 print("Min/max of parameter", par, "not found in training info file")
             else:
-                params[par] = rng.uniform(train_test_info[par+"_min"][sim_iz], train_test_info[par+"_max"][sim_iz])
-        print("Inputting defualts for z=", z, "with parameters", params)
-        theories.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': True, 'default_lya_model':lya_model, **params}))
+                gadget_params[par] = rng.uniform(train_test_info[par+"_min"][sim_iz], train_test_info[par+"_max"][sim_iz])
+        print("Inputting defualts for z=", z, "with parameters", gadget_params)
+        theories.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': True, 'default_lya_model':lya_model, **gadget_params}))
 
 
 # %%
@@ -138,31 +133,44 @@ with h5.File(data_file, 'r') as f:
     with h5.File(savestr, 'w') as f_out:
         # copy all groups and datasets from the original file to the new file
         for group_name in f.keys():
-            if group_name != "P_Z_AM":
+            if group_name not in ["P_Z_AM", 'z_centers']:
                 f.copy(group_name, f_out)
+        f_out['metadata'].attrs['z_centers'] = data.z # do this manually in case data.z was overwritten by the user earlier in the notebook
+        f_out['metadata'].attrs['z_centers_orig'] = f['metadata'].attrs['z_centers'] # save the original z_centers as well for reference. In some cases this will be the same as the new z_centers.
         # for the P_Z_AM group, we will overwrite the datasets with our forecast
         px_group = f_out.create_group("P_Z_AM")
-        cosmo = f_out.create_group('cosmo_params')
+        cosmo_group = f_out.create_group('cosmo_params')
         # save the iz=0 cosmo since it doesn't change with z
         for par in likes[0].theory.fid_cosmo.background_params:
             print(par, likes[0].theory.fid_cosmo.background_params[par])
-            cosmo.attrs[par] = likes[0].theory.fid_cosmo.background_params[par]
+            cosmo_group.attrs[par] = likes[0].theory.fid_cosmo.background_params[par]
         for iz, like in enumerate(likes):
             px_group_z = px_group.create_group(f'z_{iz}')
-            px_theory, lya_params = like.generate_px_forecast(add_noise=add_noise)
+            if 'igm' in like.theory.lya_model.default_lya_model:
+                # we want to save the lya params in the output file
+                cosmo = like.theory.get_cosmology(params=params)
+                ff_params = like.theory.lya_model.get_lya_params(cosmo, params)
+                print("will save ff_params")
+            else:
+                ff_params = None
+            px_theory = like.generate_px_forecast(params=params, add_noise=add_noise)
             for theta_A_ind in range(px_theory.shape[0]):
                 px_group_z[f'theta_rebin_{theta_A_ind}/'] = px_theory[theta_A_ind]
             # add the theory parameters used for the forecast as attributes to the P_Z_AM group,
             # and the lya params from the emulator
             px_group_z.attrs['default_lya_model'] = like.theory.lya_model.default_lya_model
-            lya_params_group = px_group_z.create_group('lya_params')
-            for par in lya_params:
-                lya_params_group.attrs[par] = lya_params[par]
-            igm_params_group = px_group_z.create_group('igm_params')
+            if ff_params is not None:
+                ff_params_group = px_group_z.create_group('ff_emulated_params')
+                for par in ff_params:
+                    ff_params_group.attrs[par] = ff_params[par]
             if like.theory.lya_model.default_igm_params is not None:
+                igm_params_group = px_group_z.create_group('igm_params')
                 for par in like.theory.lya_model.default_igm_params:
                     igm_params_group.attrs[par] = like.theory.lya_model.default_igm_params[par]
-                
+            if like.theory.lya_model.default_lya_params is not None:
+                lya_params_group = px_group_z.create_group('lya_params')
+                for par in like.theory.lya_model.default_lya_params:
+                    lya_params_group.attrs[par] = like.theory.lya_model.default_lya_params[par]
 
 # %% [markdown]
 # ## Test the forecast output
@@ -205,7 +213,7 @@ def plot_theta_bins(data, k_M, iz, it_M):
 
 # %%
 plot_theta_bins(forecast_res, k_M, iz=3, it_M=5)
-plot_theta_bins(data, k_M, iz=3, it_M=5)
+plot_theta_bins(data, k_M, iz=3, it_M=5) # original data, not saved in forecast file
 plt.legend()
 
 # %%
@@ -221,11 +229,14 @@ for iz in range(4):
 with h5.File(savestr) as f:
     print(f.keys())
     print(f['cosmo_params'].attrs.keys(), f['cosmo_params'].attrs['H0'], f['cosmo_params'].attrs['omch2'])
+    print(f['P_Z_AM']['z_0'].attrs['default_lya_model'])
     print(f['P_Z_AM']['z_0'].keys())
-    print(f['P_Z_AM']['z_0']['igm_params'].attrs.keys(), f['P_Z_AM']['z_0']['igm_params'].attrs['Delta2_p'], f['P_Z_AM']['z_0']['igm_params'].attrs['mF'])
-    print(f['P_Z_AM']['z_0']['lya_params'].attrs.keys(), f['P_Z_AM']['z_0']['lya_params'].attrs['bias'], f['P_Z_AM']['z_0']['lya_params'].attrs['beta'])
-    
-
-# %%
+    if 'igm_params' in f['P_Z_AM']['z_0'].keys():
+        print(f['P_Z_AM']['z_0']['igm_params'].attrs.keys(), f['P_Z_AM']['z_0']['igm_params'].attrs['Delta2_p'], f['P_Z_AM']['z_0']['igm_params'].attrs['mF'])
+    if 'lya_params' in f['P_Z_AM']['z_0'].keys():
+        print(f['P_Z_AM']['z_0']['lya_params'].attrs.keys(), f['P_Z_AM']['z_0']['lya_params'].attrs['bias'], f['P_Z_AM']['z_0']['lya_params'].attrs['beta'])
+    if 'ff_emulated_params' in f['P_Z_AM']['z_0'].keys():
+        print("Here")
+        print(f['P_Z_AM']['z_0']['ff_emulated_params'].attrs.keys(), f['P_Z_AM']['z_0']['ff_emulated_params'].attrs['bias'], f['P_Z_AM']['z_0']['ff_emulated_params'].attrs['beta'])
 
 # %%

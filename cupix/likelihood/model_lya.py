@@ -79,7 +79,8 @@ class LyaModel(object):
                     igm_params[par] = train_test_info[par+"_central"][iz_closest]
                 else:
                     print("Parameter", par, "not found in training info file for redshift", self.z)
-
+        else:
+            raise ValueError("unknown default_lya_model", self.default_lya_model)
         # update parameters if present in config
         for par in igm_params:
             if par in config:
@@ -116,22 +117,19 @@ class LyaModel(object):
             gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
             train_test_info = pd.read_csv(gadget_short_info_file)
             # Martine note: at some point we can make this a smooth function of z
-            iz_traintest = np.where((train_test_info['z']-self.z) < 0.05)[0][0]
-            assert(len(iz_traintest) == 1), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
+            z_diffs = abs(train_test_info['z']-self.z)
+            iz_closest = np.argmin(z_diffs)
+            assert(z_diffs[iz_closest]<0.2), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
+            if self.verbose: print('closest training redshift', train_test_info['z'][iz_closest])
             ff_params = {}
             ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
             for par in ff_parnames:
                 if par+"_central" in train_test_info.columns:
-                    ff_params[par] = train_test_info[par+"_central"][iz_traintest]
+                    ff_params[par] = train_test_info[par+"_central"][iz_closest]
                 else:
                     print("Parameter", par, "not found in training info file for redshift", self.z)
         else:
-            print("unknown default_lya_model", self.default_lya_model)
-            #raise ValueError("unknown default_lya_model", self.default_lya_model)
-
-            # ANDREU: we should clarify the if / elif / else above
-            prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
-            ff_params = prior_info['mean']
+            raise ValueError("unknown default_lya_model", self.default_lya_model)
 
         if self.verbose: print('initial values', ff_params)
         lya_params = lya_params_from_forestflow_params(ff_params)
