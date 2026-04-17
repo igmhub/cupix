@@ -36,3 +36,7 @@ class FreeParameter(object):
         assert self.gauss_prior_width is not None
         return ( (value-self.gauss_prior_mean) / self.gauss_prior_width)**2
 
+
+    def get_value_in_cube(self, value):
+        """Normalize parameter value to [0,1]."""
+        return (value - self.min_value) / (self.max_value - self.min_value)
