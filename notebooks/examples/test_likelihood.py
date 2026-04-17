@@ -90,7 +90,8 @@ plt.ylabel('Px [Ang]')
 
 # %%
 # now with the new likelihood class
-new_like = likelihood.Likelihood(data=data, theory=theory, iz=iz, verbose=True)
+# ANDREU: note that since we are now averaging over theta values within a bin, we will not reproduce exactly if we don't setup exactly
+new_like = likelihood.Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True, 'N_theta_average':1})
 
 # %%
 model_px=new_like.get_convolved_px(params={})
@@ -164,6 +165,8 @@ plt.ylabel('chi2');
 
 # %% [markdown]
 # ### Try to reproduce exactly the theory used in the forecast
+#
+# ANDREU: note that since we are now averaging over theta values within a bin, we will not reproduce exactly if we don't setup exactly
 
 # %%
 f = h5.File(data_file)

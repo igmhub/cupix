@@ -120,7 +120,7 @@ config={'verbose': True, 'include_hcd': False, 'include_metal': False,
 minis = []
 for iz, z in enumerate(data.z): 
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
-    like = Likelihood(data=data, theory=theory, iz=iz, verbose=True)
+    like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True})
     mini = IminuitMinimizer(like, free_params=free_params, verbose=True)
     minis.append(mini)
 
@@ -168,5 +168,7 @@ plt.ylim([0.0,0.004])
 for mini in minis:
     z = mini.like.theory.z
     print(z, mini.get_best_fit_params())
+
+# %%
 
 # %%

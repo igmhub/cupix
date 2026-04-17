@@ -82,7 +82,7 @@ for iz, z in enumerate(true_data.z):
     free_params[0].ini_value = theory.lya_model.default_lya_params['bias']
     assert free_params[1].name == 'beta'
     free_params[1].ini_value = theory.lya_model.default_lya_params['beta'] 
-    like = Likelihood(data=true_data, theory=theory, iz=iz, verbose=True)
+    like = Likelihood(data=true_data, theory=theory, iz=iz, config={'verbose':True})
     mini = IminuitMinimizer(like, free_params=free_params, verbose=True)
     true_minis.append(mini)
 
@@ -159,7 +159,7 @@ for iz, z in enumerate(unco_data.z):
     config['bias'] = true_minis[iz].get_best_fit_value('bias') 
     config['beta'] = true_minis[iz].get_best_fit_value('beta') 
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
-    like = Likelihood(data=unco_data, theory=theory, iz=iz, verbose=True)
+    like = Likelihood(data=unco_data, theory=theory, iz=iz, config={'verbose':True})
     print('initial chi2', like.get_chi2())
     mini = IminuitMinimizer(like, free_params=free_params, verbose=True)
     unco_minis.append(mini)
@@ -217,5 +217,7 @@ if True:
 for mini in unco_minis:
     z = mini.like.theory.z
     print(z, mini.get_best_fit_params())
+
+# %%
 
 # %%
