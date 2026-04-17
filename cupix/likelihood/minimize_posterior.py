@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from iminuit import Minuit
 
+
 class Minimizer(object):
     """Wrapper around an iminuit minimizer for the Posterior class"""
 
@@ -54,23 +55,6 @@ class Minimizer(object):
         return
 
 
-    def get_params_dict_from_values(self, values):
-        """Given array of floats, construct params dictionary"""
-
-        Np = len(self.post.free_params)
-        assert len(values) == Np, "Inconsistent number of free parameters"
-        
-        # dictionary of parameters that will be passed to the likelihood class
-        params = {}
-        for ip in range(Np):
-            name = self.post.free_params[ip].name
-            params[name] = values[ip]
-        if self.verbose:
-            print('params', params)
-            
-        return params
-
-
     def minus_log_prob_interface(self, values):
 
         # ask posterior to evalute log-prob
@@ -117,7 +101,7 @@ class Minimizer(object):
         best_fit_values = self.minimizer.values 
 
         # transform to dictionary of parameters
-        best_fit_params = self.get_params_dict_from_values(best_fit_values)
+        best_fit_params = self.post.get_params_from_values(best_fit_values)
 
         return best_fit_params
 
