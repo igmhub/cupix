@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Example use of the Minuit minimizer (old likelihood, new theory)
+# # Example use of the old implementation of the Minuit minimizer (old likelihood, new theory)
 
 # %%
 import numpy as np
@@ -37,7 +37,7 @@ cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # ### Step 1: Import a noiseless forecast
 
 # %%
-forecast_file = f"{cupixpath}/data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
+forecast_file = f"{cupixpath}/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5"
 forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 iz = 0
 z = forecast.z[iz]
@@ -50,17 +50,12 @@ with h5.File(forecast_file) as f:
 print(true_cosmo_params)
 
 # %%
-# translate these to our Lya params
-true_lya_params = {}
 with h5.File(forecast_file) as f:
-    true_lya_params['bias'], = -1.0 * f['arinyo_pars'].attrs['bias_0'],
-    true_lya_params['beta'], = f['arinyo_pars'].attrs['beta_0'],
-    true_lya_params['av'], = f['arinyo_pars'].attrs['av_0'],
-    true_lya_params['bv'], = f['arinyo_pars'].attrs['bv_0'],
-    true_lya_params['kp_Mpc'], = f['arinyo_pars'].attrs['kp_0'],
-    true_lya_params['q1'], = f['arinyo_pars'].attrs['q1_0'],
-    true_lya_params['q2'], = f['arinyo_pars'].attrs['q2_0'],
-    true_lya_params['kv_Mpc'] = np.exp( np.log(f['arinyo_pars'].attrs['kvav_0']) / f['arinyo_pars'].attrs['av_0'] )
+    true_lya_params = {}        
+    if 'lya_params' in f['P_Z_AM'][f'z_{iz}'].keys():
+        lya_params = f['P_Z_AM'][f'z_{iz}']['lya_params'].attrs
+        for par in lya_params:
+            true_lya_params[par] = lya_params[par]
 print(true_lya_params)
 
 # %%
@@ -71,14 +66,13 @@ cosmo = cosmology.Cosmology(cosmo_params_dict=true_cosmo_params)
 # use the true Lya parameters (Arinyo / bias / beta)
 config = true_lya_params | {'verbose': True}
 # make your life a bit harder by changing a bit the value of beta
-wrong_beta = True
+wrong_beta = False
 if wrong_beta:
     config['beta'] = 1.02*config['beta']
 print(config)
 theory = Theory(z=z, fid_cosmo=cosmo, config=config)
 
 # %%
-#like = Likelihood(data=forecast, theory=theory, iz=iz_choice, verbose=True)
 like = Likelihood(forecast, theory, z=z, verbose=False)
 
 # %%
