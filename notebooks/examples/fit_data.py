@@ -26,10 +26,11 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
+from cupix.likelihood.likelihood import Likelihood
+from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.posterior import Posterior
+from cupix.likelihood.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ## Step 1: Read the data from DESI DR2 and plot it
@@ -152,29 +153,31 @@ for iz, z in enumerate(zs):
 
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
-like_params = []
-like_params.append(LikelihoodParameter(
+bias = FreeParameter(
     name='bias',
-    min_value=-.5,
-    max_value=-.05,
-    ini_value=-.15,
-    value =-.15
-    ))
-like_params.append(LikelihoodParameter(
+    min_value=-0.5,
+    max_value=-0.01,
+    ini_value=-0.15,
+    delta=0.01,   
+)
+beta = FreeParameter(
     name='beta',
-    min_value=0.5,
-    max_value=2.5,
+    min_value=0.1,
+    max_value=5.0,
     ini_value=1.5,
-    value =1.5
-    ))
-for par in like_params:
-    print(par.name)
+    delta=0.1,
+)
+free_params = [bias, beta]
+for par in free_params:
+    print(par.name, par.ini_value)
 
 # %%
 # do this only for one z bin
 fit_iz=1
-mini_lya = IminuitMinimizer(likes_lya[fit_iz], free_params=like_params, verbose=True)
-mini_cont = IminuitMinimizer(likes_cont[fit_iz], free_params=like_params, verbose=True)
+post_lya = Posterior(likes_lya[fit_iz], free_params, config={'verbose': True})
+post_cont = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
+mini_lya = Minimizer(post_lya, config={'verbose':True})
+mini_cont = Minimizer(post_cont, config={'verbose':True})
 
 # %%
 mini_lya.silence()
@@ -195,69 +198,56 @@ print(Ndp, chi2_lya, chi2_cont)
 # ## Step 5: fit for contaminants
 
 # %%
-print('HCD', mini_cont.like.theory.cont_model.default_hcd_params)
-print('Metal', mini_cont.like.theory.cont_model.default_metal_params)
-print('Sky', mini_cont.like.theory.cont_model.default_sky_params)
-print('Cont', mini_cont.like.theory.cont_model.default_continuum_params)
+print('HCD', mini_cont.post.like.theory.cont_model.default_hcd_params)
+print('Metal', mini_cont.post.like.theory.cont_model.default_metal_params)
+print('Sky', mini_cont.post.like.theory.cont_model.default_sky_params)
+print('Cont', mini_cont.post.like.theory.cont_model.default_continuum_params)
 
 # %%
-# set the likelihood parameters as the Arinyo params with some fiducial values
-like_params = []
+# set the free parameters 
+free_params = [bias, beta]
 free_b_H=False
 free_b_X=True
 free_b_noise_Mpc=False
 free_kC_Mpc=False
-like_params.append(LikelihoodParameter(
-    name='bias',
-    min_value=-.5,
-    max_value=-.05,
-    ini_value=-.15,
-    value =-.15
-    ))
-like_params.append(LikelihoodParameter(
-    name='beta',
-    min_value=0.5,
-    max_value=2.5,
-    ini_value=1.5,
-    value =1.5
-    ))
 if free_b_H:
-    like_params.append(LikelihoodParameter(
+    free_params.append(FreeParameter(
         name='b_H',
         min_value=-0.1,
         max_value=-0.0,
         ini_value=-0.02,
-        value = -0.02
+        delta=0.001  
         ))
 if free_b_X:
-    like_params.append(LikelihoodParameter(
+    free_params.append(FreeParameter(
         name='b_X',
         min_value=-0.1,
         max_value=-0.0,
         ini_value=-0.01,
-        value = -0.01
+        delta=0.001 
         ))
 if free_b_noise_Mpc:
-    like_params.append(LikelihoodParameter(
+    free_params.append(FreeParameter(
         name='b_noise_Mpc',
         min_value=1e-4,
         max_value=1e-1,
         ini_value=0.01,
-        value = 0.01
+        delta=0.001
         ))
 if free_kC_Mpc:
-    like_params.append(LikelihoodParameter(
+    free_params.append(FreeParameter(
         name='kCb_Mpc',
         min_value=1e-3,
         max_value=1e-1,
         ini_value=0.01,
-        value = 0.01
+        delta=0.001
         ))    
-for par in like_params:
+for par in free_params:
     print(par.name)
 
 # %%
-mini = IminuitMinimizer(likes_cont[fit_iz], free_params=like_params, verbose=True)
+post = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
+mini = Minimizer(post, config={'verbose':True})
 
 # %%
 mini.silence()

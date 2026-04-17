@@ -26,17 +26,17 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
-from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.likelihood import Likelihood
+from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.posterior import Posterior
+from cupix.likelihood.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ### Read the data from DESI DR2 (large angular separations only)
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
 fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
 data = DESI_DR2(fname, kM_min_cut_AA=0.5, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=10.0)
 
@@ -97,19 +97,19 @@ cosmo = cosmology.Cosmology()
 free_bias=False
 free_params = []
 if free_bias:
-    free_params.append(LikelihoodParameter(
+    free_params.append(FreeParameter(
         name='bias',
         min_value=-.5,
         max_value=-.02,
         ini_value=-0.15,
-        value=-0.15
+        delta=0.001
         ))
-free_params.append(LikelihoodParameter(
+free_params.append(FreeParameter(
     name='b_noise_Mpc',
     min_value=1e-4,
     max_value=1e-1,
     ini_value=0.01,
-    value = 0.01
+    delta = 0.0001
     ))
 for par in free_params:
     print(par.name)
@@ -121,15 +121,16 @@ minis = []
 for iz, z in enumerate(data.z): 
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
     like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True})
-    mini = IminuitMinimizer(like, free_params=free_params, verbose=True)
+    post = Posterior(like, free_params, config={'verbose': True})
+    mini = Minimizer(post, config={'verbose':True}) 
     minis.append(mini)
 
 # %%
 for mini in minis:
-    z = mini.like.theory.z
+    z = mini.post.like.theory.z
     print('--------- z = {:.2f} -------'.format(z))
     # number of data points (per z bin)
-    Nz, Nt_A, Nk_M = mini.like.data.Px_ZAM.shape
+    Nz, Nt_A, Nk_M = mini.post.like.data.Px_ZAM.shape
     Ndp = Nt_A * Nk_M
     # silence and minimize
     mini.silence()
@@ -144,8 +145,8 @@ for mini in minis:
     mini.plot_best_fit(multiply_by_k=False, theorylabel=label, datalabel='DESI DR2 Px')
 
 # %%
-z = [ mini.like.theory.z for mini in minis]
-ini_chi2 = [ mini.like.get_chi2() for mini in minis]
+z = [ mini.post.like.theory.z for mini in minis]
+ini_chi2 = [ mini.post.like.get_chi2() for mini in minis]
 best_fit_chi2 = [ mini.get_best_fit_chi2() for mini in minis]
 plt.plot(z, best_fit_chi2, label=r'best-fit $\chi^2$')
 plt.plot(z, ini_chi2, label=r'initial $\chi^2$')
@@ -154,7 +155,7 @@ plt.xlabel('z')
 plt.legend()
 
 # %%
-z = [ mini.like.theory.z for mini in minis]
+z = [ mini.post.like.theory.z for mini in minis]
 val = [ mini.get_best_fit_value('b_noise_Mpc', return_hesse=True)[0] for mini in minis]
 err = [ mini.get_best_fit_value('b_noise_Mpc', return_hesse=True)[1] for mini in minis]
 plt.errorbar(z, val, err, label='DESI DR2 Px')
@@ -166,7 +167,7 @@ plt.ylim([0.0,0.004])
 
 # %%
 for mini in minis:
-    z = mini.like.theory.z
+    z = mini.post.like.theory.z
     print(z, mini.get_best_fit_params())
 
 # %%

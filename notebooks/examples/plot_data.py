@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Use iminuit to fit Px from DESI DR2
+# # Read and plot Px from DESI DR2
 
 # %%
 import numpy as np
