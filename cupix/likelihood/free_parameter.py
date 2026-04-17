@@ -40,3 +40,7 @@ class FreeParameter(object):
     def get_value_in_cube(self, value):
         """Normalize parameter value to [0,1]."""
         return (value - self.min_value) / (self.max_value - self.min_value)
+
+    def get_true_value_from_cube(self, x):
+        """Given the value in range (xmin,xmax), return absolute value"""
+        return self.min_value + x * (self.max_value - self.min_value)
