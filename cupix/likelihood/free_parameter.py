@@ -31,8 +31,18 @@ class FreeParameter(object):
         return
 
 
+    def out_of_bounds(self, value):
+        """Return True if value out of bounds"""
+        if value < self.min_value:
+            return True
+        if value > self.max_value:
+            return True
+        return False
+
+
     def get_prior_chi2(self, value):
         assert self.gauss_prior_mean is not None
         assert self.gauss_prior_width is not None
         return ( (value-self.gauss_prior_mean) / self.gauss_prior_width)**2
+
 
