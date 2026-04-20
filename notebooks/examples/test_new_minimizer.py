@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Example use of the likelihood minimizer (new likelihood, new theory)
+# # Example use of the posterior minimizer
 
 # %%
 import numpy as np
@@ -26,10 +26,13 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
-from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.likelihood import Likelihood
+#from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
+#from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.posterior import Posterior
+from cupix.likelihood.minimize_posterior import Minimizer
 import cupix
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 
@@ -73,31 +76,34 @@ print(config)
 theory = Theory(z=z, fid_cosmo=cosmo, config=config)
 
 # %%
-like = Likelihood(data=forecast, theory=theory, iz=iz, config={'verbose':True})
+# old forecasts did not average over theta
+N_theta_average=1
+like = Likelihood(data=forecast, theory=theory, iz=iz, 
+                  config={'verbose':True, 'N_theta_average':N_theta_average})
 
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
-like_params = []
-like_params.append(LikelihoodParameter(
+bias = FreeParameter(
     name='bias',
-    min_value=-.13,
-    max_value=-.1,
-    ini_value=-.11,
-    value =-.11
-    ))
-like_params.append(LikelihoodParameter(
+    min_value=-0.5,
+    max_value=-0.01,
+    ini_value=-0.15,
+    delta=0.01,   
+)
+q1 = FreeParameter(
     name='q1',
-    min_value=0,
-    max_value=1,
-    ini_value=0.3,
-    value =0.3
-    ))
-for par in like_params:
-    print(par.name)
-
+    min_value=0.0,
+    max_value=5.0,
+    ini_value=0.5,
+    delta=0.02,
+)
+free_params = [bias, q1]
+for par in free_params:
+    print(par.name, par.ini_value)
 
 # %%
-mini = IminuitMinimizer(like, free_params=like_params, verbose=True)
+post = Posterior(like, free_params, config={'verbose': True})
+mini = Minimizer(post, config={'verbose':True})
 
 # %%
 mini.silence()
