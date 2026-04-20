@@ -105,7 +105,8 @@ bias = FreeParameter(
     true_value=true_lya_params['bias'],
     delta=0.01,
     gauss_prior_mean=ini_bias,
-    gauss_prior_width=0.05,    
+    gauss_prior_width=0.05,
+    latex_label=r'$b_\alpha$'
 )
 beta = FreeParameter(
     name='beta',
@@ -115,17 +116,18 @@ beta = FreeParameter(
     delta=0.1,
     true_value=true_lya_params['beta'],
     gauss_prior_mean=ini_beta,
-    gauss_prior_width=0.2,    
+    gauss_prior_width=0.2,   
+    latex_label=r'$\beta_\alpha$'
 )
 
 # %%
-free_params = [bias]
-#free_params = [bias, beta]
+#free_params = [bias]
+free_params = [bias, beta]
 for par in free_params:
     print(par.name, par.ini_value, par.true_value)
 
 # %%
-post = Posterior(like, free_params, config={'verbose': True})
+post = Posterior(like, free_params, config={'verbose': False})
 
 # %%
 test = post.get_log_posterior()
@@ -157,10 +159,11 @@ print(best_fit_params)
 
 # %%
 Np = len(free_params)
-nwalkers = 2*(Np+1)
-max_nsteps = 20 + 10 * Np**2
-nburnin = 10 + 5 * Np**2
+nwalkers = 2*(Np+2)
+max_nsteps = 50 + 20 * Np**2
+nburnin = 20 + 10 * Np**2
 config={'verbose':True, 'nwalkers':nwalkers, 'max_nsteps': max_nsteps, 'nburnin':nburnin}
+print(config)
 
 # %%
 post.silence()
@@ -177,11 +180,22 @@ samp.run_sampler()
 samp.emcee_sampler.acceptance_fraction
 
 # %%
-chain = samp.emcee_sampler.chain
+chain = samp.emcee_sampler.get_chain(discard=10, thin=2, flat=True)
+print(chain.shape)
 mean_bias = np.mean(chain)
 print('< bias > =', mean_bias)
 print('true bias =', true_lya_params['bias'])
 
 # %%
+from getdist import MCSamples, plots
+
+# %%
+gdnames = [par.name for par in free_params]
+gdlabels = [par.latex_label for par in free_params]
+gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
+
+# %%
+g = plots.get_subplot_plotter()
+g.triangle_plot([gdsamples], filled=True)
 
 # %%
