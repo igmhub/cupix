@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.16.4
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %%
@@ -28,9 +28,9 @@ from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.posterior import Posterior
 from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.likelihood.sampler import Sampler
 from cupix.utils.utils import get_path_repo
 cupixpath = get_path_repo('cupix')
-from cupix.likelihood.sampler import Sampler
 
 # %%
 forecast_file = f"{cupixpath}/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5"
@@ -63,7 +63,7 @@ with h5.File(forecast_file) as f:
             true_lya_params[par] = ff_params[par]
     else:
         raise ValueError("No IGM or Lya parameters found in the forecast file.")
-    
+
 
 # %%
 true_lya_params
@@ -74,7 +74,7 @@ cosmo = cosmology.Cosmology(cosmo_params_dict=true_cosmo_params)
 
 # %%
 # use the true Lya parameters (Arinyo / bias / beta)
-config = true_lya_params | {'verbose': True}
+config = true_lya_params | {'verbose': False}
 # make your life a bit harder by changing a bit the value of beta
 wrong_beta = False
 if wrong_beta:
@@ -94,10 +94,9 @@ ini_bias = 1.05 * true_lya_params['bias']
 ini_beta = 0.9 * true_lya_params['beta']
 
 # %% [markdown]
-# ### Step 3: Setup free parameters and posterior
+# ### Setup free parameters and posterior
 
 # %%
-# set the likelihood parameters as the Arinyo params with some fiducial values
 bias = FreeParameter(
     name='bias',
     min_value=-0.5,
@@ -120,7 +119,8 @@ beta = FreeParameter(
 )
 
 # %%
-free_params = [bias, beta]
+free_params = [bias]
+#free_params = [bias, beta]
 for par in free_params:
     print(par.name, par.ini_value, par.true_value)
 
@@ -129,24 +129,59 @@ post = Posterior(like, free_params, config={'verbose': True})
 
 # %%
 test = post.get_log_posterior()
+print(test)
 
 # %%
 post.get_log_prior()
 
 # %% [markdown]
-# ### Step 4: Setup sampler
+# ### Minimize posterior (will use this as starting point of sampler)
 
 # %%
-sampler = Sampler(post, config={'verbose':True, 'nwalkers':10, 'nsteps':100, 'nburnin':20})
+mini = Minimizer(post, config={'verbose':False})
 
 # %%
-sampler.Np # number of free params
+mini.minimize()
 
 # %%
-sampler.nwalkers
+if len(free_params)==2:
+    true_params = {'bias': true_lya_params['bias'], 'beta': true_lya_params['beta']}
+    mini.plot_ellipses('bias', 'beta', true_vals=true_params)
 
 # %%
-sampler.run_sampler()
+best_fit_params = mini.get_best_fit_params()
+print(best_fit_params)
 
 # %% [markdown]
-#
+# ### Setup sampler
+
+# %%
+Np = len(free_params)
+nwalkers = 2*(Np+1)
+max_nsteps = 20 + 10 * Np**2
+nburnin = 10 + 5 * Np**2
+config={'verbose':True, 'nwalkers':nwalkers, 'max_nsteps': max_nsteps, 'nburnin':nburnin}
+
+# %%
+post.silence()
+samp = Sampler(post, config=config)
+
+# %%
+ini = samp.get_initial_walkers()
+print(ini)
+
+# %%
+samp.run_sampler()
+
+# %%
+samp.emcee_sampler.acceptance_fraction
+
+# %%
+chain = samp.emcee_sampler.chain
+mean_bias = np.mean(chain)
+print('< bias > =', mean_bias)
+print('true bias =', true_lya_params['bias'])
+
+# %%
+
+# %%
