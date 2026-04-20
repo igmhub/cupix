@@ -31,16 +31,18 @@ class FreeParameter(object):
         return
 
 
+    def out_of_bounds(self, value):
+        """Return True if value out of bounds"""
+        if value < self.min_value:
+            return True
+        if value > self.max_value:
+            return True
+        return False
+
+
     def get_prior_chi2(self, value):
         assert self.gauss_prior_mean is not None
         assert self.gauss_prior_width is not None
         return ( (value-self.gauss_prior_mean) / self.gauss_prior_width)**2
 
 
-    def get_value_in_cube(self, value):
-        """Normalize parameter value to [0,1]."""
-        return (value - self.min_value) / (self.max_value - self.min_value)
-
-    def get_true_value_from_cube(self, x):
-        """Given the value in range (xmin,xmax), return absolute value"""
-        return self.min_value + x * (self.max_value - self.min_value)

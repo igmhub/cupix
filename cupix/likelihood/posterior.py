@@ -31,6 +31,12 @@ class Posterior(object):
 
     def get_log_posterior(self, params={}):
 
+        # check parameter bounds
+        for name,value in params.items():
+            ip = self.get_param_index(param_name=name)
+            if self.free_params[ip].out_of_bounds(value):
+                return --np.inf
+
         # ask likelihood to evalute log-like
         log_like = self.like.get_log_like(params=params)
 
