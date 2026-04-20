@@ -195,6 +195,8 @@ if True:
     plt.errorbar(z, val, err, label='Px fits')
     plt.xlabel('z')
     plt.ylabel('kC_Mpc')
+    plt.tight_layout()
+    plt.savefig('kC_Mpc_z.png')
 
 # %%
 if True:
@@ -204,6 +206,8 @@ if True:
     plt.errorbar(z, val, err, label='Px fits')
     plt.xlabel('z')
     plt.ylabel('pC')
+    plt.tight_layout()
+    plt.savefig('pC_z.png')
 
 # %%
 if True:

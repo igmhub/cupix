@@ -37,7 +37,7 @@ from cupix.likelihood.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
 data = DESI_DR2(fname, kM_min_cut_AA=0.5, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=10.0)
 
 # %%
@@ -139,20 +139,28 @@ for mini in minis:
     best_fit = mini.get_best_fit_params()
     print('best fit chi2 and params')
     print(z, Ndp, chi2, best_fit)
+
+# %%
+for mini in minis:
+    z = mini.post.like.theory.z
     label=""
     for key, par in mini.get_best_fit_params().items():
         label += "{} = {:.4f}   ".format(key, par)
-    mini.plot_best_fit(multiply_by_k=False, theorylabel=label, datalabel='DESI DR2 Px')
+    plot_fname='px_fit_sky_z_{}'.format(z)
+    mini.plot_best_fit(multiply_by_k=False, theorylabel=label, datalabel='DESI DR2 (z={})'.format(z),
+                      plot_fname=plot_fname)
 
 # %%
 z = [ mini.post.like.theory.z for mini in minis]
 ini_chi2 = [ mini.post.like.get_chi2() for mini in minis]
 best_fit_chi2 = [ mini.get_best_fit_chi2() for mini in minis]
 plt.plot(z, best_fit_chi2, label=r'best-fit $\chi^2$')
-plt.plot(z, ini_chi2, label=r'initial $\chi^2$')
+#plt.plot(z, ini_chi2, label=r'initial $\chi^2$')
 plt.plot(z, Ndp*np.ones_like(z), label='Number of data points')
 plt.xlabel('z')
 plt.legend()
+plt.tight_layout()
+plt.savefig('chi2_fit_sky_z.png')
 
 # %%
 z = [ mini.post.like.theory.z for mini in minis]
@@ -164,12 +172,12 @@ plt.ylabel('b_noise [Mpc]')
 plt.legend()
 plt.ylim([0.0,0.004])
 #plt.axhline(y=0.00125)
+plt.tight_layout()
+plt.savefig('b_noise_z.png')
 
 # %%
 for mini in minis:
     z = mini.post.like.theory.z
     print(z, mini.get_best_fit_params())
-
-# %%
 
 # %%

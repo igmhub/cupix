@@ -267,6 +267,7 @@ class Likelihood(object):
         handles.append(plt.Line2D([], [], color='black', linestyle='solid', label=theorylabel))
         handles.append(plt.Line2D([], [], color='black', marker='o', linestyle='none', label=datalabel))
         ax[0].legend(handles=handles, loc='upper right', fontsize='small')
+        plt.tight_layout()
         if plot_fname is not None:
             plt.savefig(plot_fname + ".pdf")
             plt.savefig(plot_fname + ".png")

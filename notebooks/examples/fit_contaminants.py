@@ -37,9 +37,9 @@ from cupix.likelihood.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-data = DESI_DR2(fname, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=10.0)
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+data = DESI_DR2(fname, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=10.0)
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -49,6 +49,7 @@ k_M = data.k_M_centers_AA
 # get two 1D arrays with the edges of each theta bin, of length Nt_A each
 theta_A_min = data.theta_min_A_arcmin
 theta_A_max = data.theta_max_A_arcmin
+print(theta_A_min)
 
 # %%
 # native binning (no rebinning)
@@ -130,60 +131,23 @@ print('Sky params =', theories[0].cont_model.default_sky_params)
 print('Cont params =', theories[0].cont_model.default_continuum_params)
 
 # %%
-# set the likelihood parameters as the Arinyo params with some fiducial values
-free_params = []
-free_b_H=False
-free_b_X=False
-free_b_noise_Mpc=False
-free_kC_Mpc=False
-free_params.append(FreeParameter(
+bias = FreeParameter(
     name='bias',
     min_value=-0.5,
     max_value=-0.01,
     ini_value=-0.15,
     delta=0.001
-    ))
-free_params.append(FreeParameter(
+)
+beta = FreeParameter(
     name='beta',
     min_value=0.5,
     max_value=2.5,
     ini_value=1.5,
     delta=0.01
-    ))
-if free_b_H:
-    free_params.append(FreeParameter(
-        name='b_H',
-        min_value=-0.5,
-        max_value=-0.0,
-        ini_value=-0.02,
-        delta=0.001
-        ))
-if free_b_X:
-    free_params.append(FreeParameter(
-        name='b_X',
-        min_value=-0.1,
-        max_value=-0.0,
-        ini_value=-0.01,
-        delta=0.001
-        ))
-if free_b_noise_Mpc:
-    free_params.append(FreeParameter(
-        name='b_noise_Mpc',
-        min_value=1e-4,
-        max_value=1e-1,
-        ini_value=0.01,
-        delta=0.001
-        ))
-if free_kC_Mpc:
-    free_params.append(FreeParameter(
-        name='kC_Mpc',
-        min_value=1e-4,
-        max_value=1e-1,
-        ini_value=0.01,
-        delta=0.001
-        ))    
+)
+free_params = [bias, beta]
 for par in free_params:
-    print(par.name)
+    print(par.name, par.ini_value)
 
 # %%
 minis = []
@@ -208,28 +172,17 @@ for iz in range(Nz):
 
 # %%
 for mini in minis:
-    print('DESI DR2, z =', mini.post.like.theory.z)
     plt.figure()
     mini.plot_ellipses(pname_x='bias', pname_y='beta', nsig=2)
-    if free_b_H:
-        plt.figure()
-        mini.plot_ellipses(pname_x='bias', pname_y='b_H', nsig=2)
-    if free_b_X:
-        plt.figure()
-        mini.plot_ellipses(pname_x='bias', pname_y='b_X', nsig=2)
-    if free_b_noise_Mpc:
-        plt.figure()
-        mini.plot_ellipses(pname_x='bias', pname_y='b_noise_Mpc', nsig=2)
-    if free_kC_Mpc:
-        plt.figure()
-        mini.plot_ellipses(pname_x='bias', pname_y='kC_Mpc', nsig=2)
 
 # %%
 for mini in minis:
     z=mini.post.like.theory.z
-    mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, xlim=[-.01, 1.0], 
+    plot_fname='px_fit_z_{}'.format(z)
+    mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, xlim=[-.01, 0.51], 
                        datalabel="DR2 (z = {})".format(z), 
-                       theorylabel="Best-fit model", show=True)
+                       theorylabel="Best-fit model", 
+                       plot_fname=plot_fname, show=True)
 
 # %%
 if True:
@@ -239,6 +192,8 @@ if True:
     plt.plot(z, Ndp*np.ones_like(z), label='Number of data points')
     plt.xlabel('z')
     plt.legend()
+    plt.tight_layout()
+    plt.savefig('chi2_fit_z.png')
 
 # %%
 if True:
@@ -251,6 +206,8 @@ if True:
     plt.xlabel('z')
     plt.ylabel('bias')
     plt.legend()
+    plt.tight_layout()
+    plt.savefig('bias_fit_z.png')
 
 # %%
 if True:
@@ -263,66 +220,7 @@ if True:
     plt.xlabel('z')
     plt.ylabel('beta')
     plt.legend()
-
-# %%
-if free_b_H:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('b_H', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('b_H', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].cont_model.default_hcd_params['b_H']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
-    plt.xlabel('z')
-    plt.ylabel('b_H')
-    plt.legend()
-
-# %%
-if free_b_H:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('b_H', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('b_H', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].cont_model.default_hcd_params['b_H']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
-    plt.xlabel('z')
-    plt.ylabel('b_H')
-    plt.legend()
-
-# %%
-if free_b_X:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('b_X', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('b_X', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].cont_model.default_metal_params['b_X']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
-    plt.xlabel('z')
-    plt.ylabel('b_X')
-    plt.legend()
-
-# %%
-if free_b_noise_Mpc:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('b_noise_Mpc', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('b_noise_Mpc', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].cont_model.default_sky_params['b_noise_Mpc']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
-    plt.xlabel('z')
-    plt.ylabel('b_noise [Mpc]')
-    plt.legend()
-
-# %%
-if free_kC_Mpc:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('kC_Mpc', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('kC_Mpc', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].cont_model.default_continuum_params['kC_Mpc']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit (Blomqvist)')
-    plt.xlabel('z')
-    plt.ylabel('kC [1/Mpc]')
-    plt.legend()
-    plt.ylim([0,0.03])
+    plt.tight_layout()
+    plt.savefig('beta_fit_z.png')
 
 # %%

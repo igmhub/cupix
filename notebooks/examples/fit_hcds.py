@@ -37,8 +37,8 @@ from cupix.likelihood.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
 data = DESI_DR2(fname, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=10.0)
 
 # %%
@@ -153,6 +153,8 @@ def plot_theta_bin(it_A):
 plot_theta_bin(0)
 
 # %%
-plot_theta_bin(8)
+plot_theta_bin(4)
+
+# %%
 
 # %%
