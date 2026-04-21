@@ -34,9 +34,19 @@ cupixpath = get_path_repo('cupix')
 
 # %%
 forecast_file = f"{cupixpath}/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5"
-forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
+forecast = DESI_DR2(forecast_file, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=1.0)
 iz = 0
 z = forecast.z[iz]
+
+# %%
+# native binning (no rebinning)
+Nz, Nt_a, Nk_M, Nk_m = forecast.U_ZaMn.shape
+print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_m={Nk_m}")
+# rebinned values
+Nz, Nt_A, Nk_M = forecast.Px_ZAM.shape
+print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
+print('theta >', forecast.theta_min_A_arcmin)
+print('kpar <', forecast.k_M_edges[0,-1])
 
 # %%
 true_cosmo_params = {}
@@ -195,10 +205,11 @@ gdlabels = [par.latex_label for par in free_params]
 gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
 
 # %%
-gdlabels
-
-# %%
+plot_fname = 'bias_beta_{:.2f}.png'.format(forecast.theta_min_A_arcmin[0])
 g = plots.get_subplot_plotter()
 g.triangle_plot([gdsamples], filled=True)
+g.fig.suptitle(r"DR2 forecast ($\theta > {:.2f}^\prime)$".format(forecast.theta_min_A_arcmin[0]))
+g.finish_plot()
+plt.savefig(plot_fname)
 
 # %%
