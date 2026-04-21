@@ -261,21 +261,40 @@ class Minimizer(object):
         return
 
 
+    def print_results(self):
+        """Print to screen summary of minimizer results"""
+        results = self.get_results_dict()
+        print('chi2 = {:.3f} (ndf = {}) , prob = {:.3f}'.format(results['chi2'], results['ndf'], results['prob']))
+        for par in self.post.free_params:
+            pname = par.name
+            info = '{} = {:.4f} +/- {:.4f}'.format(pname, results[pname], results[pname+'_err'])
+            if par.true_value is not None:
+                info += ' (true value = {:.4f})'.format(par.true_value)
+            if par.gauss_prior_mean is not None:
+                mean = par.gauss_prior_mean
+                rms = par.gauss_prior_width
+                info += ' (prior = {:.4f} +/- {:.4f})'.format(mean, rms)
+            print(info)
+
+
     def get_results_dict(self):
         """Return dictionary with best-fit results, errors, and covariance matrix."""
         results_dict = {}
-        for parname in self.free_param_names:
+        for par in self.post.free_params:
+            parname = par.name
             bestfit, err = self.get_best_fit_value(parname, return_hesse=True)
             results_dict[parname] = bestfit
             results_dict[parname+'_err'] = err
         covariance = self.minimizer.covariance
-        print("Here 2")
         results_dict['cov'] = covariance
         prob = self.get_best_fit_probability()
         results_dict['prob'] = prob
-        print("Here 3")
         chi2 = self.get_best_fit_chi2()
         results_dict['chi2'] = chi2
+        ndata = self.post.like.get_ndata()
+        results_dict['ndata'] = ndata
+        ndf = ndata - len(self.post.free_params)
+        results_dict['ndf'] = ndf
         return results_dict
 
 

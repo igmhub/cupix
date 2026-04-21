@@ -154,14 +154,14 @@ class Likelihood(object):
         chi2 = self.get_chi2(
             params=params, return_info=False
         )
-        ndata = self.ndata()
+        ndata = self.get_ndata()
         if self.verbose:
             print("number of data points", ndata, "chi2", chi2, "number free params", n_free_p)
         prob = chi2_scipy.sf(chi2, ndata - n_free_p)
         return prob
 
 
-    def ndata(self):
+    def get_ndata(self):
         """Compute number of degrees of freedom in data"""
         ndata = self.data.Px_ZAM[self.iz].size
         return ndata
