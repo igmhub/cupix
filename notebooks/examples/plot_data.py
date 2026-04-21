@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Use iminuit to fit Px from DESI DR2
+# # Read and plot Px from DESI DR2
 
 # %%
 import numpy as np
@@ -137,8 +137,8 @@ for z in zs:
 likes_lya = []
 likes_cont = []
 for iz, z in enumerate(zs):
-    likes_lya.append(Likelihood(data=data, theory=theories_lya[iz], iz=iz, verbose=False))
-    likes_cont.append(Likelihood(data=data, theory=theories_cont[iz], iz=iz, verbose=False))
+    likes_lya.append(Likelihood(data=data, theory=theories_lya[iz], iz=iz, config={'verbose':False}))
+    likes_cont.append(Likelihood(data=data, theory=theories_cont[iz], iz=iz, config={'verbose':False}))
 
 # %%
 models_lya = []

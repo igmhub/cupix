@@ -41,6 +41,10 @@ class FreeParameter(object):
 
 
     def get_prior_chi2(self, value):
+        # if both are None, return 0
+        if self.gauss_prior_mean is None and self.gauss_prior_width is None:
+            return 0.0
+        # if one is not None, the other shouldn't
         assert self.gauss_prior_mean is not None
         assert self.gauss_prior_width is not None
         return ( (value-self.gauss_prior_mean) / self.gauss_prior_width)**2

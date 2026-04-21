@@ -26,18 +26,19 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
-from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.likelihood import Likelihood
+from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.posterior import Posterior
+from cupix.likelihood.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ### Read the data from DESI DR2 (large angular separations only)
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
 data = DESI_DR2(fname, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=10.0)
 
 # %%
@@ -58,23 +59,24 @@ Ndp = Nt_A * Nk_M
 cosmo = cosmology.Cosmology()
 
 # %%
-free_params = []
-free_params.append(LikelihoodParameter(
+# set the likelihood parameters as the Arinyo params with some fiducial values
+bias = FreeParameter(
     name='bias',
-    min_value=-1.0,
-    max_value=-0.001,
+    min_value=-0.5,
+    max_value=-0.01,
     ini_value=-0.15,
-    value=-0.15
-    ))
-free_params.append(LikelihoodParameter(
+    delta=0.01,   
+)
+beta = FreeParameter(
     name='beta',
     min_value=0.1,
     max_value=5.0,
     ini_value=1.5,
-    value=1.5
-    ))
+    delta=0.1,
+)
+free_params = [bias, beta]
 for par in free_params:
-    print(par.name)
+    print(par.name, par.ini_value)
 
 # %%
 config={'verbose': False, 'include_hcd': True, 'include_metal': True,
@@ -91,8 +93,9 @@ for b_H in [-0.01, -0.02, -0.04, -0.08]:
     free_params[0].ini_value = theory.lya_model.default_lya_params['bias']
     assert free_params[1].name == 'beta'
     free_params[1].ini_value = theory.lya_model.default_lya_params['beta']
-    like = Likelihood(data=data, theory=theory, iz=iz, verbose=False)
-    mini = IminuitMinimizer(like, free_params=free_params, verbose=False)
+    like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':False})
+    post = Posterior(like, free_params, config={'verbose': False})
+    mini = Minimizer(post, config={'verbose':False})
     minis[b_H] = mini
 
 # %%
@@ -107,7 +110,7 @@ for b_H, mini in minis.items():
 
 # %%
 for b_H, mini in minis.items():
-    z=mini.like.theory.z
+    z=mini.post.like.theory.z
     mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, xlim=[-.01, 0.4], 
                        datalabel="DR2 (z = {})".format(z), 
                        theorylabel="b_H = {:.3f}".format(b_H), show=True)
@@ -128,7 +131,7 @@ models = {}
 for b_H, mini in minis.items():
     params = mini.get_best_fit_params()
     print(b_H, params)
-    px = mini.like.get_convolved_px(params=params)
+    px = mini.post.like.get_convolved_px(params=params)
     models[b_H] = px
 
 
@@ -150,7 +153,7 @@ def plot_theta_bin(it_A):
 plot_theta_bin(0)
 
 # %%
-plot_theta_bin(12)
+plot_theta_bin(4)
 
 # %%
 

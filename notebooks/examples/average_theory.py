@@ -26,10 +26,11 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter
-from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.likelihood import Likelihood
+from cupix.likelihood.posterior import Posterior
+from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ### Read the Px from the stack of 50 mocks
@@ -50,31 +51,41 @@ cosmo = cosmology.Cosmology()
 default_lya_model = 'best_fit_arinyo_from_colore'
 
 # %%
+ini_bias=-0.14
+ini_beta=1.5
+
+# %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
-free_params = []
-free_params.append(LikelihoodParameter(
+bias = FreeParameter(
     name='bias',
-    min_value=-.5,
-    max_value=-.02,
-    ini_value=-0.15,
-    value=-0.15
-    ))
-free_params.append(LikelihoodParameter(
+    min_value=-0.5,
+    max_value=-0.01,
+    ini_value=ini_bias,
+    delta=0.01,
+    gauss_prior_mean=ini_bias,
+    gauss_prior_width=0.05,    
+)
+beta = FreeParameter(
     name='beta',
-    min_value=0.2,
-    max_value=3.0,
-    ini_value=1.5,
-    value=1.5
-    ))
+    min_value=0.1,
+    max_value=5.0,
+    ini_value=ini_beta,
+    delta=0.1,
+    gauss_prior_mean=ini_beta,
+    gauss_prior_width=0.2,    
+)
+free_params = [bias, beta]
 for par in free_params:
-    print(par.name)
+    print(par.name, par.ini_value)
 
 # %%
 iz=1
 z=data.z[iz]
 theory = Theory(z=z, fid_cosmo=cosmo, config={'verbose': True, 'default_lya_model': default_lya_model})
-like = Likelihood(data=data, theory=theory, iz=iz)
-mini = IminuitMinimizer(like, free_params=free_params)
+# first a likelihood without theta averaging
+like = Likelihood(data=data, theory=theory, iz=iz, config={'N_theta_average':1})
+post = Posterior(like, free_params, config={'verbose': True})
+mini = Minimizer(post, config={'verbose':True})
 
 # %%
 # number of data points (per z bin)
@@ -96,7 +107,7 @@ mini.plot_best_fit(multiply_by_k=False, theorylabel=label, datalabel='Stack (tru
 # %%
 params = mini.get_best_fit_params()
 print(params)
-model_px = mini.like.get_convolved_px(params=params)
+model_px = mini.post.like.get_convolved_px(params=params)
 
 
 # %%
@@ -303,7 +314,8 @@ for N in [1, 10, 100]:
 for N in [1, 10, 100]:
     print('------- {} theta values per bin ---------'.format(N))
     like = Likelihood(data=data, theory=theory, iz=iz, config={'N_theta_average':N})
-    mini = IminuitMinimizer(like, free_params=free_params)
+    post = Posterior(like, free_params, config={'verbose': False})
+    mini = Minimizer(post, config={'verbose':False})
     mini.silence()
     mini.minimize(compute_hesse=False)
     chi2 = mini.get_best_fit_chi2()
@@ -312,5 +324,6 @@ for N in [1, 10, 100]:
     print(chi2, best_fit)
 
 # %%
+a=3
 
 # %%

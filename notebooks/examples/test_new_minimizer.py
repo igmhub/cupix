@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Example use of the Minuit minimizer (new likelihood, new theory)
+# # Example use of the posterior minimizer
 
 # %%
 import numpy as np
@@ -26,10 +26,13 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
-from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.theory import Theory
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.likelihood import Likelihood
+#from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
+#from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.posterior import Posterior
+from cupix.likelihood.minimize_posterior import Minimizer
 import cupix
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 
@@ -37,7 +40,7 @@ cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 # ### Step 1: Import a noiseless forecast
 
 # %%
-forecast_file = f"{cupixpath}/data/px_measurements/forecast/forecast_ffcentral_real_binned_out_px-zbins_4-thetabins_9_w_res_noiseless_z0.hdf5"
+forecast_file = f"{cupixpath}/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5"
 forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
 iz = 0
 z = forecast.z[iz]
@@ -50,17 +53,12 @@ with h5.File(forecast_file) as f:
 print(true_cosmo_params)
 
 # %%
-# translate these to our Lya params
-true_lya_params = {}
 with h5.File(forecast_file) as f:
-    true_lya_params['bias'], = -1.0 * f['arinyo_pars'].attrs['bias_0'],
-    true_lya_params['beta'], = f['arinyo_pars'].attrs['beta_0'],
-    true_lya_params['av'], = f['arinyo_pars'].attrs['av_0'],
-    true_lya_params['bv'], = f['arinyo_pars'].attrs['bv_0'],
-    true_lya_params['kp_Mpc'], = f['arinyo_pars'].attrs['kp_0'],
-    true_lya_params['q1'], = f['arinyo_pars'].attrs['q1_0'],
-    true_lya_params['q2'], = f['arinyo_pars'].attrs['q2_0'],
-    true_lya_params['kv_Mpc'] = np.exp( np.log(f['arinyo_pars'].attrs['kvav_0']) / f['arinyo_pars'].attrs['av_0'] )
+    true_lya_params = {}        
+    if 'lya_params' in f['P_Z_AM'][f'z_{iz}'].keys():
+        lya_params = f['P_Z_AM'][f'z_{iz}']['lya_params'].attrs
+        for par in lya_params:
+            true_lya_params[par] = lya_params[par]
 print(true_lya_params)
 
 # %%
@@ -71,46 +69,41 @@ cosmo = cosmology.Cosmology(cosmo_params_dict=true_cosmo_params)
 # use the true Lya parameters (Arinyo / bias / beta)
 config = true_lya_params | {'verbose': True}
 # make your life a bit harder by changing a bit the value of beta
-wrong_beta = True
+wrong_beta = False
 if wrong_beta:
     config['beta'] = 1.02*config['beta']
 print(config)
 theory = Theory(z=z, fid_cosmo=cosmo, config=config)
 
 # %%
-like = Likelihood(data=forecast, theory=theory, iz=iz, verbose=True)
-#like = Likelihood(forecast, theory, z=z, verbose=False)
+# old forecasts did not average over theta
+N_theta_average=1
+like = Likelihood(data=forecast, theory=theory, iz=iz, 
+                  config={'verbose':True, 'N_theta_average':N_theta_average})
 
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
-like_params = []
-like_params.append(LikelihoodParameter(
+bias = FreeParameter(
     name='bias',
-    min_value=-.13,
-    max_value=-.1,
-    ini_value=-.11,
-    value =-.11
-    ))
-like_params.append(LikelihoodParameter(
-    name='beta',
-    min_value=0.5,
-    max_value=2.5,
-    ini_value=1.5,
-    value =1.5
-    ))
-like_params.append(LikelihoodParameter(
+    min_value=-0.5,
+    max_value=-0.01,
+    ini_value=-0.15,
+    delta=0.01,   
+)
+q1 = FreeParameter(
     name='q1',
-    min_value=0,
-    max_value=1,
-    ini_value=0.3,
-    value =0.3
-    ))
-for par in like_params:
-    print(par.name)
-
+    min_value=0.0,
+    max_value=5.0,
+    ini_value=0.5,
+    delta=0.02,
+)
+free_params = [bias, q1]
+for par in free_params:
+    print(par.name, par.ini_value)
 
 # %%
-mini = IminuitMinimizer(like, free_params=like_params, verbose=True)
+post = Posterior(like, free_params, config={'verbose': True})
+mini = Minimizer(post, config={'verbose':True})
 
 # %%
 mini.silence()
@@ -140,9 +133,6 @@ mini.get_best_fit_value("q1", return_hesse=True), mini.get_best_fit_value("bias"
 def plot_ellipses(pname_x, pname_y):
     mini.plot_ellipses(pname_x, pname_y, nsig=3, true_vals={pname_x: true_lya_params[pname_x], pname_y: true_lya_params[pname_y]}) 
 
-
-# %%
-plot_ellipses('bias','beta')
 
 # %%
 plot_ellipses('bias','q1')

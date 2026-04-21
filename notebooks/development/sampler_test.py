@@ -106,7 +106,7 @@ bias = FreeParameter(
     delta=0.01,
     gauss_prior_mean=ini_bias,
     gauss_prior_width=0.05,
-    latex_label=r'$b_\alpha$'
+    latex_label=r'b_\alpha'
 )
 beta = FreeParameter(
     name='beta',
@@ -117,7 +117,7 @@ beta = FreeParameter(
     true_value=true_lya_params['beta'],
     gauss_prior_mean=ini_beta,
     gauss_prior_width=0.2,   
-    latex_label=r'$\beta_\alpha$'
+    latex_label=r'\beta_\alpha'
 )
 
 # %%
@@ -193,6 +193,9 @@ from getdist import MCSamples, plots
 gdnames = [par.name for par in free_params]
 gdlabels = [par.latex_label for par in free_params]
 gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
+
+# %%
+gdlabels
 
 # %%
 g = plots.get_subplot_plotter()
