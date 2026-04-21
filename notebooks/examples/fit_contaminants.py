@@ -201,8 +201,8 @@ if True:
     val = [ mini.get_best_fit_value('bias', return_hesse=True)[0] for mini in minis]
     err = [ mini.get_best_fit_value('bias', return_hesse=True)[1] for mini in minis]
     plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].lya_model.default_lya_params['bias']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
+    #xi3d=theories[0].lya_model.default_lya_params['bias']
+    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
     plt.xlabel('z')
     plt.ylabel('bias')
     plt.legend()
@@ -215,8 +215,8 @@ if True:
     val = [ mini.get_best_fit_value('beta', return_hesse=True)[0] for mini in minis]
     err = [ mini.get_best_fit_value('beta', return_hesse=True)[1] for mini in minis]
     plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].lya_model.default_lya_params['beta']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
+    #xi3d=theories[0].lya_model.default_lya_params['beta']
+    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
     plt.xlabel('z')
     plt.ylabel('beta')
     plt.legend()

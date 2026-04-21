@@ -15,9 +15,10 @@ cupixpath = get_path_repo('cupix')
 
 print('cupix path', cupixpath)
 
-# for each redshift, we will fit bias / beta / kp_Mpc using theta > 5 arcmin to get a prior for these
+# for each redshift, we will fit bias / beta and continuum fitting parameters
 mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
-fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+#fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
 kM_max_cut_AA = 0.5
 km_max_cut_AA = 1.1*kM_max_cut_AA
 theta_min_cut_arcmin = 5.0
@@ -28,7 +29,7 @@ cosmo = cosmology.Cosmology()
 # starting point for Lya bias parameters in mocks
 #default_lya_model = 'best_fit_arinyo_from_colore'
 default_lya_model = 'pressure_only_fits_from_colore'
-theory_config = {'verbose': False, 'default_lya_model': default_lya_model, 'include_continuum': False}
+theory_config = {'verbose': False, 'default_lya_model': default_lya_model, 'include_continuum': True}
 
 # set free parameters (ini values depend on z)
 par_bias = FreeParameter(
@@ -45,17 +46,26 @@ par_beta = FreeParameter(
     ini_value=None,
     delta=0.1,
 )
-par_kp = FreeParameter(
-    name='kp_Mpc',
-    min_value=0.0,
-    max_value=5.0,
+par_kC = FreeParameter(
+    name='kC_Mpc',
+    min_value=1e-4,
+    max_value=1e-1,
+    ini_value=None,
+    delta=0.001
+)
+par_pC = FreeParameter(
+    name='pC',
+    min_value=0.01,
+    max_value=2.0,
     ini_value=None,
     delta=0.01
 )
-free_params = [par_bias, par_beta, par_kp]
+free_params = [par_bias, par_beta, par_kC, par_pC]
+
 
 def run_z_bin(iz):
     z = data.z[iz]
+    print('----------------------')
     print('analyze zbin {}, z = {}'.format(iz, z))
     run = {'z': z}
 
@@ -65,8 +75,11 @@ def run_z_bin(iz):
     free_params[0].ini_value = ini_bias
     ini_beta = run['theory'].lya_model.default_lya_params['beta']
     free_params[1].ini_value = ini_beta
-    ini_kp = run['theory'].lya_model.default_lya_params['kp_Mpc']
-    free_params[2].ini_value = ini_kp
+    ini_kC = run['theory'].cont_model.default_continuum_params['kC_Mpc']
+    free_params[2].ini_value = ini_kC
+    ini_pC = run['theory'].cont_model.default_continuum_params['pC']
+    free_params[3].ini_value = ini_pC
+    print('initial param values')
     for par in free_params:
         print(par.name, par.ini_value)
 
