@@ -293,7 +293,7 @@ class Minimizer(object):
         results_dict['chi2'] = chi2
         ndata = self.post.like.get_ndata()
         results_dict['ndata'] = ndata
-        ndf = ndata - len(self.post.free_params)
+        ndf = self.post.get_ndf()
         results_dict['ndf'] = ndf
         return results_dict
 
