@@ -37,9 +37,9 @@ from cupix.likelihood.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-data = DESI_DR2(fname, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=10.0)
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+data = DESI_DR2(fname, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=6.0)
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -96,30 +96,16 @@ for iz, z in enumerate(zs):
 cosmo = cosmology.Cosmology()
 
 # %%
-config={'verbose': False, 'include_hcd': True, 'include_metal': True,
+config={'verbose': False, 'include_hcd': False, 'include_metal': True,
         'include_sky': True, 'include_continuum': True}
 theories = []
 for iz,z in enumerate(zs):
-    # improve default contaminants
-    if iz==0:
-        config['b_noise_Mpc'] = 0.003
-        config['kC_Mpc'] = 0.015
-    else:
-        config['b_noise_Mpc'] = 0.001
-        config['kC_Mpc'] = 0.010
     theories.append(Theory(z=z, fid_cosmo=cosmo, config=config))
 
 # %%
 likes = []
 for iz, z in enumerate(zs):
     likes.append(Likelihood(data=data, theory=theories[iz], iz=iz, config={'verbose':False}))
-
-# %%
-# plot data vs default theory for each z
-for iz, z in enumerate(zs):
-    datalabel = 'DESI DR2 at z={}'.format(z)
-    theorylabel = 'Default contaminated theory'
-    likes[iz].plot_px(params={}, multiply_by_k=False, datalabel=datalabel, theorylabel=theorylabel)
 
 # %% [markdown]
 # ### Setup minimizers and free parameters
@@ -131,21 +117,28 @@ print('Sky params =', theories[0].cont_model.default_sky_params)
 print('Cont params =', theories[0].cont_model.default_continuum_params)
 
 # %%
-bias = FreeParameter(
+par_bias = FreeParameter(
     name='bias',
     min_value=-0.5,
     max_value=-0.01,
     ini_value=-0.15,
     delta=0.001
 )
-beta = FreeParameter(
+par_beta = FreeParameter(
     name='beta',
     min_value=0.5,
     max_value=2.5,
     ini_value=1.5,
     delta=0.01
 )
-free_params = [bias, beta]
+par_bX = FreeParameter(
+    name='b_X',
+    min_value=-1.0,
+    max_value=0.0,
+    ini_value=-0.005,
+    delta=1e-5
+)
+free_params = [par_bias, par_beta, par_bX]
 for par in free_params:
     print(par.name, par.ini_value)
 
@@ -160,14 +153,11 @@ for iz in range(Nz):
     free_params[1].ini_value = likes[iz].theory.lya_model.default_lya_params['beta']   
     post = Posterior(likes[iz], free_params, config={'verbose': False})
     mini = Minimizer(post, config={'verbose':False})
+    print('----------------------------')
+    print('minimizing zbin {}, at z={}'.format(iz, theories[iz].z))
     mini.silence()
     mini.minimize(compute_hesse=True)
-    chi2 = mini.get_best_fit_chi2()
-    best_fit = mini.get_best_fit_params()
-    print('best fit chi2 and params')
-    print(zs[iz], Ndp, chi2, best_fit)
-    print('-------')
-    print('-------')
+    mini.print_results()
     minis.append(mini)
 
 # %%
@@ -201,8 +191,8 @@ if True:
     val = [ mini.get_best_fit_value('bias', return_hesse=True)[0] for mini in minis]
     err = [ mini.get_best_fit_value('bias', return_hesse=True)[1] for mini in minis]
     plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].lya_model.default_lya_params['bias']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
+    #xi3d=theories[0].lya_model.default_lya_params['bias']
+    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
     plt.xlabel('z')
     plt.ylabel('bias')
     plt.legend()
@@ -215,12 +205,27 @@ if True:
     val = [ mini.get_best_fit_value('beta', return_hesse=True)[0] for mini in minis]
     err = [ mini.get_best_fit_value('beta', return_hesse=True)[1] for mini in minis]
     plt.errorbar(z, val, err, label='Px fits')
-    xi3d=theories[0].lya_model.default_lya_params['beta']
-    plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
+    #xi3d=theories[0].lya_model.default_lya_params['beta']
+    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
     plt.xlabel('z')
     plt.ylabel('beta')
     plt.legend()
     plt.tight_layout()
     plt.savefig('beta_fit_z.png')
+
+# %%
+if True:
+    z = [ mini.post.like.theory.z for mini in minis]
+    val = [ mini.get_best_fit_value('b_X', return_hesse=True)[0] for mini in minis]
+    err = [ mini.get_best_fit_value('b_X', return_hesse=True)[1] for mini in minis]
+    plt.errorbar(z, val, err, label='DR2 Px fits')
+    #xi3d=theories[0].lya_model.default_lya_params['beta']
+    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
+    plt.xlabel('z')
+    plt.ylabel('b_X')
+    plt.legend()
+    plt.ylim(-0.02, 0.0)
+    plt.tight_layout()
+    plt.savefig('b_X_fit_z.png')
 
 # %%

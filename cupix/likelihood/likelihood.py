@@ -180,7 +180,7 @@ class Likelihood(object):
         for it_A in range(N_A):
             det_cov = np.linalg.det(self.data.cov_ZAM[self.iz, it_A,:,:])
             if det_cov == 0:
-                print("Det(cov) appears to be 0: could be a singular covariance matrix!")
+                print("Det(cov) appears to be 0: could be a singular covariance matrix! iz = {}, it_A = {}".format(self.iz, it_A))
             # compute chi2 for this theta bin
             icov_ZAM = np.linalg.inv(self.data.cov_ZAM[self.iz, it_A,:,:])
             data_A = self.data.Px_ZAM[self.iz, it_A,:]

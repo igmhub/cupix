@@ -93,7 +93,7 @@ class LyaModel(object):
         if self.verbose: print('LyaModel::get_default_lya_params')
 
         if 'colore' in self.default_lya_model.lower():
-            assert self.z in [2.2, 2.4, 2.6, 2.8], "For tag 'best_fit_arinyo_from_colore', redshifts must be in [2.2, 2.4, 2.6, 2.8]"
+            assert self.z in [2.2, 2.4, 2.6, 2.8], "We only have CoLoRe fits for redshifts in [2.2, 2.4, 2.6, 2.8]"
             # Load Laura's CF fits for all redshifts
             ff_params = {}
             with fits.open(get_path_repo('cupix')+f"/data/colore_xi/bin_{self.z:.1f}/lyaxlya.fits") as zbin_cf_file:
@@ -109,9 +109,20 @@ class LyaModel(object):
                     ff_params['q2'] = zbin_cf_fit['dnl_arinyo_q2']
                 else:
                     ff_params['q2'] = 0
+            if 'pressure_only' in self.default_lya_model.lower():
+                ff_params['q1'] = 0.0
+                ff_params['q2'] = 0.0
+                if self.z == 2.2:
+                    ff_params['kp'] = 0.325
+                elif self.z == 2.4:
+                    ff_params['kp'] = 0.315
+                else:
+                    ff_params['kp'] = 0.300
+
         elif 'p1d' in self.default_lya_model.lower():
             prior_info = priors.get_arinyo_priors(z=self.z, tag='DESI_DR1_P1D')
             ff_params = prior_info['mean']
+
         elif 'gadget' in self.default_lya_model.lower():
             # apply the best-fit model from the central gadget sims
             gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
@@ -128,6 +139,7 @@ class LyaModel(object):
                     ff_params[par] = train_test_info[par+"_central"][iz_closest]
                 else:
                     print("Parameter", par, "not found in training info file for redshift", self.z)
+
         else:
             raise ValueError("unknown default_lya_model", self.default_lya_model)
 

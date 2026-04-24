@@ -29,6 +29,13 @@ class Posterior(object):
         return
 
 
+    def get_ndf(self):
+        """Number of degrees of freedom"""
+        ndata = self.like.get_ndata()
+        npar = len(self.free_params)
+        return ndata-npar
+
+
     def get_log_posterior(self, params={}):
 
         # check parameter bounds
