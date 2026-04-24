@@ -196,7 +196,8 @@ class Likelihood(object):
 
     def plot_px(self, params={}, multiply_by_k=True, every_other_theta=False, show=True,
                 theorylabel=None, datalabel=None, plot_fname=None,
-                ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False):
+                ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False,
+                extra_params=None, extra_label=None):
         """Plot the Px data and theory."""
         import matplotlib.pyplot as plt
         import matplotlib.lines as mlines
@@ -204,6 +205,8 @@ class Likelihood(object):
         # get theory prediction
         model_px = self.get_convolved_px(params=params)
         Nt_A, Nk_M = model_px.shape
+        if extra_params is not None:
+            extra_model_px = self.get_convolved_px(params=extra_params)
 
         # plot all theta on one, easily distinguishable colors
         plt.rcParams.update({'font.size': 20})
@@ -228,15 +231,21 @@ class Likelihood(object):
             errors = np.diag(np.squeeze(self.data.cov_ZAM[self.iz, it_A, :, :]))**0.5
             div = errors
             divname = 'errors'
-            ax[0].errorbar(k_M, self.data.Px_ZAM[self.iz, it_A, :]*factor, errors*factor, label=label, color=colors[it_A], linestyle='none', marker='^', markersize=5)
+            ax[0].errorbar(k_M, self.data.Px_ZAM[self.iz, it_A, :]*factor,
+                           errors*factor, label=label, color=colors[it_A],
+                           linestyle='none', marker='^', markersize=5)
             theory_iA = model_px[it_A]
             if residual_to_theory:
                 div = theory_iA
-                divname = 'theory'
+                divname = 'Theory'
 
             ax[0].plot(k_M, theory_iA*factor, color=colors[it_A], linewidth=2)
             ax[1].set_xlabel(r'$k [\AA^{-1}]$')
             ax[1].plot(k_M, (self.data.Px_ZAM[self.iz, it_A, :] - theory_iA)/div, color=colors[it_A], marker='o', linestyle='none')
+            if extra_params is not None:
+                extra_theory_iA = extra_model_px[it_A]
+                ax[0].plot(k_M, extra_theory_iA*factor, color=colors[it_A], ls=':', linewidth=2)
+                ax[1].plot(k_M, (extra_theory_iA - theory_iA)/div, color=colors[it_A], ls=':', linewidth=2)
 
         # if more than 1 z plotted, add custom legend for the redshifts: "--, square: z=.., -., diamond: z=.." etc
         ax[0].legend()
@@ -249,7 +258,12 @@ class Likelihood(object):
 
         # set range limits
         if ylim2 is None:
-            ax[1].set_ylim([-3,3])
+            if residual_to_theory:
+                # up to 50% deviations from theory
+                ax[1].set_ylim([-0.5,0.5])
+            else:
+                # up to 3-sigma fluctuations
+                ax[1].set_ylim([-3,3])
         else:
             ax[1].set_ylim(ylim2)
         if ylim is not None:
@@ -264,8 +278,13 @@ class Likelihood(object):
         if title is not None:
             plt.suptitle(title)
 
-        handles.append(plt.Line2D([], [], color='black', linestyle='solid', label=theorylabel))
         handles.append(plt.Line2D([], [], color='black', marker='o', linestyle='none', label=datalabel))
+        handles.append(plt.Line2D([], [], color='black', linestyle='solid', label=theorylabel))
+        if extra_params is not None:
+            if extra_label is None:
+                extra_label = 'Extra theory prediction'
+            handles.append(plt.Line2D([], [], color='black', linestyle=':', label=extra_label))
+
         ax[0].legend(handles=handles, loc='upper right', fontsize='small')
         plt.tight_layout()
         if plot_fname is not None:

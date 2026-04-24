@@ -236,7 +236,8 @@ class Minimizer(object):
 
     def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, 
                       theorylabel=None, datalabel=None, plot_fname=None, 
-                      ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False):
+                      ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False,
+                      extra_params=None, extra_label=None):
         """Plot best-fit PX vs data."""
 
         # obtain dictionary of best-fit parameters (will minimize if needed)
@@ -255,7 +256,9 @@ class Minimizer(object):
             plot_fname=plot_fname,
             ylim2=ylim2,
             title=title,
-            residual_to_theory=residual_to_theory
+            residual_to_theory=residual_to_theory,
+            extra_params=extra_params,
+            extra_label=extra_label
         )
 
         return
