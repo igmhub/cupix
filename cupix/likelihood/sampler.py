@@ -61,12 +61,12 @@ class Sampler(object):
         if self.verbose:
             print("set %d walkers with %d dimensions" % (nwalkers, ndim))
 
-        # Normally distributed random values
-        shifts = np.random.rand(ndim * nwalkers).reshape((nwalkers, ndim))
+        # Random values between [0, 1) --> [-0.5, 0.5)
+        shifts = -0.5 + np.random.rand(ndim * nwalkers).reshape((nwalkers, ndim))
         ini_walkers = np.empty_like(shifts)
         for ip, par in enumerate(self.post.free_params):
-            ini_value = par.ini_value
-            rms = par.delta
+            ini_value = par.gauss_prior_mean
+            rms = par.gauss_prior_width
             val = ini_value + shifts[:, ip] * rms
             # check that you don't end up outside the bounds
             min_val = par.min_value

@@ -54,7 +54,8 @@ class Posterior(object):
         log_posterior = log_like + log_prior
 
         if self.verbose:
-            print(params, log_like, log_prior, log_posterior)
+            print('params =', params)
+            print('log_like, prior, post =', log_like, log_prior, log_posterior)
 
         return log_posterior
 

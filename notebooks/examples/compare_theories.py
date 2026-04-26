@@ -194,6 +194,50 @@ compare_param('q2')
 # %%
 compare_param('av')
 
+
+# %%
+def compare_p1d_param(pname, ratio=True, theta_p1d=0.0001):
+    low_value = prior_info['percen_5'][pname]
+    high_value = prior_info['percen_95'][pname]
+    low_params = {pname: low_value}
+    high_params = {pname: high_value}
+    low_label = '{} = {:.4f}'.format(pname, low_value)
+    high_label = '{} = {:.4f}'.format(pname, high_value)
+    print('{:.4f} < {} < {:.4f}'.format(low_value, pname, high_value))
+
+    low_chi2 = like.get_chi2(params=low_params)
+    high_chi2 = like.get_chi2(params=high_params)
+    print('Delta chi2 (low) = {:.2f} , Delta chi2 (high) = {:.2f}'.format(low_chi2, high_chi2))
+
+    k_M = data.k_M_centers_AA
+    k_M = np.linspace(0,3.0,100)
+        
+    low_p1d = like.theory.get_px_lya_obs(theta_arc=theta_p1d, k_AA=k_M, params=low_params)
+    high_p1d = like.theory.get_px_lya_obs(theta_arc=theta_p1d, k_AA=k_M, params=high_params)
+    if ratio:
+        plt.plot(k_M, high_p1d / low_p1d)
+        plt.ylabel('ratio of P1D')
+        fname='ratio_p1d_{}.png'.format(pname)
+    else:
+        plt.plot(k_M, low_p1d, label=low_label)
+        plt.plot(k_M, high_p1d, label=high_label)
+        plt.ylabel(r'$P_1D(k_\parallel)$ [AA]')
+        plt.legend()
+        fname='p1d_{}.png'.format(pname)
+    plt.xlabel(r'$k_\parallel$ [1/AA]')
+    plt.tight_layout()
+    plt.savefig(fname)
+
+
+# %%
+compare_p1d_param(pname='bv', theta_p1d=0.00001)
+
+# %%
+compare_p1d_param(pname='bv', ratio=False, theta_p1d=0.00001)
+
+# %%
+compare_p1d_param(pname='av', theta_p1d=0.00001)
+
 # %% [markdown]
 # ## Study the impact of contaminants
 
