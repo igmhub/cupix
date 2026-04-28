@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --qos=shared
-#SBATCH --time=00:10:00
+#SBATCH --time=00:05:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=16
-#SBATCH --cpus-per-task=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
 #SBATCH --constraint=cpu
 #SBATCH --account=desi
 #SBATCH --output=/pscratch/sd/m/mlokken/desi-lya/px/logs/mcmc%x-%j.out
