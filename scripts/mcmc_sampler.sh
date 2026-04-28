@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --qos=shared
-#SBATCH --time=00:05:00
+#SBATCH --time=00:07:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -10,6 +10,10 @@
 #SBATCH --error=/pscratch/sd/m/mlokken/desi-lya/px/logs/mcmc%x-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mlokken@ifae.es
+
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
 
 module load python
 conda activate cupix

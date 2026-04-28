@@ -38,9 +38,9 @@ def main():
     cosmo = cosmology.Cosmology(cosmo_params_dict=true_cosmo_params)
 
     # use the true Lya parameters (Arinyo / bias / beta)
-    config = true_lya_params | {'verbose': False}
+    config = true_lya_params | {'verbose': True}
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
-    like = Likelihood(data=forecast, theory=theory, iz=iz)
+    like = Likelihood(data=forecast, theory=theory, iz=iz, config = {'verbose': True})
 
     # start a bit off
     ini_bias = 1.05 * true_lya_params['bias']
@@ -74,7 +74,7 @@ def main():
     for par in free_params:
         print(par.name, par.ini_value, par.true_value)
 
-    post = Posterior(like, free_params, config={'verbose': False})
+    post = Posterior(like, free_params, config={'verbose': True})
 
 
 
@@ -129,6 +129,7 @@ if __name__ == "__main__":
     from cupix.likelihood.sampler import Sampler
     from cupix.utils.utils import get_path_repo
 
-    mp.set_start_method('spawn')
+    # mp.set_start_method('spawn')
+    mp.set_start_method('fork')
     main()
     print("Sampler finished")
