@@ -1,6 +1,6 @@
 import numpy as np
 import emcee
-
+import os
 
 class Sampler(object):
     """Sampler class, holds posterior"""
@@ -25,7 +25,7 @@ class Sampler(object):
             print('Initial values set to', ini_values)
 
 
-    def setup_emcee_sampler(self, config):
+    def setup_emcee_sampler(self, config, pool=None):
 
         # read emcee configuration
         nwalkers = config.get('nwalkers', 10)
@@ -33,16 +33,18 @@ class Sampler(object):
         self.nburnin = config.get('nburnin', 100)
         assert self.nburnin < self.max_nsteps, 'nburnin >= max_nsteps'
         self.parallel = config.get('parallel', False)
-
+        
         # create emcee sampler object
         Np = len(self.post.free_params)
         self.emcee_sampler =  emcee.EnsembleSampler(
             nwalkers,
             Np,
-            self.post.get_log_posterior_from_values
+            log_prob_wrapper,
+            args=(self.post,),
+            pool=pool
         )
 
-
+    
     def silence(self):
         """set verbose=False in all classes"""
         self.verbose=False
@@ -105,3 +107,8 @@ class Sampler(object):
         if self.verbose:
             print('finished running sampler')
         return
+
+def log_prob_wrapper(values, post):
+    # check if the separate tasks are active
+    print(f"PID {os.getpid()}")
+    return post.get_log_posterior_from_values(values)
