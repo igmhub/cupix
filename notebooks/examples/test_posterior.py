@@ -83,8 +83,8 @@ like.get_chi2()
 
 # %%
 # start a bit off
-ini_bias = 1.05 * true_lya_params['bias']
-ini_beta = 0.9 * true_lya_params['beta']
+ini_bias = 1.01 * true_lya_params['bias']
+ini_beta = 0.98 * true_lya_params['beta']
 
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
@@ -119,10 +119,11 @@ for par in free_params:
 post = Posterior(like, free_params, config={'verbose': True})
 
 # %%
-test = post.get_log_posterior()
+ini_values = [par.ini_value for par in free_params]
+post.get_log_posterior_from_values(values=ini_values)
 
 # %%
-post.get_log_prior()
+post.get_log_prior_from_values(values=ini_values)
 
 # %% [markdown]
 # ### Step 4: Setup posterior minimizer
@@ -133,7 +134,8 @@ mini = Minimizer(post, config={'verbose':True})
 # %%
 true_params = {'bias': bias.true_value, 'beta': beta.true_value}
 true_chi2 = post.like.get_chi2(params=true_params)
-true_post = post.get_log_posterior(params=true_params)
+true_values = [true_params[par.name] for par in post.free_params] 
+true_post = post.get_log_posterior_from_values(values=true_values)
 print(true_chi2, true_post, -0.5*true_chi2)
 
 # %%
@@ -145,7 +147,7 @@ plt.axvline(x=beta.true_value, color='gray', ls=':')
 
 # %%
 betas = np.linspace(beta.true_value-0.1, beta.true_value+0.1, 11)
-log_post = [post.get_log_posterior(params={'bias': bias.true_value, 'beta': val}) for val in betas]
+log_post = [post.get_log_posterior_from_values(values=[bias.true_value, val]) for val in betas]
 plt.plot(betas, log_post)
 plt.axvline(x=beta.true_value, color='gray', ls=':')
 
@@ -154,7 +156,7 @@ mini.silence()
 mini.minimize()
 
 # %%
-best_params = mini.get_best_fit_params()
+best_params = mini.get_best_fit_params(add_fixed_params=True)
 print(best_params)
 best_chi2 = like.get_chi2(params=best_params)
 print(best_chi2)
@@ -162,5 +164,25 @@ print(best_chi2)
 # %%
 # these should not agree perfectly, since our prior is a bit off
 mini.plot_ellipses('bias','beta', true_vals=true_params)
+
+# %% [markdown]
+# ### Test option to specify fixed parameters
+
+# %%
+post_ns = Posterior(like, free_params, config={'verbose': True, 'fixed_params': {'ns': 0.98} })
+
+# %%
+post_ns.get_log_posterior_from_values(values=ini_values)
+
+# %%
+post.verbose = True
+post.get_log_posterior_from_values(values=ini_values)
+
+# %%
+# modify the fixed parameters of an existing posterior
+post_ns.fixed_params['nrun'] = -0.01 
+
+# %%
+post_ns.get_log_posterior_from_values(values=ini_values)
 
 # %%
