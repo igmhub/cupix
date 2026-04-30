@@ -156,7 +156,7 @@ mini.silence()
 mini.minimize()
 
 # %%
-best_params = mini.get_best_fit_params(add_fixed_params=True)
+best_params = mini.get_best_fit_params()
 print(best_params)
 best_chi2 = like.get_chi2(params=best_params)
 print(best_chi2)
@@ -184,5 +184,9 @@ post_ns.fixed_params['nrun'] = -0.01
 
 # %%
 post_ns.get_log_posterior_from_values(values=ini_values)
+
+# %%
+
+# %%
 
 # %%

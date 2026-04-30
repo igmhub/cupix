@@ -25,11 +25,8 @@ class Posterior(object):
         # this (if provided) is a dictionary
         self.fixed_params = config.get('fixed_params', {})
         if self.fixed_params:
-            free_par_names = [
-            for key, value in self.fixed_params.items():
-                assert key not in self.free_params, key + ' both free and fixed'
-                if self.verbose:
-                    print('{} parameter fixed to {:.4f}'.format(key, value))
+            for par in self.free_params:
+                assert par.name not in self.fixed_params, par.name+' both fixed and free'
 
 
     def silence(self):

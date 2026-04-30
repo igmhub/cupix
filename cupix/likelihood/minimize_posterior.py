@@ -290,7 +290,7 @@ class Minimizer(object):
                 info += ' (prior = {:.4f} +/- {:.4f})'.format(mean, rms)
             print(info)
         for key, val in self.post.fixed_params.items():
-            print('{} = {:.4f} (fixed)'.format(key, val)
+            print('{} = {:.4f} (fixed)'.format(key, val))
 
 
     def get_results_dict(self):
