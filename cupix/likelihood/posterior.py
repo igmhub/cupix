@@ -18,14 +18,19 @@ class Posterior(object):
 
         self.verbose = config.get('verbose', False)
         self.like = like
+
         # this is a list of FreeParameter objects
         self.free_params = free_params
+
         # this (if provided) is a dictionary
         self.fixed_params = config.get('fixed_params', {})
-        if self.verbose and self.fixed_params:
+        if self.fixed_params:
+            free_par_names = [
             for key, value in self.fixed_params.items():
-                print('{} parameter fixed to {:.4f}'.format(key, value))
- 
+                assert key not in self.free_params, key + ' both free and fixed'
+                if self.verbose:
+                    print('{} parameter fixed to {:.4f}'.format(key, value))
+
 
     def silence(self):
         """set verbose=False in all classes"""
@@ -44,8 +49,11 @@ class Posterior(object):
 
     def get_log_like_from_values(self, values):
 
-        # get dictionary with free and fixed parameters
-        params = self.get_params_from_values(values, add_fixed_params=True)
+        # get dictionary with free parameters
+        params = self.get_params_from_values(values)
+
+        # include also fixed parameters
+        params.update(self.fixed_params)
 
         # ask for likelihood (including also fixed_params)
         log_like = self.like.get_log_like(params=params)
@@ -103,31 +111,16 @@ class Posterior(object):
         return ipar
 
 
-    def get_free_params_from_values(self, values):
-        """Collect dictionary of parameters using input values
-        for free parameters, and fixed_params dictionary"""
-
-        return self.get_params_from_values(values, add_fixed_params=False)
-
-
-    def get_params_from_values(self, values, add_fixed_params):
-        """Collect dictionary of parameters using input values
-        for free parameters, and fixed_params dictionary"""
+    def get_params_from_values(self, values):
+        """Collect dictionary of parameters using input values"""
 
         Np = len(self.free_params)
         assert len(values) == Np, "Inconsistent number of free parameters"
 
-        # start by adding free params from values array
         params = {}
         for ip in range(Np):
             name = self.free_params[ip].name
             params[name] = values[ip]
-
-        # add fixed params (if any)
-        if add_fixed_params:
-            for key, value in self.fixed_params.items():
-                assert key not in params, key + ' both free and fixed'
-                params[key] = value
 
         return params
 
