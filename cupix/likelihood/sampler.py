@@ -6,41 +6,42 @@ class Sampler(object):
     """Sampler class, holds posterior"""
     def __init__(
         self,
-        post,
-        config={}
+        free_params,
+        config={},
+        pool=None,
+        log_prob_fn=None
     ):
-        """Setup sampler from posterior and config file. Inputs:
-            - post (required): posterior class 
+        """Setup sampler from posterior and config fifle. Inputs:
+            - free_params: list of FreeParameter objects
             - config (optional): dictionary with different settings
+            - pool: multiprocessing pool for parallelization
+            - log_prob_fn: externally defined log_probability function
         """
         self.verbose = config.get('verbose', False)
-        self.post = post
-        self.setup_emcee_sampler(config)
-
+        self.Np = len(free_params)
+        self.setup_emcee_sampler(config, pool=pool, log_prob_fn=log_prob_fn)
+        
+        self.free_params = free_params
         if self.verbose:
-            free_param_names = [par.name for par in self.post.free_params]
-            ini_values = [par.ini_value for par in self.post.free_params]
+            free_param_names = [par.name for par in self.free_params]
+            ini_values = [par.ini_value for par in self.free_params]
             print('Free parameters in sampler')
             print(free_param_names)
             print('Initial values set to', ini_values)
 
 
-    def setup_emcee_sampler(self, config, pool=None):
+    def setup_emcee_sampler(self, config, pool=None, log_prob_fn =None):
 
         # read emcee configuration
         nwalkers = config.get('nwalkers', 10)
         self.max_nsteps = config.get('max_nsteps', 1000)
         self.nburnin = config.get('nburnin', 100)
         assert self.nburnin < self.max_nsteps, 'nburnin >= max_nsteps'
-        self.parallel = config.get('parallel', False)
-        
         # create emcee sampler object
-        Np = len(self.post.free_params)
         self.emcee_sampler =  emcee.EnsembleSampler(
             nwalkers,
-            Np,
-            log_prob_wrapper,
-            args=(self.post,),
+            self.Np,
+            log_prob_fn,
             pool=pool
         )
 
@@ -48,16 +49,13 @@ class Sampler(object):
     def silence(self):
         """set verbose=False in all classes"""
         self.verbose=False
-        self.post.verbose=False
-        self.post.like.verbose=False
-        self.post.like.theory.verbose=False
         return
  
 
     def get_initial_walkers(self):
         """Setup initial states of walkers in sensible points """
 
-        ndim = len(self.post.free_params)
+        ndim = len(self.free_params)
         nwalkers = self.emcee_sampler.nwalkers
 
         if self.verbose:
@@ -66,7 +64,7 @@ class Sampler(object):
         # Random values between [0, 1) --> [-0.5, 0.5)
         shifts = -0.5 + np.random.rand(ndim * nwalkers).reshape((nwalkers, ndim))
         ini_walkers = np.empty_like(shifts)
-        for ip, par in enumerate(self.post.free_params):
+        for ip, par in enumerate(self.free_params):
             ini_value = par.gauss_prior_mean
             rms = par.gauss_prior_width
             val = ini_value + shifts[:, ip] * rms
@@ -108,7 +106,3 @@ class Sampler(object):
             print('finished running sampler')
         return
 
-def log_prob_wrapper(values, post):
-    # check if the separate tasks are active
-    print(f"PID {os.getpid()}")
-    return post.get_log_posterior_from_values(values)
