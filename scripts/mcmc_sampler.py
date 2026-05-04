@@ -14,8 +14,6 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.minimize_posterior import Minimizer
-from cupix.likelihood.sampler import Sampler
 from cupix.utils.utils import get_path_repo
 
 _POST = None
