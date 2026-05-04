@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=128
 #SBATCH --constraint=cpu
 #SBATCH --account=desi
-#SBATCH --output=/pscratch/sd/m/mlokken/desi-lya/px/logs/mcmc%x-%j.out
-#SBATCH --error=/pscratch/sd/m/mlokken/desi-lya/px/logs/mcmc%x-%j.err
+#SBATCH --output=/pscratch/sd/m/mlokken/desi-lya/px/logs/%x-%j.out
+#SBATCH --error=/pscratch/sd/m/mlokken/desi-lya/px/logs/%x-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mlokken@ifae.es
 
