@@ -35,9 +35,10 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 
 # %%
 fname = '/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/gaussian/analysis-0/contaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5'
-kM_max_cut_AA=0.2
+kM_max_cut_AA=0.4
 km_max_cut_AA=1.1*kM_max_cut_AA
-data = DESI_DR2(fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA)
+theta_min_cut_arcmin=1.0
+data = DESI_DR2(fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA, theta_min_cut_arcmin=theta_min_cut_arcmin)
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -79,10 +80,10 @@ def plot_z_bin(iz, its_M):
 
 
 # %%
-plot_z_bin(iz=2, its_M=range(5))
+plot_z_bin(iz=2, its_M=range(Nt_A))
 
 # %%
-plot_z_bin(iz=0, its_M=range(15,20))
+plot_z_bin(iz=0, its_M=range(5,10))
 
 # %% [markdown]
 # ### Set up theory
@@ -97,9 +98,10 @@ theory = TestTheory(z=z)
 like = likelihood.Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True, 'N_theta_average':1})
 
 # %%
-model_px=like.get_convolved_px(params={})
+like.plot_px(multiply_by_k=False, every_other_theta=True, residual_to_theory=True, plot_fname='debug_px')
 
 # %%
-like.plot_px(multiply_by_k=False, every_other_theta=True)
+
+# %%
 
 # %%
