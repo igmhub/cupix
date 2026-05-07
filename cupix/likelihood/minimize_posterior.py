@@ -110,17 +110,25 @@ class Minimizer(object):
         """Compute chi2 for best-fit parameters (will minimize if needed)"""
 
         # get best-fit parameters (will run minimizer if needed)
-        best_fit_params = self.get_best_fit_params()
+        params = self.get_best_fit_params()
+
+        # add fixed parameters in the posterior
+        params.update(self.post.fixed_params)
 
         # ask likelihood for chi2
-        return self.post.like.get_chi2(params=best_fit_params, return_info=return_info)
+        return self.post.like.get_chi2(params=params, return_info=return_info)
 
 
     def get_best_fit_probability(self):
+
         # get best-fit parameters (will run minimizer if needed)
-        best_fit_params = self.get_best_fit_params()
-        n_free_p = len(self.post.free_params)
-        return self.post.like.get_probability(best_fit_params, n_free_p=n_free_p)
+        params = self.get_best_fit_params()
+        n_free_p = len(params)
+
+        # add fixed parameters in the posterior
+        params.update(self.post.fixed_params)
+
+        return self.post.like.get_probability(params, n_free_p=n_free_p)
 
 
     def get_best_fit_value(self, pname, return_hesse=False):
@@ -241,11 +249,14 @@ class Minimizer(object):
         """Plot best-fit PX vs data."""
 
         # obtain dictionary of best-fit parameters (will minimize if needed)
-        best_fit_params = self.get_best_fit_params()
+        params = self.get_best_fit_params()
+
+        # add fixed parameters in the posterior
+        params.update(self.post.fixed_params)
 
         # use plotting tool in likelihood object to plot data and theory
         self.post.like.plot_px(
-            params=best_fit_params,
+            params=params,
             every_other_theta=every_other_theta,
             multiply_by_k=multiply_by_k,
             xlim=xlim,
@@ -278,6 +289,8 @@ class Minimizer(object):
                 rms = par.gauss_prior_width
                 info += ' (prior = {:.4f} +/- {:.4f})'.format(mean, rms)
             print(info)
+        for key, val in self.post.fixed_params.items():
+            print('{} = {:.4f} (fixed)'.format(key, val))
 
 
     def get_results_dict(self):
