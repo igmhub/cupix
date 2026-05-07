@@ -4,9 +4,9 @@ import numpy as np
 class TestTheory(object):
     """Fake theory to debug Px measurements"""
 
-    def __init__(self, z):
+    def __init__(self, z, config={}):
         self.z = z
-        self.input_power = InputPower(P0=0.5,k0=0.01,kF=0.1,f_px=0.7)
+        self.input_power = get_input_power(config)
 
 
     def get_px_obs(self, theta_arc, k_AA, cosmo=None, params={}):
@@ -21,6 +21,14 @@ class TestTheory(object):
         print('test px_obs shape', px_obs.shape)
 
         return px_obs
+
+
+def get_input_power(config):
+    P0 = config.get('P0', 0.5)
+    k0 = config.get('k0', 0.1)
+    kF = config.get('kF', 1.0)
+    f_px = config.get('f_px', 0.7)
+    return InputPower(P0=P0, k0=k0, kF=kF, f_px=f_px)
 
 
 # the class below has been copied from 

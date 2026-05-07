@@ -91,7 +91,8 @@ plot_z_bin(iz=0, its_M=range(5,10))
 # %%
 iz=0
 z=data.z[iz]
-theory = TestTheory(z=z)
+config = dict(P0=0.5, k0=0.01, kF=0.1, f_px=0.7)
+theory = TestTheory(z=z, config=config)
 
 # %%
 # No need to average over theta, they all have the same Px 
