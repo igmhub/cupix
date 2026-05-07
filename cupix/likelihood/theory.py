@@ -3,6 +3,7 @@ import numpy as np
 
 # our modules below
 from lace.cosmo import cosmology, rescale_cosmology
+from forestflow import integrate_p3d
 from cupix.likelihood.likelihood_parameter import dict_from_likeparam
 from cupix.likelihood.model_lya import LyaModel
 from cupix.likelihood.model_contaminants import ContaminantsModel
@@ -247,21 +248,17 @@ class Theory(object):
         return Px_AA
 
 
-    def _compute_px_from_p3d(self, rt_Mpc, kp_Mpc, p3d_func_kmu, kt_Mpc_max):
+    def _compute_px_from_p3d(self, rt_Mpc, kp_Mpc, p3d_func_kmu, kmax_linP_Mpc):
+        """Call function in ForestFlow to compute integrate P3D to Px"""
 
-        # trying to recycle existing Px functionality in ForestFlow
-        from forestflow import pcross
-        from forestflow.model_p3d_arinyo import coordinates
-        @coordinates("k_mu")
-        def dummy_p3d_func_kmu(dummy, k, mu, ari_pp=None, new_cosmo_params=None):
-            return p3d_func_kmu(k, mu)
-        return pcross.Px_Mpc_detailed(
-                z=123456789,
-                kpar_iMpc=kp_Mpc,
-                rperp_Mpc=rt_Mpc,
-                p3d_fun_Mpc=dummy_p3d_func_kmu,
-                p3d_params={'dummy':123456789},
-                max_k_for_p3d=kt_Mpc_max)
+        px = integrate_p3d.compute_px_from_p3d_kmu_Mpc(
+                kp_Mpc=kp_Mpc, 
+                rt_Mpc=rt_Mpc,
+                p3d_func_kmu_Mpc=p3d_func_kmu,
+                p3d_k_Mpc_max=kmax_linP_Mpc
+        )
+
+        return px
 
 
     def _compute_lya_hcd_biases(self, kpar, lya_params, hcd_params):
@@ -310,16 +307,15 @@ class Theory(object):
 
     def get_px_lya_Mpc(self, rt_Mpc, kp_Mpc, cosmo=None, params={}):
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
+
         # function to be passed to compute Px
         def p3d_func(k, mu):
             return self.get_p3d_lya_Mpc(k, mu, cosmo, params)
 
-        # maximum kt_Mpc to use (power should be 0 past that)
-        # could ask CAMB object, but pressure is doing this job for you
-        # kt_Mpc_max = 5 * lya_params['kp_Mpc']
-        kt_Mpc_max = 200.0
+        # will use P=0 past this kmax
+        kmax_linP_Mpc = cosmo.get_kmax_linP_Mpc()
 
-        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kt_Mpc_max)
+        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kmax_linP_Mpc)
 
 
     def get_p3d_lya_hcd_Mpc(self, k, mu, cosmo=None, params={}):
@@ -346,16 +342,15 @@ class Theory(object):
 
     def get_px_lya_hcd_Mpc(self, rt_Mpc, kp_Mpc, cosmo=None, params={}):
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
+
         # function to be passed to compute Px
         def p3d_func(k, mu):
             return self.get_p3d_lya_hcd_Mpc(k, mu, cosmo, params)
 
-        # maximum kt_Mpc to use (power should be 0 past that)
-        # could ask CAMB object, but pressure is doing this job for you
-        # kt_Mpc_max = 5 * lya_params['kp_Mpc']
-        kt_Mpc_max = 200.0
+        # will use P=0 past this kmax
+        kmax_linP_Mpc = cosmo.get_kmax_linP_Mpc()
 
-        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kt_Mpc_max)
+        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kmax_linP_Mpc)
 
 
     def get_p3d_metal_auto_Mpc(self, k, mu, cosmo=None, params={}):
@@ -383,16 +378,15 @@ class Theory(object):
 
     def get_px_metal_auto_Mpc(self, rt_Mpc, kp_Mpc, cosmo=None, params={}):
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
+
         # function to be passed to compute Px
         def p3d_func(k, mu):
             return self.get_p3d_metal_auto_Mpc(k, mu, cosmo, params)
 
-        # maximum kt_Mpc to use (power should be 0 past that)
-        # could ask CAMB object, but pressure is doing this job for you
-        # kt_Mpc_max = 5 * lya_params['kp_Mpc']
-        kt_Mpc_max = 200.0
+        # will use P=0 past this kmax
+        kmax_linP_Mpc = cosmo.get_kmax_linP_Mpc()
 
-        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kt_Mpc_max)
+        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kmax_linP_Mpc)
 
 
     def get_p3d_metal_cross_Mpc(self, k, mu, cosmo=None, params={}):
@@ -440,16 +434,15 @@ class Theory(object):
 
     def get_px_metal_cross_Mpc(self, rt_Mpc, kp_Mpc, cosmo=None, params={}):
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
+
         # function to be passed to compute Px
         def p3d_func(k, mu):
             return self.get_p3d_metal_cross_Mpc(k, mu, cosmo, params)
 
-        # maximum kt_Mpc to use (power should be 0 past that)
-        # could ask CAMB object, but pressure is doing this job for you
-        # kt_Mpc_max = 5 * lya_params['kp_Mpc']
-        kt_Mpc_max = 200.0
+        # will use P=0 past this kmax
+        kmax_linP_Mpc = cosmo.get_kmax_linP_Mpc()
 
-        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kt_Mpc_max)
+        return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kmax_linP_Mpc)
 
 
     def get_px_sky_obs(self, theta_arc, k_AA, cosmo=None, params={}):
