@@ -13,13 +13,14 @@ class Config(object):
             except yaml.YAMLError as exc:
                 print(exc)
 
-        self.cosmo_params = self.data.get('cosmo_params', {})
-        self.igm_params = self.data.get('igm_params', {})
-        self.lya_params = self.data.get('lya_params', {})
-        self.contaminant_params = self.data.get('contaminant_params', {})
-        self.default_lya_model = self.data.get('default_lya_model', '')
-        if self.default_lya_model is None:
-            self.default_lya_model = ''
+        self._cosmo_params = self.data.get('cosmo_params', {})
+        self._igm_params = self.data.get('igm_params', {})
+        self._lya_params = self.data.get('lya_params', {})
+        self._contaminant_params = self.data.get('contaminant_params', {})
+        self._default_lya_model = self.data.get('default_lya_model', '')
+        if self._default_lya_model is None:
+            self._default_lya_model = ''
+        # check that all the parameters are valid entries and create a single dictionary with all parameters
         self.regulate_params()
         self.check_params()
         self.create_single_dictionary()
@@ -77,15 +78,18 @@ class Config(object):
     def create_single_dictionary(self):
         " Create a single dictionary with all parameters, for easy access"
         self.all_params = {}
+        self.theory_params = {}
         if self.default_lya_model != '':
-            self.all_params.update({'default_lya_model': self.default_lya_model})
-        self.all_params.update(self.cosmo_params)
-        self.all_params.update(self.igm_params)
-        self.all_params.update(self.lya_params)
-        self.all_params.update(self.contaminant_params['hcd_params'])
-        self.all_params.update(self.contaminant_params['metal_params'])
-        self.all_params.update(self.contaminant_params['sky_params'])
-        self.all_params.update(self.contaminant_params['continuum_params'])
+            self.theory_params.update({'default_lya_model': self.default_lya_model})
+        self.theory_params.update(self.cosmo_params)
+        self.theory_params.update(self.igm_params)
+        self.theory_params.update(self.lya_params)
+        self.theory_params.update(self.contaminant_params['hcd_params'])
+        self.theory_params.update(self.contaminant_params['metal_params'])
+        self.theory_params.update(self.contaminant_params['sky_params'])
+        self.theory_params.update(self.contaminant_params['continuum_params'])
+        
+        self.like_params = {}
         
 
     def regulate_params(self):
