@@ -89,8 +89,10 @@ class Config(object):
         self.theory_params.update(self.contaminant_params['sky_params'])
         self.theory_params.update(self.contaminant_params['continuum_params'])
         
+        # need to update this more and add the others        
         self.like_params = {}
-        
+
+        self.all_params = {'theory_params': self.theory_params, 'like_params': self.like_params}
 
     def regulate_params(self):
         # remove any parameters that are None
