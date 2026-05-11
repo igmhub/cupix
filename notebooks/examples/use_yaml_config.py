@@ -47,27 +47,32 @@ iz = 0
 z = forecast.z[iz]
 
 # %%
+with h5.File(forecast_file, 'r') as f:
+    print(f['P_Z_AM']['z_0']['lya_params'])
+    print(f.keys())
+    for attr in f['cosmo_params'].attrs:
+        print(attr, f['cosmo_params'].attrs[attr])
+
+# %%
 config = Config(cupixpath+"/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_config.yaml")
 
 # %%
-config.igm_params, config.lya_params, config.cosmo_params, config.contaminant_params
+# these are not meant to be updated by the user, only including this to check
+config.all_params
 
 # %%
-cosmo = cosmology.Cosmology(cosmo_params_dict=config.cosmo_params)
+cosmo = cosmology.Cosmology(cosmo_params_dict=config.all_params['theory_params']['cosmo_params'])
 
 # %%
 theory = Theory(z=z, fid_cosmo=cosmo, config=config.all_params)
 
 # %%
-theory.lya_model.default_lya_params
+theory.lya_model.default_lya_params, theory.lya_model.default_lya_model
 
 # %%
 # old forecasts did not average over theta
-N_theta_average=1
 like = Likelihood(data=forecast, theory=theory, iz=iz, 
-                  config={'verbose':True, 'N_theta_average':N_theta_average})
+                  config=config.all_params['like_params'])
 
 # %%
 like.plot_px()
-
-# %%
