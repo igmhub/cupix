@@ -1,63 +1,64 @@
-verbose_all: 
+verbose_all: True
+
 theory_params:
-    
-    verbose:
+  verbose:
 
-    cosmo_params:
-        H0: 67.66
-        mnu: 0.0
-        ombh2: 0.02242
-        omch2: 0.11933
-        omk: 0.0
-        omnuh2: 0.0
-        w: -1.0
-        wa: 0.0
+  cosmo_params:
+    H0: 67.66
+    mnu: 0.0
+    ombh2: 0.02242
+    omch2: 0.11933
+    omk: 0.0
+    omnuh2: 0.0
+    w: -1.0
+    wa: 0.0
 
-    default_lya_model:
+  default_lya_model:
 
-    igm_params:
-        Delta2_p: 
-        n_p: 
-        mF:
-        gamma:
-        sigT_Mpc:
-        kF_Mpc:
+  igm_params:
+    Delta2_p: 
+    n_p: 
+    mF:
+    gamma:
+    sigT_Mpc:
+    kF_Mpc:
 
-    lya_params:
-        bias: -0.1173
-        beta: 1.416102
-        q1: 0.259185
-        kp_Mpc: 10.41077
-        kv_Mpc: 0.24245
-        av: 0.43190
-        bv: 1.67688
-        q2: 0.271033
+  lya_params:
+    bias: -0.1173
+    beta: 1.416102
+    q1: 0.259185
+    kp_Mpc: 10.41077
+    kv_Mpc: 0.24245
+    av: 0.43190
+    bv: 1.67688
+    q2: 0.271033
 
-    contaminant_params:
-        hcd_params:
-            b_H:
-            beta_H:
-            L_H_Mpc:
-        metal_params:
-            b_X:
-            beta_X:
-        sky_params:
-            b_noise_Mpc:
-        continuum_params:
-            kC_Mpc:
-            pC:
+  contaminant_params:
+    hcd_params:
+      b_H:
+      beta_H:
+      L_H_Mpc:
+    metal_params:
+      b_X:
+      beta_X:
+    sky_params:
+      b_noise_Mpc:
+    continuum_params:
+      kC_Mpc:
+      pC:
+
 likelihood_params:
-    verbose:
-    N_theta_average:
+  verbose:
+  N_theta_average: 1
 
 posterior_params:
-    verbose:
+  verbose: 
 
 minimizer_params:
-    verbose:
+  verbose: 
 
 sampler_params:
-    verbose:
-    nwalkers:
-    max_nsteps:
-    nburnin:
+  verbose:
+  nwalkers: 8
+  max_nsteps: 100
+  nburnin: 10
