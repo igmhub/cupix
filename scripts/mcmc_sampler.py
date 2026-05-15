@@ -129,7 +129,7 @@ def main():
         delta=0.1,
         true_value=true_lya_params['q1'],
         gauss_prior_mean=ini_q1,
-        gauss_prior_width=0.2,   
+        gauss_prior_width=0.1,   
         latex_label=r'q_1'
     )
     bv = FreeParameter(
@@ -140,7 +140,7 @@ def main():
         delta=0.1,
         true_value=true_lya_params['bv'],
         gauss_prior_mean=ini_bv,
-        gauss_prior_width=0.2,
+        gauss_prior_width=0.1,
         latex_label=r'b_v'
     )
     kv = FreeParameter(
@@ -151,7 +151,7 @@ def main():
         delta=0.1,
         true_value=true_lya_params['kv_Mpc'],
         gauss_prior_mean=ini_kv,
-        gauss_prior_width=0.2,
+        gauss_prior_width=0.1,
         latex_label=r'k_v'
     )
     av = FreeParameter(
@@ -162,7 +162,7 @@ def main():
         delta=0.1,
         true_value=true_lya_params['av'],
         gauss_prior_mean=ini_av,
-        gauss_prior_width=0.2,
+        gauss_prior_width=0.1,
         latex_label=r'a_v'
     )
 
@@ -187,7 +187,7 @@ def main():
     Np = len(free_params)
     nwalkers = 4*ncores_use # 4*(Np+2) # 2*(Np+2)
     max_nsteps = 100 + 10 * Np**3 # muhc longer than before
-    nburnin = 50 + 5 * Np**3
+    nburnin = 50 + 3 * Np**3
     config={'verbose':True, 'nwalkers':nwalkers, 'max_nsteps': max_nsteps, 'nburnin':nburnin, 'parallel':True}
     print(config)
     init_start = time.time()
@@ -216,22 +216,32 @@ def main():
         # total number of steps
         ntotal = nburnin + max_nsteps
         tau_estimates = []
-        F = 20
+        F = 30
+        sampling_start = time.time()
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
+            it = emcee_sampler.iteration
             if verbose:
-                it = emcee_sampler.iteration
                 if it%10 == 0:
                     print("Step %d out of %d " % (it, ntotal))
-            if it%100 == 0:
+            if it%10 == 0:
                 # estimate the autocorrelation time and check convergence. This might be inaccurate for short chains
-                tau = emcee_sampler.get_autocorr_time(tol=0, quiet=True) # tol = 0 means not requiring a certain number of autocorr times to trust the estimate.
+                try:
+                    tau = emcee_sampler.get_autocorr_time(tol=0, quiet=True) # tol = 0 means not requiring a certain number of autocorr times to trust the estimate.
+                except Exception:
+                    continue
                 mean_tau = np.mean(tau)
                 print("mean tau", mean_tau)
                 tau_estimates.append(mean_tau)
-                # if we have fewer than F * tau samples, do not trust
-                if it > (mean_tau * 40):
-                    print("Chain has converged after %d steps" % it)
-                    break
+                # check if tau estimates are stable
+                if it>100: # require at least 100 steps to have some estimate of tau
+                    if np.std( tau_estimates[-10:] ) / mean_tau < 0.05:
+                        print("Tau estimates are stable")
+                        # if we have fewer than F * tau samples, do not trust
+                        if it > (mean_tau * F):
+                            print("Chain has converged after %d steps" % it)
+                            break
+        sampling_end = time.time()
+        print("Time to run sampler: %.2f seconds" % (sampling_end - sampling_start))
         if emcee_sampler.iteration == ntotal:
             print("Warning: chain did not converge after %d steps" % ntotal)
         plt.plot(np.arange(len(tau_estimates))*100, tau_estimates)
@@ -239,17 +249,30 @@ def main():
         plt.legend()
         plt.xlabel("step")
         plt.ylabel("estimated autocorrelation time")
+        rand_num = np.random.choice(1000)
         plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}_tau.png'.format())
         plt.clf()
-        chain = emcee_sampler.get_chain(discard=nburnin, thin=2)
+        if nburnin >= emcee_sampler.iteration:
+            # reset nburnin to be shorter than the chain
+            print("Warning: nburnin longer than chain")
+            nburnin = emcee_sampler.iteration // 2
+        # first get the full chain and plot one, to understand burnin
+        chain_full = emcee_sampler.get_chain(flat=False)
+        plt.plot(chain_full[:, :, 0], alpha=0.5)
+        plt.ylabel(free_params[0].name)
+        plt.xlabel("step")
+        plt.title("Full chain for parameter %s" % free_params[0].name)
+        plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}_fullchain.png'.format())
+        plt.clf()
+
+        chain = emcee_sampler.get_chain(discard=nburnin, thin=2, flat=True)
         gdnames = [par.name for par in free_params]
         gdlabels = [par.latex_label for par in free_params]
         for i in range(Np):
-            print("mean", gdnames[i], np.mean(chain[:,:,i]))
+            print("mean", gdnames[i], np.mean(chain[:, i]))
             print("true", gdnames[i], free_params[i].true_value)
 
         gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
-        rand_num = np.random.choice(1000)
         plot_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}.png'.format()
         print("Saving to", plot_fname)
         g = plots.get_subplot_plotter()

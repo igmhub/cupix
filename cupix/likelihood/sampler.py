@@ -101,6 +101,8 @@ class Sampler(object):
                 it = self.emcee_sampler.iteration
                 if it%10 == 0:
                     print("Step %d out of %d " % (it, ntotal))
+            if it%20==0:
+                print("autocorr time:", self.emcee_sampler.get_autocorr_time(tol=0, quiet=True))
 
         if self.verbose:
             print('finished running sampler')
