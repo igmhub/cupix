@@ -1,12 +1,12 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: py:percent,ipynb
+#     formats: ipynb,py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.17.2
+#       jupytext_version: 1.19.1
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -41,38 +41,39 @@ cupixpath = get_path_repo('cupix')
 # ### Step 1: Import a noiseless forecast
 
 # %%
-forecast_file = f"{cupixpath}/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5"
-forecast = DESI_DR2(forecast_file, kM_max_cut_AA=1, km_max_cut_AA=1.2)
-iz = 0
-z = forecast.z[iz]
-
-# %%
-with h5.File(forecast_file, 'r') as f:
-    print(f['P_Z_AM']['z_0']['lya_params'])
-    print(f.keys())
-    for attr in f['cosmo_params'].attrs:
-        print(attr, f['cosmo_params'].attrs[attr])
-
-# %%
 config = Config(cupixpath+"/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_config.yaml")
 
 # %%
-# these are not meant to be updated by the user, only including this to check
-config.all_params
+config.print_all()
 
 # %%
-cosmo = cosmology.Cosmology(cosmo_params_dict=config.all_params['theory_params']['cosmo_params'])
+# we should eventually update data class to accept a config dictinoary
+forecast = DESI_DR2(config.data_config['data_file'], kM_max_cut_AA=config.data_config['kM_max_cut_AA'])
+iz = config.theory_config['iz']
+z = forecast.z[iz]
 
 # %%
-theory = Theory(z=z, fid_cosmo=cosmo, config=config.all_params)
+print(z)
 
 # %%
-theory.lya_model.default_lya_params, theory.lya_model.default_lya_model
+# with h5.File(config.data_config['data_file'], 'r') as f:
+#     print(f['P_Z_AM']['z_0']['lya_params'])
+#     print(f.keys())
+#     for attr in f['cosmo_params'].attrs:
+#         print(attr, f['cosmo_params'].attrs[attr])
+
+# %%
+cosmo = cosmology.Cosmology(cosmo_params_dict=config.cosmo_config)
+
+# %%
+theory = Theory(z=z, fid_cosmo=cosmo, config=config.theory_config)
 
 # %%
 # old forecasts did not average over theta
 like = Likelihood(data=forecast, theory=theory, iz=iz, 
-                  config=config.all_params['like_params'])
+                  config=config.like_config)
 
 # %%
 like.plot_px()
+
+# %%

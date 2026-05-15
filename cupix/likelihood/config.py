@@ -1,4 +1,5 @@
 import yaml
+from cupix.likelihood import theory, model_lya, model_contaminants
 
 # Read yaml config files and create dictionaries
 class Config(object):
@@ -13,88 +14,80 @@ class Config(object):
             except yaml.YAMLError as exc:
                 print(exc)
 
+
         self.verbose_all = self.data.get('verbose_all', None)
-        self._theory_params = self.data.get('theory_params', {})
-        self._like_params = self.data.get('likelihood_params', {})
-        self._post_params = self.data.get('posterior_params', {})
-        self._mini_params = self.data.get('minimizer_params', {})
-        self._samp_params = self.data.get('sampler_params', {})
-        
-        if self._theory_params['default_lya_model'] is None:
-            self._theory_params['default_lya_model'] = ''
-        # check that all the parameters are valid entries and create a single dictionary with all parameters
-        
-        self.check_params()
-        self.create_single_dictionary()
-        self.regulate_params()
+        self.cosmo_config = self.data.get('cosmo_config', {})
+        self.theory_config = self.data.get('theory_config', {})
+        self.like_config = self.data.get('likelihood_config', {})
+        self.post_config = self.data.get('posterior_config', {})
+        self.mini_config = self.data.get('minimizer_config', {})
+        self.samp_config = self.data.get('sampler_config', {})
+        self.data_config = self.data.get('data_config', {})
 
-    def check_contaminant_params(self):
-        " Check that the contaminant_params have the right names"
-        allowed_hcd_params = ['b_H', 'beta_H', 'L_H_Mpc']
-        allowed_metal_params = ['b_X', 'beta_X']
-        allowed_sky_params = ['b_noise_Mpc']
-        allowed_continuum_params = ['kC_Mpc', 'pC']
-        for par in self._theory_params['contaminant_params']['hcd_params']:
-            assert par in allowed_hcd_params, f"hcd_param {par} not recognized, allowed parameters are {allowed_hcd_params}"
-        for par in self._theory_params['contaminant_params']['metal_params']:
-            assert par in allowed_metal_params, f"metal_param {par} not recognized, allowed parameters are {allowed_metal_params}"
-        for par in self._theory_params['contaminant_params']['sky_params']:
-            assert par in allowed_sky_params, f"sky_param {par} not recognized, allowed parameters are {allowed_sky_params}"
-        for par in self._theory_params['contaminant_params']['continuum_params']:
-            assert par in allowed_continuum_params, f"continuum_param {par} not recognized, allowed parameters are {allowed_continuum_params}"
-
-    def check_igm_params(self):
-        " Check that the igm_params have the right names"
-        allowed_params = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
-        for par in self._theory_params['igm_params']:
-            assert par in allowed_params, f"igm_param {par} not recognized, allowed parameters are {allowed_params}"
-    
-    # assuming LaCE already has checks for allowed cosmo param names
-
-    def check_lya_params(self):
-        " Check that the lya_params have the right names"
-        allowed_params = ['bias', 'beta', 'q1', 'kv_Mpc', 'av', 'bv', 'kp_Mpc', 'q2']
-        for par in self._theory_params['lya_params']:
-            assert par in allowed_params, f"lya_param {par} not recognized, allowed parameters are {allowed_params}"
-    
-    def check_params(self):
-        " Check that the parameter names are all allowed"
-        assert self._theory_params['default_lya_model'] in ['', 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {self.default_lya_model} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"
+        # check theory params
+        model_lya.no_unrecognized_igm_params(self.theory_config.get('igm_config', {}))
+        model_lya.no_unrecognized_lya_params(self.theory_config.get('lya_config', {}))
+        model_contaminants.no_unrecognized_cont_params(self.theory_config.get('contaminant_config', {}))
         
-        if self._theory_params['default_lya_model'] == '':
-            assert (len(self._theory_params['lya_params']) > 0) or (len(self._theory_params['igm_params']) > 0), "If default_lya_model is empty, you must provide some lya_params or igm_params"
-        
-        if len(self._theory_params['default_lya_model']) > 0 and len(self._theory_params['default_lya_model']) > 0:
-            raise ValueError("You cannot provide both igm_params and lya_params, choose one or the other")
-        
-        if 'igm' in self._theory_params['default_lya_model'] and len(self._theory_params['default_lya_model'])>0:
-            raise ValueError("You cannot provide lya_params if default_lya_model is an igm model")
-        
-        if 'arinyo' in self._theory_params['default_lya_model'] and len(self._theory_params['default_lya_model'])>0:
-            raise ValueError("You cannot provide igm_params if default_lya_model is an arinyo model")
-        self.check_lya_params()
-        self.check_igm_params()
-        self.check_contaminant_params()
-    
-    def create_single_dictionary(self):
-        " Create a single dictionary with all parameters, for easy access"
-        self.all_params = {'theory_params': self._theory_params, 'like_params': self._like_params, 'post_params': self._post_params, 'mini_params': self._mini_params, 'samp_params': self._samp_params}
+        # make one large theory config without sub-dictionaries
+        self.consolidate_theory_config()
+        self.remove_nones()
+        # make sure theory config is self-consistent
+        model_lya.no_conflicting_params(self.theory_config)
         self.verbose_update()
+        
+    def consolidate_theory_config(self):
+        " Make one large theory config without sub-dictionaries, for easy use in theory.py."
+        consolidated_config = {}
+        sub_config_names = ['lya_config', 'igm_config', 'contaminant_config']
+        for param in self.theory_config:
+            if param not in sub_config_names:
+                consolidated_config[param] = self.theory_config[param]
+        # add the rest of the theory config parameters that are in sub-dictionaries
+        for sub_config_name in sub_config_names:
+            sub_config = self.theory_config.get(sub_config_name, {})
+            for param in sub_config:
+                if param in consolidated_config:
+                    raise ValueError(f"Duplicate parameter {param} found in theory config.")
+                consolidated_config[param] = sub_config[param]
+        self.theory_config = consolidated_config
 
-    def regulate_params(self):
+    def print_all(self):
+        " Print all parameters"
+        names = ["Cosmo config", "Theory config", "Likelihood config", "Posterior config", "Minimizer config", "Sampler config", "Data config"]
+        for i, category in enumerate([self.cosmo_config, self.theory_config, self.like_config, self.post_config, self.mini_config, self.samp_config, self.data_config]):
+            print(names[i])
+            print(category)
+        
 
-        for param_type in self.all_params: # e.g., 'verbose_all', 'theory_params', 'like_params', etc.
-            if type(self.all_params[param_type]) == dict:
-                self.all_params[param_type] = {k: v for k, v in self.all_params[param_type].items() if v is not None}
-                for subparam_type in self.all_params[param_type]: # e.g., 'igm_params', 'lya_params', etc.
-                    if type(self.all_params[param_type][subparam_type]) == dict: # e.g., 'igm_params', 'lya_params', etc.
-                        self.all_params[param_type][subparam_type] = {k: v for k, v in self.all_params[param_type][subparam_type].items() if v is not None}
+    def remove_nones(self):
+        " Remove None from dictionaries "
+        new_theory_config = {}
+        for param in self.theory_config:
+            if type(self.theory_config[param]) == dict: # e.g. lya_config, igm_config, contaminant_config
+                # remove none in the sub-dictionary
+                new_theory_config[param] = {k: v for k, v in self.theory_config[param].items() if v is not None}
+            elif self.theory_config[param] is not None:
+                # copy over the parameter if it's not None
+                new_theory_config[param] = self.theory_config[param]
+        new_like_config = {k: v for k, v in self.like_config.items() if v is not None}
+        new_post_config = {k: v for k, v in self.post_config.items() if v is not None}
+        new_mini_config = {k: v for k, v in self.mini_config.items() if v is not None}
+        new_samp_config = {k: v for k, v in self.samp_config.items() if v is not None}
+        new_data_config = {k: v for k, v in self.data_config.items() if v is not None}
+        self.theory_config = new_theory_config
+        self.like_config = new_like_config
+        self.post_config = new_post_config
+        self.mini_config = new_mini_config
+        self.samp_config = new_samp_config
+        self.data_config = new_data_config
+
 
     def verbose_update(self):
         if self.verbose_all is not None:
             if self.verbose_all:
-                for param_type in self.all_params:
-                    self.all_params[param_type]['verbose'] = True
+                for category in [self.theory_config, self.like_config, self.post_config, self.mini_config, self.samp_config, self.data_config]:
+                    category['verbose'] = True
             else:
-                for param_type in self.all_params:
-                    self.all_params[param_type]['verbose'] = False
+                for category in [self.theory_config, self.like_config, self.post_config, self.mini_config, self.samp_config, self.data_config]:
+                    category['verbose'] = False

@@ -1,29 +1,42 @@
 verbose_all: True
 
-theory_params:
+data_config:
+  data_file: /global/common/software/desi/users/mlokken/cupix/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5
   verbose:
+  kM_max_cut_AA: 1
+  km_max_cut_AA: 1.2
+  theta_min_cut_arcmin:
 
-  cosmo_params:
-    H0: 67.66
-    mnu: 0.0
-    ombh2: 0.02242
-    omch2: 0.11933
-    omk: 0.0
-    omnuh2: 0.0
-    w: -1.0
-    wa: 0.0
+cosmo_config:
+  H0: 67.66
+  mnu: 0.0
+  ombh2: 0.02242
+  omch2: 0.11933
+  omk: 0.0
+  omnuh2: 0.0
+  w: -1.0
+  wa: 0.0
 
+theory_config:
+  verbose:
+  iz: 0
   default_lya_model:
+  include_sky: true
+  include_hcd:
+  include_metal:
+  include_continuum:
 
-  igm_params:
+  # fill parameters for EITHER igm_config OR lya_config
+  # which params are filled should be consistent with default_lya_model.
+  igm_config:
     Delta2_p: 
-    n_p: 
+    n_p:
     mF:
     gamma:
     sigT_Mpc:
     kF_Mpc:
 
-  lya_params:
+  lya_config:
     bias: -0.1173
     beta: 1.416102
     q1: 0.259185
@@ -33,31 +46,31 @@ theory_params:
     bv: 1.67688
     q2: 0.271033
 
-  contaminant_params:
-    hcd_params:
-      b_H:
-      beta_H:
-      L_H_Mpc:
-    metal_params:
-      b_X:
-      beta_X:
-    sky_params:
-      b_noise_Mpc:
-    continuum_params:
-      kC_Mpc:
-      pC:
+  contaminant_config:
+    # hcd params:
+    b_H:
+    beta_H:
+    L_H_Mpc:
+    # metal params:
+    b_X:
+    beta_X:
+    # sky params:
+    b_noise_Mpc:
+    # continuum params:
+    kC_Mpc:
+    pC:
 
-likelihood_params:
+likelihood_config:
   verbose:
   N_theta_average: 1
 
-posterior_params:
+posterior_config:
+  verbose: False
+
+minimizer_config:
   verbose: 
 
-minimizer_params:
-  verbose: 
-
-sampler_params:
+sampler_config:
   verbose:
   nwalkers: 8
   max_nsteps: 100
