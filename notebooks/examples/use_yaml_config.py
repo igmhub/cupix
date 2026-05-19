@@ -56,6 +56,7 @@ z = forecast.z[iz]
 print(z)
 
 # %%
+# If you want to check the true values from the forecast file
 # with h5.File(config.data_config['data_file'], 'r') as f:
 #     print(f['P_Z_AM']['z_0']['lya_params'])
 #     print(f.keys())

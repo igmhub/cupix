@@ -21,7 +21,7 @@ theory_config:
   verbose:
   iz: 0
   default_lya_model:
-  include_sky: true
+  include_sky:
   include_hcd:
   include_metal:
   include_continuum:

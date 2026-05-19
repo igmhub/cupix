@@ -62,14 +62,7 @@ class Config(object):
 
     def remove_nones(self):
         " Remove None from dictionaries "
-        new_theory_config = {}
-        for param in self.theory_config:
-            if type(self.theory_config[param]) == dict: # e.g. lya_config, igm_config, contaminant_config
-                # remove none in the sub-dictionary
-                new_theory_config[param] = {k: v for k, v in self.theory_config[param].items() if v is not None}
-            elif self.theory_config[param] is not None:
-                # copy over the parameter if it's not None
-                new_theory_config[param] = self.theory_config[param]
+        new_theory_config = {k: v for k, v in self.theory_config.items() if v is not None}
         new_like_config = {k: v for k, v in self.like_config.items() if v is not None}
         new_post_config = {k: v for k, v in self.post_config.items() if v is not None}
         new_mini_config = {k: v for k, v in self.mini_config.items() if v is not None}
