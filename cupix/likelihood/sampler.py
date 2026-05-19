@@ -1,6 +1,6 @@
 import numpy as np
 import emcee
-
+import time
 
 class Sampler(object):
     """Sampler class, holds posterior"""
@@ -96,11 +96,19 @@ class Sampler(object):
 
         # total number of steps
         ntotal = self.nburnin + self.max_nsteps
+        time_start = time.time()
         for sample in self.emcee_sampler.sample(p0, iterations=ntotal):
             if self.verbose:
                 it = self.emcee_sampler.iteration
                 if it%10 == 0:
                     print("Step %d out of %d " % (it, ntotal))
+                    
+            if it%20==0:
+                if self.verbose:
+                    # we might want to check the autocorrelation time to see if we want to update the nsteps
+                    print("autocorr time:", self.emcee_sampler.get_autocorr_time(tol=0, quiet=True))
+                    # we might want to check the timing per 20 steps to estimate the total time in advance
+                    print("Time elapsed: %.2f seconds" % (time.time() - time_start))
 
         if self.verbose:
             print('finished running sampler')

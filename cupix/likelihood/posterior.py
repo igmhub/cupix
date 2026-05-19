@@ -67,9 +67,12 @@ class Posterior(object):
         # start by computing the prior contribution
         log_prior = self.get_log_prior_from_values(values)
 
+        # if the prior was sensible (not in out-of-bounds region),
         # compute the likelihood (including fixed params)
-        log_like = self.get_log_like_from_values(values)
-
+        if log_prior > -np.inf:
+            log_like = self.get_log_like_from_values(values)
+        else:
+            log_like = -np.inf
         # add both
         log_posterior = log_like + log_prior
 

@@ -22,6 +22,8 @@ def init_worker(post):
     global _POST
     _POST = post
     _POST.like.get_chi2() # will run camb and store the results in post.like.theory, which will be shared across workers
+    init_end = time.time()
+    
 
 def log_prob_wrapper(values):
     return _POST.get_log_posterior_from_values(values)
@@ -93,7 +95,10 @@ def main():
     # start a bit off
     ini_bias = 1.05 * true_lya_params['bias']
     ini_beta = 0.9 * true_lya_params['beta']
-
+    ini_q1   = 0.9 * true_lya_params['q1']
+    ini_bv   = 1.05 * true_lya_params['bv']
+    ini_kv   = 0.95 * true_lya_params['kv_Mpc']
+    ini_av   = 0.5 * true_lya_params['av']
     bias = FreeParameter(
         name='bias',
         min_value=-0.5,
@@ -116,9 +121,54 @@ def main():
         gauss_prior_width=0.2,   
         latex_label=r'\beta_\alpha'
     )
+    q1 = FreeParameter(     
+        name='q1',
+        min_value=0.0,
+        max_value=1.0,
+        ini_value=ini_q1,
+        delta=0.1,
+        true_value=true_lya_params['q1'],
+        gauss_prior_mean=ini_q1,
+        gauss_prior_width=0.1,   
+        latex_label=r'q_1'
+    )
+    bv = FreeParameter(
+        name='bv',
+        min_value=1.0,
+        max_value=2.0,
+        ini_value=ini_bv,
+        delta=0.1,
+        true_value=true_lya_params['bv'],
+        gauss_prior_mean=ini_bv,
+        gauss_prior_width=0.1,
+        latex_label=r'b_v'
+    )
+    kv = FreeParameter(
+        name='kv_Mpc',
+        min_value=0.0,
+        max_value=1.0,
+        ini_value=ini_kv,
+        delta=0.1,
+        true_value=true_lya_params['kv_Mpc'],
+        gauss_prior_mean=ini_kv,
+        gauss_prior_width=0.1,
+        latex_label=r'k_v'
+    )
+    av = FreeParameter(
+        name='av',
+        min_value=0.0,
+        max_value=1.0,
+        ini_value=ini_av,
+        delta=0.1,
+        true_value=true_lya_params['av'],
+        gauss_prior_mean=ini_av,
+        gauss_prior_width=0.1,
+        latex_label=r'a_v'
+    )
 
     #free_params = [bias]
-    free_params = [bias, beta]
+    # free_params = [bias, beta]
+    free_params = [bias, beta, q1, bv, kv, av]
     for par in free_params:
         print(par.name, par.ini_value, par.true_value)
 
@@ -127,21 +177,21 @@ def main():
 
     nthreads = psutil.cpu_count(logical=True)
     ncores = psutil.cpu_count(logical=False)
-    nthreads_per_core = nthreads // ncores
     nthreads_available = len(os.sched_getaffinity(0))
-    ncores_available = nthreads_available // nthreads_per_core
-    # let's only use ncores_available to be safe
-
-    print("Starting pool with %d cores available" % ncores_available)
+    ncores_use = nthreads_available-1 # leave 1 to run the figure plotting etc in the end of the main function
+    print("Starting pool with %d logical cpus available" % ncores_use)
 
     Np = len(free_params)
-    nwalkers = ncores_available # 4*(Np+2) # 2*(Np+2)
-    max_nsteps = 50 + 20 * Np**2
-    nburnin = 20 + 10 * Np**2
+    nwalkers = 2*nthreads_available
+    max_nsteps = 100 + 10 * Np**3 # want this to be significantly longer than F*tau
+    nburnin = 50 + 3 * Np**3
     config={'verbose':True, 'nwalkers':nwalkers, 'max_nsteps': max_nsteps, 'nburnin':nburnin, 'parallel':True}
     print(config)
-    with mp.Pool(processes=ncores_available, initializer=init_worker, initargs=(post,)) as pool:
-        
+    init_start = time.time()
+    
+    with mp.Pool(processes=ncores_use, initializer=init_worker, initargs=(post,)) as pool:
+        init_end = time.time()
+        print("Time to initialize pool and run CAMB in each worker: %.2f seconds" % (init_end - init_start))
         # read emcee configuration
         nwalkers = config.get('nwalkers', 10)
         max_nsteps = config.get('max_nsteps', 1000)
@@ -151,7 +201,6 @@ def main():
         if verbose:
             print("setting up emcee sampler")
         # create emcee sampler object
-        Np = len(free_params)
         emcee_sampler =  emcee.EnsembleSampler(
             nwalkers,
             Np,
@@ -164,27 +213,84 @@ def main():
         
         # total number of steps
         ntotal = nburnin + max_nsteps
+        tau_estimates = []
+        F = 30 # the number of autocorrelation times required to consider the chain converged
+        sampling_start = time.time()
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
+            it = emcee_sampler.iteration
             if verbose:
-                it = emcee_sampler.iteration
                 if it%10 == 0:
                     print("Step %d out of %d " % (it, ntotal))
+            if it%10 == 0:
+                # estimate the autocorrelation time and check convergence. This might be inaccurate for short chains
+                try:
+                    tau = emcee_sampler.get_autocorr_time(tol=0, quiet=True) # tol = 0 means not requiring a certain number of autocorr times to trust the estimate.
+                except Exception:
+                    continue
+                mean_tau = np.mean(tau)
+                print("mean tau", mean_tau)
+                tau_estimates.append(mean_tau)
+                # check if tau estimates are stable
+                if it>100: # require at least 100 steps to have some estimate of tau
+                    if np.std( tau_estimates[-10:] ) / mean_tau < 0.05:
+                        print("Tau estimates are stable")
+                        # if we have fewer than F * tau samples, do not trust
+                        if it > (mean_tau * F):
+                            print("Chain has converged after %d steps" % it)
+                            break
+        sampling_end = time.time()
+        print("Time to run sampler: %.2f seconds" % (sampling_end - sampling_start))
+        if emcee_sampler.iteration == ntotal:
+            print("Warning: chain did not converge after %d steps" % ntotal)
+        plt.plot(np.arange(len(tau_estimates))*100, tau_estimates)
+        plt.plot(np.arange(len(tau_estimates))*100, np.arange(len(tau_estimates))*100/50, label=r'$\tau = N_{steps}/20$', ls='--')
+        plt.legend()
+        plt.xlabel("step")
+        plt.ylabel("estimated autocorrelation time")
+        rand_num = np.random.choice(1000)
+        plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}_tau.png'.format())
+        plt.clf()
+        if nburnin >= emcee_sampler.iteration:
+            # reset nburnin to be shorter than the chain
+            print("Warning: nburnin longer than chain")
+            nburnin = emcee_sampler.iteration // 2
+        # first get the full chain and plot one, to understand burnin
+        chain_full = emcee_sampler.get_chain(flat=False)
+        plt.plot(chain_full[:, :, 0], alpha=0.5)
+        plt.ylabel(free_params[0].name)
+        plt.xlabel("step")
+        plt.title("Full chain for parameter %s" % free_params[0].name)
+        plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}_fullchain.png'.format())
+        plt.clf()
 
-
-        chain = emcee_sampler.get_chain(discard=10, thin=2, flat=True)
-        mean_bias = np.mean(chain)
-        print('< bias > =', mean_bias)
-        print('true bias =', true_lya_params['bias'])
+        chain = emcee_sampler.get_chain(discard=nburnin, thin=2, flat=True)
         gdnames = [par.name for par in free_params]
         gdlabels = [par.latex_label for par in free_params]
-        gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
+        for i in range(Np):
+            print("mean", gdnames[i], np.mean(chain[:, i]))
+            print("true", gdnames[i], free_params[i].true_value)
 
-        plot_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_bias_beta_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}.png'.format()
+        gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
+        plot_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}.png'.format()
+        print("Saving to", plot_fname)
         g = plots.get_subplot_plotter()
         g.triangle_plot([gdsamples], filled=True)
         g.fig.suptitle(r"DR2 forecast ($\theta > {:.2f}^\prime)$".format(forecast.theta_min_A_arcmin[0]))
         g.finish_plot()
         plt.savefig(plot_fname)
+        # save the chain
+        chain_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/chains/mcmc_chain_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}.hdf5'.format()
+        print("Saving chain to", chain_fname)
+        with h5.File(chain_fname, 'w') as f:
+            f.create_dataset('chain', data=chain)
+            f.attrs['gdnames'] = gdnames
+            f.attrs['gdlabels'] = gdlabels
+            f.attrs['free_params'] = gdnames
+            for par in free_params:
+                f.attrs[f'{par.name}_true_value'] = par.true_value
+                f.attrs[f'{par.name}_ini_value'] = par.ini_value
+        
+
 
 if __name__ == "__main__":
     
@@ -195,4 +301,5 @@ if __name__ == "__main__":
     print("Sampler finished")
     end = time.time()
     print("Total runtime: %.2f seconds" % (end - start))
+
 
