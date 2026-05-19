@@ -136,10 +136,3 @@ class Posterior(object):
             values[ip] = params[name]
 
         return values
-
-    def regulate_log_like(self, log_like):
-        """Make sure that log_like is not NaN, nor tiny"""
-        if np.isinf(log_like) or np.isnan(log_like):
-            print("Warning: log like was nan or inf, replacing with min value.")
-            return self.min_log_like
-        return max(self.min_log_like, log_like)

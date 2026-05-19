@@ -177,20 +177,18 @@ def main():
 
     nthreads = psutil.cpu_count(logical=True)
     ncores = psutil.cpu_count(logical=False)
-    nthreads_per_core = nthreads // ncores
     nthreads_available = len(os.sched_getaffinity(0))
-    ncores_available = nthreads_available // nthreads_per_core
-    # let's only use half of ncores_available to be safe
-    ncores_use = max(1, ncores_available // 2)
-    print("Starting pool with %d cores available" % ncores_use)
+    ncores_use = nthreads_available-1 # leave 1 to run the figure plotting etc in the end of the main function
+    print("Starting pool with %d logical cpus available" % ncores_use)
 
     Np = len(free_params)
-    nwalkers = 4*ncores_use # 4*(Np+2) # 2*(Np+2)
-    max_nsteps = 100 + 10 * Np**3 # muhc longer than before
+    nwalkers = 2*nthreads_available
+    max_nsteps = 100 + 10 * Np**3 # want this to be significantly longer than F*tau
     nburnin = 50 + 3 * Np**3
     config={'verbose':True, 'nwalkers':nwalkers, 'max_nsteps': max_nsteps, 'nburnin':nburnin, 'parallel':True}
     print(config)
     init_start = time.time()
+    
     with mp.Pool(processes=ncores_use, initializer=init_worker, initargs=(post,)) as pool:
         init_end = time.time()
         print("Time to initialize pool and run CAMB in each worker: %.2f seconds" % (init_end - init_start))
@@ -216,7 +214,7 @@ def main():
         # total number of steps
         ntotal = nburnin + max_nsteps
         tau_estimates = []
-        F = 30
+        F = 30 # the number of autocorrelation times required to consider the chain converged
         sampling_start = time.time()
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
             it = emcee_sampler.iteration
