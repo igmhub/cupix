@@ -27,8 +27,8 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
-from cupix.likelihood.sampler import Sampler
+from cupix.sampling.minimize_posterior import Minimizer
+from cupix.sampling.sampler import Sampler
 from cupix.utils.utils import get_path_repo
 cupixpath = get_path_repo('cupix')
 

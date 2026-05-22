@@ -30,7 +30,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.sampling.minimize_posterior import Minimizer
 import cupix
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 

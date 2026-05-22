@@ -30,7 +30,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.sampling.minimize_posterior import Minimizer
 
 # %%
 # speed-up code by only looking at low kpar (should be enough for theta > 10 arcmin or so)

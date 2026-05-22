@@ -32,7 +32,7 @@ from cupix.likelihood.likelihood import Likelihood
 #from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.sampling.minimize_posterior import Minimizer
 from cupix.utils.utils import get_path_repo
 from cupix.likelihood.config import Config
 cupixpath = get_path_repo('cupix')

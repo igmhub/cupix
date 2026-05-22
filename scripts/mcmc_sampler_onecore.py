@@ -11,7 +11,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.utils.utils import get_path_repo
-from cupix.likelihood.sampler import Sampler
+from cupix.sampling.sampler import Sampler
 
 start = time.time()
 cupixpath = get_path_repo('cupix')

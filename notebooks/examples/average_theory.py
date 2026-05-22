@@ -30,7 +30,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.posterior import Posterior
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.sampling.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ### Read the Px from the stack of 50 mocks

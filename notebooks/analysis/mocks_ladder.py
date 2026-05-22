@@ -37,7 +37,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.sampling.minimize_posterior import Minimizer
 
 # %%
 # In this notebook we will work with a single z bin
