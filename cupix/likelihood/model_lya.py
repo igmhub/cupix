@@ -64,21 +64,8 @@ class LyaModel(object):
             prior_info = priors.get_IGM_priors(z=self.z, tag='DESI_DR1_P1D')
             igm_params = prior_info['mean']
         elif 'gadget' in self.default_lya_model.lower():
-            # apply the model from the central gadget sims
-            gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
-            train_test_info = pd.read_csv(gadget_short_info_file)
-            igm_params = {}
-            # Martine note: at some point we can make this a smooth function of z
-            z_diffs = abs(train_test_info['z']-self.z)
-            iz_closest = np.argmin(z_diffs)
-            assert(z_diffs[iz_closest]<0.2), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
-            if self.verbose: print('closest training redshift', train_test_info['z'][iz_closest])
-            igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
-            for par in igm_parnames:
-                if par+"_central" in train_test_info.columns:
-                    igm_params[par] = train_test_info[par+"_central"][iz_closest]
-                else:
-                    print("Parameter", par, "not found in training info file for redshift", self.z)
+            prior_info = get_priors_gadget(z=self.z, model='igm', verbose=self.verbose)
+            igm_params = {par: prior_info[par]['mean'] for par in prior_info}
         else:
             raise ValueError("unknown default_lya_model", self.default_lya_model)
         # update parameters if present in config
@@ -125,20 +112,8 @@ class LyaModel(object):
 
         elif 'gadget' in self.default_lya_model.lower():
             # apply the best-fit model from the central gadget sims
-            gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
-            train_test_info = pd.read_csv(gadget_short_info_file)
-            # Martine note: at some point we can make this a smooth function of z
-            z_diffs = abs(train_test_info['z']-self.z)
-            iz_closest = np.argmin(z_diffs)
-            assert(z_diffs[iz_closest]<0.2), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
-            if self.verbose: print('closest training redshift', train_test_info['z'][iz_closest])
-            ff_params = {}
-            ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
-            for par in ff_parnames:
-                if par+"_central" in train_test_info.columns:
-                    ff_params[par] = train_test_info[par+"_central"][iz_closest]
-                else:
-                    print("Parameter", par, "not found in training info file for redshift", self.z)
+            prior_info = get_priors_gadget(z=self.z, model='arinyo', verbose=self.verbose)
+            ff_params = {par: prior_info[par]['mean'] for par in prior_info}
 
         else:
             raise ValueError("unknown default_lya_model", self.default_lya_model)
@@ -234,6 +209,36 @@ class LyaModel(object):
 
         return lya_params
 
+def get_priors_gadget(z, model, verbose=False):
+    igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
+    ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+    if 'igm' in model:
+        parnames = igm_parnames
+    elif 'arinyo' in model:
+        parnames = ff_parnames
+    else:
+        raise ValueError("Error in get_priors_gadget: model should include either 'igm' or 'arinyo'")
+    # apply the model from the central gadget sims
+    gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
+    train_test_info = pd.read_csv(gadget_short_info_file)
+    # set up a smooth function of z for the mean, min, and max values of desired params
+    z_all = train_test_info['z']
+    priors_dict = {}
+    for par in parnames:
+        if par+"_central" in train_test_info.columns:
+            par_central_interp = np.interp(z, z_all, train_test_info[par+"_central"])
+            par_min_interp = np.interp(z, z_all, train_test_info[par+"_min"])
+            par_max_interp = np.interp(z, z_all, train_test_info[par+"_max"])
+            if verbose: print(f"for parameter {par}, interpolated central value is {par_central_interp}, min is {par_min_interp}, max is {par_max_interp}")
+            priors_dict[par] = {
+                "mean": par_central_interp,
+                "std": 0.5*(par_max_interp - par_min_interp), # approximation
+                "max": par_min_interp,
+                "min": par_max_interp
+            }
+        else:
+            print("Parameter", par, "not found in training info file for redshift", z)
+    return priors_dict
 
 def no_unrecognized_lya_params(config):
     " Check that the config does not contain any unrecognized parameters "

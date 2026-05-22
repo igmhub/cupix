@@ -2,11 +2,26 @@ import numpy as np
 import emcee
 from forestflow import priors
 from cupix.likelihood.free_parameter import FreeParameter
+from cupix.likelihood.model_lya import get_priors_gadget
 
 def get_latex_label(parname):
     if parname == 'bias':
         return r'b_\alpha'
+    if parname == 'beta':
+        return r'\beta_\alpha'
+    if parname == 'q1':
+        return r'q_1'
+    if parname == 'bv':
+        return r'b_v'
+    if parname == 'av':
+        return r'a_v'
+    if parname == 'kv_Mpc':
+        return r'k_v [Mpc^{-1}]'
+    if parname == 'kp_Mpc':
+        return r'k_p [Mpc^{-1}]'
+    # need to add IGM parameters
 
+    
 def prepare_free_parameters(free_param_names, theory, config, shift_ini = .05):
     """
     Prepare list of FreeParameter objects for the sampler, based on the free_param_names and the theory. Inputs:
@@ -27,120 +42,33 @@ def prepare_free_parameters(free_param_names, theory, config, shift_ini = .05):
         for parname in free_param_names:
             this_param = FreeParameter(
                 name=parname,
-                min_value=prior_info["percen_5"][parname],
-                max_value=prior_info["percen_95"][parname],
+                min_value=prior_info["percen_5"][parname], # note that this is only used in minimizer
+                max_value=prior_info["percen_95"][parname], # note that this is only used in minimizer
                 ini_value=prior_info["mean"][parname] + shift_ini * prior_info["mean"][parname] * np.random.choice([-1, 1]),
                 true_value=prior_info["mean"][parname],
-                delta=0.01,
-                gauss_prior_mean=prior_info["mean"][parname],
-                gauss_prior_width=prior_info["std"][parname],
+                gauss_prior_mean=prior_info["mean"][parname], # note that this is only used in sampler
+                gauss_prior_width=prior_info["std"][parname], # note that this is only used in sampler
+                delta=0.1*prior_info["std"][parname], # Will set steps of minimizer
                 latex_label=get_latex_label(parname)
             )
-            
+            free_params_list.append(this_param)
 
-
-
-class Sampler(object):
-    """Sampler class, holds posterior"""
-    def __init__(
-        self,
-        free_params,
-        config={},
-        pool=None,
-        log_prob_fn=None
-    ):
-        """Setup sampler from posterior and config fifle. Inputs:
-            - free_params: list of FreeParameter objects
-            - config (optional): dictionary with different settings
-            - pool: multiprocessing pool for parallelization
-            - log_prob_fn: externally defined log_probability function
-        """
-        self.verbose = config.get('verbose', False)
-        self.Np = len(free_params)
-        self.setup_emcee_sampler(config, pool=pool, log_prob_fn=log_prob_fn)
-        
-        self.free_params = free_params
-        if self.verbose:
-            free_param_names = [par.name for par in self.free_params]
-            ini_values = [par.ini_value for par in self.free_params]
-            print('Free parameters in sampler')
-            print(free_param_names)
-            print('Initial values set to', ini_values)
-
-
-    def setup_emcee_sampler(self, config, pool=None, log_prob_fn =None):
-
-        # read emcee configuration
-        nwalkers = config.get('nwalkers', 10)
-        self.max_nsteps = config.get('max_nsteps', 1000)
-        self.nburnin = config.get('nburnin', 100)
-        assert self.nburnin < self.max_nsteps, 'nburnin >= max_nsteps'
-        # create emcee sampler object
-        self.emcee_sampler =  emcee.EnsembleSampler(
-            nwalkers,
-            self.Np,
-            log_prob_fn,
-            pool=pool
-        )
-
-    
-    def silence(self):
-        """set verbose=False in all classes"""
-        self.verbose=False
-        return
- 
-
-    def get_initial_walkers(self):
-        """Setup initial states of walkers in sensible points """
-
-        ndim = len(self.free_params)
-        nwalkers = self.emcee_sampler.nwalkers
-
-        if self.verbose:
-            print("set %d walkers with %d dimensions" % (nwalkers, ndim))
-
-        # Random values between [0, 1) --> [-0.5, 0.5)
-        shifts = -0.5 + np.random.rand(ndim * nwalkers).reshape((nwalkers, ndim))
-        ini_walkers = np.empty_like(shifts)
-        for ip, par in enumerate(self.free_params):
-            ini_value = par.gauss_prior_mean
-            rms = par.gauss_prior_width
-            val = ini_value + shifts[:, ip] * rms
-            # check that you don't end up outside the bounds
-            min_val = par.min_value
-            max_val = par.max_value
-            _ = val < min_val
-            val[_] = min_val + 0.01 * rms
-            _ = val > max_val
-            val[_] = max_val - 0.01 * rms
-
-            # store into ndarray 
-            ini_walkers[:, ip] = val
-
-        return ini_walkers
-
-
-    def run_sampler(self):
-        """Set up initial points, run burn in, run chains"""
-
-        if self.verbose:
-            print('starting run_sampler')
-
-        # set starting point
-        p0 = self.get_initial_walkers()
-        if self.verbose:
-            print('starting points of walkers')
-            print(p0)
-
-        # total number of steps
-        ntotal = self.nburnin + self.max_nsteps
-        for sample in self.emcee_sampler.sample(p0, iterations=ntotal):
-            if self.verbose:
-                it = self.emcee_sampler.iteration
-                if it%10 == 0:
-                    print("Step %d out of %d " % (it, ntotal))
-
-        if self.verbose:
-            print('finished running sampler')
-        return
-
+    elif 'gadget' in default_lya_model.lower():
+        if 'igm' in default_lya_model.lower():
+            prior_info = get_priors_gadget(z=z, model='igm')
+        elif 'arinyo' in default_lya_model.lower():
+            prior_info = get_priors_gadget(z=z, model='arinyo')
+        for parname in free_param_names:
+            this_param = FreeParameter(
+                name=parname,
+                min_value=prior_info[parname]["min"], # note that this is only used in minimizer
+                max_value=prior_info[parname]["max"], # note that this is only used in minimizer
+                ini_value=prior_info[parname]["mean"] + shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
+                true_value=prior_info[parname]["mean"],
+                gauss_prior_mean=prior_info[parname]["mean"], # note that this is only used in sampler
+                gauss_prior_width=prior_info[parname]["std"], # note that this is only used in sampler
+                delta=0.1*prior_info[parname]["std"], # Will set steps of minimizer
+                latex_label=get_latex_label(parname)
+            )
+            free_params_list.append(this_param)
+    return free_params_list

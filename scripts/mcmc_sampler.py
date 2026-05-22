@@ -15,6 +15,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.utils.utils import get_path_repo
+from cupix.sampling.sampling_funcs import prepare_free_parameters
 
 _POST = None
 
@@ -92,83 +93,9 @@ def main():
     config = true_lya_params | {'verbose': False}
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
     like = Likelihood(data=forecast, theory=theory, iz=iz, config = {'verbose': False})
-    # start a bit off
-    ini_bias = 1.05 * true_lya_params['bias']
-    ini_beta = 0.9 * true_lya_params['beta']
-    ini_q1   = 0.9 * true_lya_params['q1']
-    ini_bv   = 1.05 * true_lya_params['bv']
-    ini_kv   = 0.95 * true_lya_params['kv_Mpc']
-    ini_av   = 0.5 * true_lya_params['av']
-    bias = FreeParameter(
-        name='bias',
-        min_value=-0.5,
-        max_value=-0.01,
-        ini_value=ini_bias,
-        true_value=true_lya_params['bias'],
-        delta=0.01,
-        gauss_prior_mean=ini_bias,
-        gauss_prior_width=0.05,
-        latex_label=r'b_\alpha'
-    )
-    beta = FreeParameter(
-        name='beta',
-        min_value=0.1,
-        max_value=5.0,
-        ini_value=ini_beta,
-        delta=0.1,
-        true_value=true_lya_params['beta'],
-        gauss_prior_mean=ini_beta,
-        gauss_prior_width=0.2,   
-        latex_label=r'\beta_\alpha'
-    )
-    q1 = FreeParameter(     
-        name='q1',
-        min_value=0.0,
-        max_value=1.0,
-        ini_value=ini_q1,
-        delta=0.1,
-        true_value=true_lya_params['q1'],
-        gauss_prior_mean=ini_q1,
-        gauss_prior_width=0.1,   
-        latex_label=r'q_1'
-    )
-    bv = FreeParameter(
-        name='bv',
-        min_value=1.0,
-        max_value=2.0,
-        ini_value=ini_bv,
-        delta=0.1,
-        true_value=true_lya_params['bv'],
-        gauss_prior_mean=ini_bv,
-        gauss_prior_width=0.1,
-        latex_label=r'b_v'
-    )
-    kv = FreeParameter(
-        name='kv_Mpc',
-        min_value=0.0,
-        max_value=1.0,
-        ini_value=ini_kv,
-        delta=0.1,
-        true_value=true_lya_params['kv_Mpc'],
-        gauss_prior_mean=ini_kv,
-        gauss_prior_width=0.1,
-        latex_label=r'k_v'
-    )
-    av = FreeParameter(
-        name='av',
-        min_value=0.0,
-        max_value=1.0,
-        ini_value=ini_av,
-        delta=0.1,
-        true_value=true_lya_params['av'],
-        gauss_prior_mean=ini_av,
-        gauss_prior_width=0.1,
-        latex_label=r'a_v'
-    )
-
-    #free_params = [bias]
-    # free_params = [bias, beta]
-    free_params = [bias, beta, q1, bv, kv, av]
+    
+    free_params = prepare_free_parameters(['bias','beta','q1','bv','av'], theory, config_all)
+    
     for par in free_params:
         print(par.name, par.ini_value, par.true_value)
 
