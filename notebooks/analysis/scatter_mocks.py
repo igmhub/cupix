@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 import scipy
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
 from astropy.io import fits
 import cupix
 import os

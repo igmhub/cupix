@@ -13,9 +13,12 @@ from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.free_parameter import FreeParameter
+
 from cupix.utils.utils import get_path_repo
-from cupix.sampling.sampling_funcs import prepare_free_parameters
+from cupix.parameter_inference.sampling_funcs import prepare_free_parameters
+from cupix.likelihood.config import Config
+from cupix.parameter_inference.inference_config import InferenceConfig
+
 
 _POST = None
 
@@ -57,53 +60,37 @@ def get_initial_walkers(free_params, nwalkers):
 def main():
     cupixpath = get_path_repo('cupix')
 
-    forecast_file = f"{cupixpath}/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5"
-    forecast = DESI_DR2(forecast_file, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=1.0)
-    iz = 0
-    z = forecast.z[iz]
-
-    true_cosmo_params = {}
-    with h5.File(forecast_file) as f:
-        for key in f['cosmo_params'].attrs.keys():
-            true_cosmo_params[key] = f['cosmo_params'].attrs[key]
-    print(true_cosmo_params)
-
-    # translate these to our Lya params
-    with h5.File(forecast_file) as f:
-
-        true_lya_params = {}        
-        if 'igm_params' in f['P_Z_AM'][f'z_{iz}'].keys():
-            igm_params = f['P_Z_AM'][f'z_{iz}']['igm_params'].attrs
-        if 'lya_params' in f['P_Z_AM'][f'z_{iz}'].keys():
-            lya_params = f['P_Z_AM'][f'z_{iz}']['lya_params'].attrs
-            for par in lya_params:
-                true_lya_params[par] = lya_params[par]
-        
-        elif 'ff_emulated_params' in f['P_Z_AM']['z_0'].keys():
-            ff_params = f['P_Z_AM']['z_0']['ff_emulated_params'].attrs
-            for par in ff_params:
-                true_lya_params[par] = ff_params[par]
-        else:
-            raise ValueError("No IGM or Lya parameters found in the forecast file.")
-
-    # use the true cosmology as fiducial
-    cosmo = cosmology.Cosmology(cosmo_params_dict=true_cosmo_params)
-
-    # use the true Lya parameters (Arinyo / bias / beta)
-    config = true_lya_params | {'verbose': False}
-    theory = Theory(z=z, fid_cosmo=cosmo, config=config)
-    like = Likelihood(data=forecast, theory=theory, iz=iz, config = {'verbose': False})
     
-    free_params = prepare_free_parameters(['bias','beta','q1','bv','av'], theory, config_all)
+    setup_config = Config(cupixpath+"/example_configs/fcast_best_fit_arinyo_from_p1d_theory_config.yaml")
+    inf_config = InferenceConfig(cupixpath+"/example_configs/inference_config_ex.yaml") 
+    data = DESI_DR2(setup_config.data_config)
+    iz = setup_config.theory_config['iz']
+    z = data.z[iz]
+    setup_config.print_all()
+    inf_config.print_all()
+
+    
+    # update config class with a use_truth option that could replace the cosmo and theory params with forecast values if it is a forecast and use_truth is True
+    # is_forecast = config.data_config['is_forecast']
+    # use_truth = config.post_config.get('use_truth', False)
+    # if is_forecast and use_truth:
+    # config.update_with_truth()
+
+    cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
+    
+    theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
+    like = Likelihood(data=data, theory=theory, iz=iz, 
+                  config=setup_config.like_config)
+    
+    
+    free_params = prepare_free_parameters(['bias','beta','q1','bv','av'], theory, setup_config.theory_config, params_config=inf_config.params_config)
     
     for par in free_params:
-        print(par.name, par.ini_value, par.true_value)
-
-    post = Posterior(like, free_params, config={'verbose': False})
+        print("Free parameters are: (name, ini_value, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
+    
+    post = Posterior(like, free_params, config=inf_config.post_config)
     print("Trying to run sampler")
 
-    nthreads = psutil.cpu_count(logical=True)
-    ncores = psutil.cpu_count(logical=False)
     nthreads_available = len(os.sched_getaffinity(0))
     ncores_use = nthreads_available-1 # leave 1 to run the figure plotting etc in the end of the main function
     print("Starting pool with %d logical cpus available" % ncores_use)
@@ -112,18 +99,16 @@ def main():
     nwalkers = 2*nthreads_available
     max_nsteps = 100 + 10 * Np**3 # want this to be significantly longer than F*tau
     nburnin = 50 + 3 * Np**3
-    config={'verbose':True, 'nwalkers':nwalkers, 'max_nsteps': max_nsteps, 'nburnin':nburnin, 'parallel':True}
-    print(config)
     init_start = time.time()
     
     with mp.Pool(processes=ncores_use, initializer=init_worker, initargs=(post,)) as pool:
         init_end = time.time()
         print("Time to initialize pool and run CAMB in each worker: %.2f seconds" % (init_end - init_start))
-        # read emcee configuration
-        nwalkers = config.get('nwalkers', 10)
-        max_nsteps = config.get('max_nsteps', 1000)
-        nburnin = config.get('nburnin', 100)
-        verbose = config.get('verbose', False)
+        # read emcee configuration to update if needed
+        nwalkers = inf_config.sampler_config.get('nwalkers', nwalkers)
+        max_nsteps = inf_config.sampler_config.get('max_nsteps', max_nsteps)
+        nburnin = inf_config.sampler_config.get('nburnin', nburnin)
+        verbose = inf_config.sampler_config.get('verbose', False)
         assert nburnin < max_nsteps, 'nburnin >= max_nsteps'
         if verbose:
             print("setting up emcee sampler")
@@ -141,7 +126,7 @@ def main():
         # total number of steps
         ntotal = nburnin + max_nsteps
         tau_estimates = []
-        F = 30 # the number of autocorrelation times required to consider the chain converged
+        F = inf_config.sampler_config.get('F_tau', 30) # the number of autocorrelation times required to consider the chain converged
         sampling_start = time.time()
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
             it = emcee_sampler.iteration
@@ -175,7 +160,7 @@ def main():
         plt.xlabel("step")
         plt.ylabel("estimated autocorrelation time")
         rand_num = np.random.choice(1000)
-        plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}_tau.png'.format())
+        plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{data.theta_min_A_arcmin[0]:.2f}_ncores{ncores_use}_{rand_num}_tau.png'.format())
         plt.clf()
         if nburnin >= emcee_sampler.iteration:
             # reset nburnin to be shorter than the chain
@@ -187,7 +172,7 @@ def main():
         plt.ylabel(free_params[0].name)
         plt.xlabel("step")
         plt.title("Full chain for parameter %s" % free_params[0].name)
-        plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}_fullchain.png'.format())
+        plt.savefig(f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{data.theta_min_A_arcmin[0]:.2f}_ncores{ncores_use}_{rand_num}_fullchain.png'.format())
         plt.clf()
 
         chain = emcee_sampler.get_chain(discard=nburnin, thin=2, flat=True)
@@ -198,15 +183,15 @@ def main():
             print("true", gdnames[i], free_params[i].true_value)
 
         gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
-        plot_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}.png'.format()
+        plot_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/plots/mcmc_Np{Np}_{data.theta_min_A_arcmin[0]:.2f}_ncores{ncores_use}_{rand_num}.png'.format()
         print("Saving to", plot_fname)
         g = plots.get_subplot_plotter()
         g.triangle_plot([gdsamples], filled=True)
-        g.fig.suptitle(r"DR2 forecast ($\theta > {:.2f}^\prime)$".format(forecast.theta_min_A_arcmin[0]))
+        g.fig.suptitle(r"DR2 forecast ($\theta > {:.2f}^\prime)$".format(data.theta_min_A_arcmin[0]))
         g.finish_plot()
         plt.savefig(plot_fname)
         # save the chain
-        chain_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/chains/mcmc_chain_Np{Np}_{forecast.theta_min_A_arcmin[0]:.2f}_ncores{ncores_available}_{rand_num}.hdf5'.format()
+        chain_fname = f'/pscratch/sd/m/mlokken/desi-lya/px/chains/mcmc_chain_Np{Np}_{data.theta_min_A_arcmin[0]:.2f}_ncores{ncores_use}_{rand_num}.hdf5'.format()
         print("Saving chain to", chain_fname)
         with h5.File(chain_fname, 'w') as f:
             f.create_dataset('chain', data=chain)

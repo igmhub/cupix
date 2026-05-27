@@ -35,7 +35,7 @@ from forestflow.archive import GadgetArchive3D
 import forestflow
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 import h5py as h5
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
 # %load_ext autoreload
 # %autoreload 2
 

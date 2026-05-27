@@ -9,10 +9,19 @@ class DESI_DR2(BaseDataPx):
     """Class containing Px in format of DESI DR2-style analysis.
     This can include Colore mock data, real data, or forecasts."""
 
-    def __init__(self, filepath, theta_min_cut_arcmin=None, theta_max_cut_arcmin=None, kM_min_cut_AA=None, kM_max_cut_AA=None, km_min_cut_AA=None, km_max_cut_AA=None):
+    def __init__(self, config={}):
         """Read measured Px."""
         # folder storing P1D measurements
-        self.filepath = filepath
+        
+        theta_min_cut_arcmin = config.get('theta_min_cut_arcmin', None)
+        theta_max_cut_arcmin = config.get('theta_max_cut_arcmin', None)
+        kM_min_cut_AA=config.get('kM_min_cut_AA', None)
+        kM_max_cut_AA=config.get('kM_max_cut_AA', None)
+        km_min_cut_AA=config.get('km_min_cut_AA', None)
+        km_max_cut_AA=config.get('km_min_cut_AA', None)
+        self.filepath = config.get('data_file', None)
+        if self.filepath is None:
+            raise ValueError("Please provide a filepath to the DESI DR2 data file in the config.")
         # read redshifts, wavenumbers, power spectra and covariance matrices
         k_m, k_M_edges, theta_min_a, theta_max_a, theta_min_A, theta_max_A, zbin_centers, N_fft, L_fft, B_A_a = self.read_from_file()
         Nz = len(zbin_centers)

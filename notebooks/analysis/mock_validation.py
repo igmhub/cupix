@@ -20,7 +20,7 @@ from cupix.likelihood.theory import Theory
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
 import cupix
 from lace.cosmo import cosmology
 # %load_ext autoreload
@@ -156,7 +156,7 @@ for key in outfile.keys():
     print(outfile[key])
 
 # %%
-from cupix.likelihood.iminuit_minimizer import plot_ellipses
+from cupix.obsolete.iminuit_minimizer import plot_ellipses
 # plot results without minimizer object
 zs = [2.2, 2.4, 2.6, 2.8]
 iz = 0

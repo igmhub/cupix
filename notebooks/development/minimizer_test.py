@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter, par_index, dict_from_likeparam
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 import h5py as h5
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
 import cupix
 import pandas as pd
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]

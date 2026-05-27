@@ -115,7 +115,7 @@ like = Likelihood(forecast, theory_AA, free_param_names=["mF", "gamma"], iz_choi
 
 
 
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
 mini = IminuitMinimizer(like, verbose=False)
 start = time.time()
 mini.minimize(compute_hesse=True)

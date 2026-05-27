@@ -3,12 +3,11 @@ import numpy as np
 from astropy.io import fits
 import pandas as pd
 # our modules below
-from lace.cosmo.thermal_broadening import thermal_broadening_kms
 import forestflow
 from forestflow import priors
 from forestflow.P3D_cINN import P3DEmulator
 from cupix.utils.utils import get_path_repo
-import warnings
+
 
 def lya_params_from_forestflow_params(ff_params):
     lya_params = ff_params.copy()
@@ -80,22 +79,8 @@ class LyaModel(object):
         if self.verbose: print('LyaModel::get_default_lya_params')
 
         if 'colore' in self.default_lya_model.lower():
-            assert self.z in [2.2, 2.4, 2.6, 2.8], "We only have CoLoRe fits for redshifts in [2.2, 2.4, 2.6, 2.8]"
-            # Load Laura's CF fits for all redshifts
-            ff_params = {}
-            with fits.open(get_path_repo('cupix')+f"/data/colore_xi/bin_{self.z:.1f}/lyaxlya.fits") as zbin_cf_file:
-                zbin_cf_fit = zbin_cf_file[1].header
-                ff_params['bias'] = zbin_cf_fit['bias_LYA']
-                ff_params['beta'] = zbin_cf_fit['beta_LYA']
-                ff_params['q1'] = zbin_cf_fit['dnl_arinyo_q1']
-                ff_params['kvav'] = zbin_cf_fit['dnl_arinyo_kv']**zbin_cf_fit['dnl_arinyo_av']
-                ff_params['av'] = zbin_cf_fit['dnl_arinyo_av']
-                ff_params['bv'] = zbin_cf_fit['dnl_arinyo_bv']
-                ff_params['kp'] = zbin_cf_fit['dnl_arinyo_kp']
-                if 'dnl_arinyo_q2' in zbin_cf_fit:
-                    ff_params['q2'] = zbin_cf_fit['dnl_arinyo_q2']
-                else:
-                    ff_params['q2'] = 0
+            prior_info = get_priors_colore(self.z)
+            ff_params = {par: prior_info[par]['mean'] for par in prior_info}
             if 'pressure_only' in self.default_lya_model.lower():
                 ff_params['q1'] = 0.0
                 ff_params['q2'] = 0.0
@@ -239,6 +224,45 @@ def get_priors_gadget(z, model, verbose=False):
         else:
             print("Parameter", par, "not found in training info file for redshift", z)
     return priors_dict
+
+def get_priors_colore(z):
+    assert z in [2.2, 2.4, 2.6, 2.8], "We only have CoLoRe fits for redshifts in [2.2, 2.4, 2.6, 2.8]"
+    ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+    # Load Laura's CF fits for all redshifts
+    priors_dict = {}
+    
+    
+    with fits.open(get_path_repo('cupix')+f"/data/colore_xi/bin_{z:.1f}/lyaxlya.fits") as zbin_cf_file:
+        for par in ff_parnames:
+            if par == "bias":
+                val = zbin_cf_file[1].header['bias_LYA']
+            elif par == "beta":
+                val = zbin_cf_file[1].header['beta_LYA']
+            elif par == "q1":
+                val = zbin_cf_file[1].header['dnl_arinyo_q1']
+            elif par == "kvav":
+                val = zbin_cf_file[1].header['dnl_arinyo_kv']**zbin_cf_file[1].header['dnl_arinyo_av']
+            elif par == "av":
+                val = zbin_cf_file[1].header['dnl_arinyo_av']
+            elif par == "bv":
+                val = zbin_cf_file[1].header['dnl_arinyo_bv']
+            elif par == "kp":
+                val = zbin_cf_file[1].header['dnl_arinyo_kp']
+            elif par == "q2":
+                if 'dnl_arinyo_q2' in zbin_cf_file[1].header:
+                    val = zbin_cf_file[1].header['dnl_arinyo_q2']
+                else:
+                    val = 0
+            priors_dict[par] = {
+                "mean": val,
+                "std": 0.5*np.abs(val), # arbitrary
+                "max": val + 5 * 0.5*np.abs(val), # arbitrary
+                "min": val - 5 * 0.5*np.abs(val), # arbitrary
+
+            }
+    return priors_dict
+        
+    
 
 def no_unrecognized_lya_params(config):
     " Check that the config does not contain any unrecognized parameters "
