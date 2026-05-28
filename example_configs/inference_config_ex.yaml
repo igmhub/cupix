@@ -14,6 +14,7 @@ sampler_config:
   nwalkers:
   max_nsteps:
   nburnin:
+  outputs_dir: /pscratch/sd/m/mlokken/desi-lya/px/
 
 params_config:
   bias:
