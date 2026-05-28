@@ -1,8 +1,15 @@
 import numpy as np
 import emcee
+import matplotlib.pyplot as plt
+import yaml
+import os
+import h5py as h5
+from getdist import MCSamples, plots
+# ours
 from forestflow import priors
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.model_lya import get_priors_gadget, get_priors_colore
+
 
 def get_latex_label(parname):
     if parname == 'bias':
@@ -123,3 +130,71 @@ def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini =
             )
             free_params_list.append(this_param)
     return free_params_list
+
+def plot_tau_estimates(tau_estimates, fname):
+    plt.plot(np.arange(len(tau_estimates))*100, tau_estimates)
+    plt.xlabel("step")
+    plt.ylabel("estimated autocorrelation time")
+    plt.savefig(fname)
+    plt.clfg()
+
+
+
+def plot_chains(outdir, emcee_sampler, free_params, param_idx):
+    # first get the full chain and plot one, to understand burnin
+    param_name = free_params[param_idx].name
+    chain_full = emcee_sampler.get_chain(flat=False)
+    plt.plot(chain_full[:, :, param_idx], alpha=0.5)
+    plt.ylabel(free_params[param_idx].latex_label)
+    plt.xlabel("step")
+    plt.title("Full chain for parameter %s" % free_params[0].name)
+    plt.savefig(os.path.join(outdir, f"chain_full_{param_name}.png"))
+    plt.clf()
+    
+def plot_contours(outdir, chain, free_params, title=None):
+    gdnames  = [par.name for par in free_params]
+    gdlabels = [par.latex_label for par in free_params]
+    gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
+    g = plots.get_subplot_plotter()
+    g.triangle_plot([gdsamples], filled=True)
+    # add truth values
+    for i, par in enumerate(free_params):
+        if par.true_value is not None:
+            g.add_x_marker(par.true_value, i)
+            g.add_y_marker(par.true_value, i)
+    if title is not None:
+        g.fig.suptitle(title)
+    g.finish_plot()
+    plt.savefig(os.path.join(outdir, "contours.png"))
+
+def save_chain(outdir, chain, free_params):
+    # save the chain
+    chain_fname = os.path.join(outdir, "chain.h5")
+    gdnames  = [par.name for par in free_params]
+    gdlabels = [par.latex_label for par in free_params]
+    with h5.File(chain_fname, 'w') as f:
+        f.create_dataset('chain', data=chain)
+        f.attrs['gdnames'] = gdnames
+        f.attrs['gdlabels'] = gdlabels
+        for par in free_params:
+            if par.true_value is not None:
+                f.attrs[f'{par.name}_true_value'] = par.true_value
+            f.attrs[f'{par.name}_ini_value'] = par.ini_value
+    
+def record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin):
+    # these settings might be changed from the inference config based on how many cores were available to the script
+    # we record the final settings used for the sampler in a yaml file in the output directory for reproducability
+    settings = {
+        'nwalkers': nwalkers,
+        'max_nsteps': max_nsteps,
+        'nburnin': nburnin
+    }
+    with open(os.path.join(outdir, 'mcmc_settings.yaml'), 'w') as f:
+        yaml.dump(settings, f)
+
+def create_output_directory(inf_config, runname):
+    basedir = inf_config.samp_config.get("outputs_dir", "/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/")
+    output_dir = os.path.join(basedir,runname)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    return output_dir
