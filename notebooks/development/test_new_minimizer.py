@@ -31,8 +31,8 @@ from cupix.likelihood.likelihood import Likelihood
 #from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
 #from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.sampling.minimize_posterior import Minimizer
+from cupix.parameter_inference.posterior import Posterior
+from cupix.parameter_inference.minimize_posterior import Minimizer
 import cupix
 cupixpath = cupix.__path__[0].rsplit('/', 1)[0]
 

@@ -1,6 +1,6 @@
 import sys
 import time
-from cupix.likelihood.posterior import Posterior
+from cupix.parameter_inference.posterior import Posterior
 import numpy as np
 import matplotlib.pyplot as plt
 import multiprocessing as mp

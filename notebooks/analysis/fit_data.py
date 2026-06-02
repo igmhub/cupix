@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Fit all scales of DESI DR2
+# # Use iminuit to fit Px from DESI DR2
 
 # %%
 import numpy as np
@@ -29,21 +29,17 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.sampling.minimize_posterior import Minimizer
+from cupix.parameter_inference.posterior import Posterior
+from cupix.parameter_inference.minimize_posterior import Minimizer
 
 # %% [markdown]
-# ### Read the data from DESI DR2
+# ## Step 1: Read the data from DESI DR2 and plot it
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
 #fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
 fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-
-# speed-up code by only looking at low kpar
-kM_max_cut_AA = 1.0
-km_max_cut_AA = 1.1*kM_max_cut_AA
-data = DESI_DR2(filepath=fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA)
+data = DESI_DR2(fname, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=1.5)
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -53,7 +49,6 @@ k_M = data.k_M_centers_AA
 # get two 1D arrays with the edges of each theta bin, of length Nt_A each
 theta_A_min = data.theta_min_A_arcmin
 theta_A_max = data.theta_max_A_arcmin
-print(theta_A_min)
 
 # %%
 # native binning (no rebinning)
@@ -62,189 +57,213 @@ print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_m={Nk_m}")
 # rebinned values
 Nz, Nt_A, Nk_M = data.Px_ZAM.shape
 print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
-# number of data points (per z bin)
-Ndp = Nt_A * Nk_M
+
+
+# %%
+def plot_theta_bin(iz, it_M):
+    label = r"${:.2f}' < \theta < {:.2f}'$".format(theta_A_min[it_M], theta_A_max[it_M])
+    # 1D array with measured Px, length Nk_M
+    Px = data.Px_ZAM[iz][it_M]
+    # get also errorbars
+    sig_Px = np.sqrt(np.diagonal(data.cov_ZAM[iz][it_M]))
+#    print(len(k_M), len(Px), len(sig_Px))
+    plt.errorbar(k_M, Px, sig_Px, label=label)
+
+
+# %%
+def plot_z_bin(iz, its_M):
+    for it_M in its_M:
+        plot_theta_bin(iz=iz, it_M=it_M)
+    plt.title('DESI DR2 at z={:.1f}'.format(zs[iz]))
+    plt.legend()
+    plt.xlabel(r'$k_\parallel$ [1/A]')
+    plt.ylabel(r'$P_\times(\theta, k_\parallel)$ [A]')
+
+
+# %%
+for iz in range(4):
+    plt.figure(figsize=[8,3])
+    plot_z_bin(iz=iz, its_M=range(Nt_A))
 
 # %% [markdown]
-# ### Setup (contaminated) theory and likelihood objects
+# ## Step 2: setup theory objects, with and without contaminants (one per z)
 
 # %%
 # define fiducial cosmo
 cosmo = cosmology.Cosmology()
 
 # %%
-config={'verbose': False, 'include_hcd': True, 'include_metal': True,
-        'include_sky': True, 'include_continuum': True}
-theories = []
-for iz,z in enumerate(zs):
-    theories.append(Theory(z=z, fid_cosmo=cosmo, config=config))
-
-# %%
-likes = []
-for iz, z in enumerate(zs):
-    likes.append(Likelihood(data=data, theory=theories[iz], iz=iz, config={'verbose':False}))
+theories_lya = []
+theories_cont = []
+for z in zs:
+    theories_lya.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False}))
+    theories_cont.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 
+                                                            'include_hcd': True, 'include_metal': True,
+                                                            'include_sky': True, 'include_continuum': True} ))
 
 # %% [markdown]
-# ### Setup minimizers and free parameters
+# ## Step 3: create Likelihoods and compare data vs theory (no fits)
 
 # %%
-iz=1
-print('Lya params =', theories[iz].lya_model.default_lya_params)
-print('HCD params =', theories[iz].cont_model.default_hcd_params)
-print('Metal params =', theories[iz].cont_model.default_metal_params)
-print('Sky params =', theories[iz].cont_model.default_sky_params)
-print('Cont params =', theories[iz].cont_model.default_continuum_params)
+likes_lya = []
+likes_cont = []
+for iz, z in enumerate(zs):
+    likes_lya.append(Likelihood(data=data, theory=theories_lya[iz], iz=iz, config={'verbose':False}))
+    likes_cont.append(Likelihood(data=data, theory=theories_cont[iz], iz=iz, config={'verbose':False}))
 
 # %%
-par_bias = FreeParameter(
+models_lya = []
+models_cont = []
+for iz, z in enumerate(zs):
+    models_lya.append(likes_lya[iz].get_convolved_px(params={}))
+    models_cont.append(likes_cont[iz].get_convolved_px(params={}))
+
+
+# %%
+def compare_theta_bin(iz, it_M):
+    plt.title(r"DESI DR2,   z = {:.1f},   ${:.2f}' < \theta < {:.2f}'$".format(
+                                                zs[iz], theta_A_min[it_M], theta_A_max[it_M]))
+    # 1D array with measured Px, length Nk_M
+    Px = data.Px_ZAM[iz][it_M]
+    # get also errorbars
+    sig_Px = np.sqrt(np.diagonal(data.cov_ZAM[iz][it_M]))
+    plt.errorbar(k_M, Px, sig_Px, label='data')    
+    plt.plot(k_M, models_lya[iz][it_M], label='Lya only')
+    plt.plot(k_M, models_cont[iz][it_M], label='Lya + cont')
+    plt.legend()
+    plt.xlabel(r'$k_\parallel$ [1/A]')
+    plt.ylabel(r'$P_\times(\theta, k_\parallel)$ [A]')
+    plt.axhline(y=0, ls=':', color='gray')
+
+
+# %%
+# one z, multiple theta
+for it_M in range(Nt_A):
+    plt.figure()
+    compare_theta_bin(iz=2, it_M=it_M)
+
+# %%
+# one theta, multiple z
+for iz, z in enumerate(zs):
+    plt.figure()
+    compare_theta_bin(iz=iz, it_M=0)
+
+# %% [markdown]
+# ## Step 4: setup iminuit minimizers and fit for parameters
+
+# %%
+# set the likelihood parameters as the Arinyo params with some fiducial values
+bias = FreeParameter(
     name='bias',
     min_value=-0.5,
     max_value=-0.01,
-    ini_value=None,
-    delta=0.001,
-    gauss_prior_mean=None,
-    gauss_prior_width=0.02
+    ini_value=-0.15,
+    delta=0.01,   
 )
-par_beta = FreeParameter(
+beta = FreeParameter(
     name='beta',
-    min_value=0.5,
-    max_value=2.5,
-    ini_value=None,
-    delta=0.01,
-    gauss_prior_mean=None,
-    gauss_prior_width=0.2
+    min_value=0.1,
+    max_value=5.0,
+    ini_value=1.5,
+    delta=0.1,
 )
-par_q1 = FreeParameter(
-    name='q1',
-    min_value=0.0,
-    max_value=2.0,
-    ini_value=None,
-    delta=0.01,
-    gauss_prior_mean=None,
-    gauss_prior_width=0.2
-)
-par_bX = FreeParameter(
-    name='b_X',
-    min_value=-1.0,
-    max_value=0.0,
-    ini_value=-0.008,
-    delta=1e-4,
-    gauss_prior_mean=-0.008,
-    gauss_prior_width=0.002
-)
-par_bH = FreeParameter(
-    name='b_H',
-    min_value=-1.0,
-    max_value=0.0,
-    ini_value=-0.02,
-    delta=1e-3,
-    gauss_prior_mean=-0.03,
-    gauss_prior_width=0.01
-)
-free_params = [par_bias, par_beta, par_q1, par_bX, par_bH]
+free_params = [bias, beta]
 for par in free_params:
     print(par.name, par.ini_value)
 
 # %%
-minis = []
-for iz in range(Nz):
-#for iz in [2]:
-    # chose more realistic initial values for bias/beta
-    assert free_params[0].name == 'bias'
-    ini_bias = likes[iz].theory.lya_model.default_lya_params['bias']
-    free_params[0].ini_value = ini_bias
-    free_params[0].gauss_prior_mean = ini_bias
-    assert free_params[1].name == 'beta'
-    ini_beta = likes[iz].theory.lya_model.default_lya_params['beta']   
-    free_params[1].ini_value = ini_beta
-    free_params[1].gauss_prior_mean = ini_beta
-    assert free_params[2].name == 'q1'
-    ini_q1 = likes[iz].theory.lya_model.default_lya_params['q1']   
-    free_params[2].ini_value = ini_q1
-    free_params[2].gauss_prior_mean = ini_q1
-    
-    print('----------------------------')
-    print(iz, 'z bin has updated free params')
-    for par in free_params:
-        print(par.name, par.ini_value)
-    post = Posterior(likes[iz], free_params, config={'verbose': False})
-        
-    mini = Minimizer(post, config={'verbose':False})
-    print('minimizing zbin {}, at z={}'.format(iz, theories[iz].z))
-    mini.silence()
-    mini.minimize(compute_hesse=True)
-    mini.print_results()
-    minis.append(mini)
+# do this only for one z bin
+fit_iz=1
+post_lya = Posterior(likes_lya[fit_iz], free_params, config={'verbose': True})
+post_cont = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
+mini_lya = Minimizer(post_lya, config={'verbose':True})
+mini_cont = Minimizer(post_cont, config={'verbose':True})
 
 # %%
-for mini in minis:
-    plt.figure()
-    mini.plot_ellipses(pname_x='bias', pname_y='beta', nsig=2)
+mini_lya.silence()
+mini_lya.minimize()
 
 # %%
-for mini in minis:
-    z=mini.post.like.theory.z
-    plot_fname='px_fit_z_{}'.format(z)
-    mini.plot_best_fit(multiply_by_k=False, every_other_theta=True, 
-                       datalabel="DR2 (z = {})".format(z), 
-                       theorylabel="Best-fit model", 
-                       plot_fname=plot_fname, show=True)
+mini_cont.silence()
+mini_cont.minimize()
 
 # %%
-if True:
-    z = [ mini.post.like.theory.z for mini in minis]
-    chi2 = [ mini.get_best_fit_chi2() for mini in minis]
-    plt.plot(z, chi2, label=r'$\chi^2$')
-    plt.plot(z, Ndp*np.ones_like(z), label='Number of data points')
-    plt.xlabel('z')
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('chi2_fit_z.png')
+# number of data points (per z bin)
+Ndp = Nt_A * Nk_M
+chi2_lya = mini_lya.get_best_fit_chi2()
+chi2_cont = mini_cont.get_best_fit_chi2()
+print(Ndp, chi2_lya, chi2_cont)
+
+# %% [markdown]
+# ## Step 5: fit for contaminants
 
 # %%
-if True:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('bias', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('bias', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='Px fits')
-    #xi3d=theories[0].lya_model.default_lya_params['bias']
-    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
-    plt.xlabel('z')
-    plt.ylabel('bias')
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('bias_fit_z.png')
+print('HCD', mini_cont.post.like.theory.cont_model.default_hcd_params)
+print('Metal', mini_cont.post.like.theory.cont_model.default_metal_params)
+print('Sky', mini_cont.post.like.theory.cont_model.default_sky_params)
+print('Cont', mini_cont.post.like.theory.cont_model.default_continuum_params)
 
 # %%
-if True:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('beta', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('beta', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='Px fits')
-    #xi3d=theories[0].lya_model.default_lya_params['beta']
-    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
-    plt.xlabel('z')
-    plt.ylabel('beta')
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('beta_fit_z.png')
+# set the free parameters 
+free_params = [bias, beta]
+free_b_H=False
+free_b_X=True
+free_b_noise_Mpc=False
+free_kC_Mpc=False
+if free_b_H:
+    free_params.append(FreeParameter(
+        name='b_H',
+        min_value=-0.1,
+        max_value=-0.0,
+        ini_value=-0.02,
+        delta=0.001  
+        ))
+if free_b_X:
+    free_params.append(FreeParameter(
+        name='b_X',
+        min_value=-0.1,
+        max_value=-0.0,
+        ini_value=-0.01,
+        delta=0.001 
+        ))
+if free_b_noise_Mpc:
+    free_params.append(FreeParameter(
+        name='b_noise_Mpc',
+        min_value=1e-4,
+        max_value=1e-1,
+        ini_value=0.01,
+        delta=0.001
+        ))
+if free_kC_Mpc:
+    free_params.append(FreeParameter(
+        name='kCb_Mpc',
+        min_value=1e-3,
+        max_value=1e-1,
+        ini_value=0.01,
+        delta=0.001
+        ))    
+for par in free_params:
+    print(par.name)
 
 # %%
-if True:
-    z = [ mini.post.like.theory.z for mini in minis]
-    val = [ mini.get_best_fit_value('b_X', return_hesse=True)[0] for mini in minis]
-    err = [ mini.get_best_fit_value('b_X', return_hesse=True)[1] for mini in minis]
-    plt.errorbar(z, val, err, label='DR2 Px fits')
-    #xi3d=theories[0].lya_model.default_lya_params['beta']
-    #plt.plot(2.33, xi3d, 'ro', label='Xi3D fit')
-    plt.xlabel('z')
-    plt.ylabel('b_X')
-    plt.legend()
-    plt.ylim(-0.02, 0.0)
-    plt.tight_layout()
-    plt.savefig('b_X_fit_z.png')
+post = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
+mini = Minimizer(post, config={'verbose':True})
 
 # %%
+mini.silence()
+mini.minimize()
+
+# %%
+mini.get_best_fit_chi2()
+
+# %%
+mini.plot_ellipses(pname_x='bias', pname_y='beta', nsig=2)
+
+# %%
+mini.plot_ellipses(pname_x='bias', pname_y='b_X', nsig=2)
+
+# %%
+mini.plot_best_fit(multiply_by_k=False, every_other_theta=True, xlim=[-.01, .6], datalabel="DR2 (z = {})".format(zs[fit_iz]), show=True)
 
 # %%
 

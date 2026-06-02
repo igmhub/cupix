@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %%
@@ -20,7 +20,7 @@ from cupix.likelihood.theory import Theory
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
+from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
 import cupix
 from lace.cosmo import cosmology
 # %load_ext autoreload
@@ -87,8 +87,8 @@ likes_lya_xi = []
 likes_lya_new = []
 
 for iz, z in enumerate(zs):
-    likes_lya_xi.append(Likelihood(data=mockdata, theory=theories_xi[iz], iz=iz, verbose=False))
-    likes_lya_new.append(Likelihood(data=mockdata, theory=theories_new[iz], iz=iz, verbose=False))
+    likes_lya_xi.append(Likelihood(data=mockdata, theory=theories_xi[iz], iz=iz, config={'verbose': False}))
+    likes_lya_new.append(Likelihood(data=mockdata, theory=theories_new[iz], iz=iz, config={'verbose': False}))
 
 # %% [markdown]
 # First, plot the theory model on top of the stack
@@ -156,7 +156,7 @@ for key in outfile.keys():
     print(outfile[key])
 
 # %%
-from cupix.obsolete.iminuit_minimizer import plot_ellipses
+from cupix.likelihood.iminuit_minimizer import plot_ellipses
 # plot results without minimizer object
 zs = [2.2, 2.4, 2.6, 2.8]
 iz = 0

@@ -29,8 +29,8 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.sampling.minimize_posterior import Minimizer
+from cupix.parameter_inference.posterior import Posterior
+from cupix.parameter_inference.minimize_posterior import Minimizer
 
 # %%
 # speed-up code by only looking at low kpar (should be enough for theta > 10 arcmin or so)
