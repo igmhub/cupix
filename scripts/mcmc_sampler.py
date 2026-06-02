@@ -16,7 +16,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 
 from cupix.utils.utils import get_path_repo
-from cupix.parameter_inference.sampling_funcs import prepare_free_parameters
+from cupix.parameter_inference.sampling_funcs import prepare_free_parameters, get_initial_walkers
 from cupix.likelihood.config import Config
 from cupix.parameter_inference.inference_config import InferenceConfig
 from cupix.parameter_inference.sampling_funcs import plot_tau_estimates, plot_chains, plot_contours, record_mcmc_settings, create_output_directory, save_chain
@@ -33,30 +33,6 @@ def log_prob_wrapper(values):
     return _POST.get_log_posterior_from_values(values)
 
 
-def get_initial_walkers(free_params, nwalkers):
-    """Setup initial states of walkers in sensible points """
-
-    ndim = len(free_params)
-
-    # Random values between [0, 1) --> [-0.5, 0.5)
-    shifts = -0.5 + np.random.rand(ndim * nwalkers).reshape((nwalkers, ndim))
-    ini_walkers = np.empty_like(shifts)
-    for ip, par in enumerate(free_params):
-        ini_value = par.gauss_prior_mean
-        rms = par.gauss_prior_width
-        val = ini_value + shifts[:, ip] * rms
-        # check that you don't end up outside the bounds
-        min_val = par.min_value
-        max_val = par.max_value
-        _ = val < min_val
-        val[_] = min_val + 0.01 * rms
-        _ = val > max_val
-        val[_] = max_val - 0.01 * rms
-
-        # store into ndarray 
-        ini_walkers[:, ip] = val
-
-    return ini_walkers
 
 def main():
     # set the directory name
@@ -99,8 +75,8 @@ def main():
     like = Likelihood(data=data, theory=theory, iz=iz, 
                   config=setup_config.like_config)
     
-    
-    free_params = prepare_free_parameters(['bias','beta','q1','bv','av'], theory, setup_config.theory_config, params_config=inf_config.params_config)
+    free_param_names = list(inf_config.params_config.keys())
+    free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
     
     for par in free_params:
         print("Free parameters are: (name, ini_value, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
@@ -110,11 +86,14 @@ def main():
     # nthreads_available = len(os.sched_getaffinity(0))
     print(os.environ.get("SLURM_CPUS_PER_TASK"))
     nthreads_available = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
-    ncores_use = nthreads_available-1 # leave 1 to run the figure plotting etc in the end of the main function
-    print("Starting pool with %d logical cpus available" % ncores_use)
-
+    print("Starting pool with %d logical cpus available" % nthreads_available)
+    if nthreads_available > 64:
+        print("Warning: using more than 64 cores might cause very long setup time due to initialization of CAMB many times. Consider reducing the request, unless very long chains are expected.")
     Np = len(free_params)
     nwalkers = 2*nthreads_available
+    if nwalkers < 2 * Np:
+        print("Warning: number of walkers should be at least 2 times the number of parameters. Setting nwalkers to %d. Code may be less efficient." % (2*Np))
+        nwalkers = 2*Np
     max_nsteps = 100 + 10 * Np**3 # want this to be significantly longer than F*tau
     nburnin = 50 + 3 * Np**3
     # read emcee configuration to update if needed
@@ -129,7 +108,7 @@ def main():
     record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin)
 
     init_start = time.time()
-    with mp.Pool(processes=ncores_use, initializer=init_worker, initargs=(post,)) as pool:
+    with mp.Pool(processes=nthreads_available, initializer=init_worker, initargs=(post,)) as pool:
         init_end = time.time()
         print("Time to initialize pool and run CAMB in each worker: %.2f seconds" % (init_end - init_start))    
         if verbose:

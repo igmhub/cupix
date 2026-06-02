@@ -16,6 +16,10 @@ sampler_config:
   nburnin: 10
   outputs_dir: /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/
 
+# any parameters listed here will be used as free parameters.
+# It is not necessary to add the attributes unless you want to replace the defaults.
+# Not all values get used depending on what analysis you are doing. For example,
+# min_value is only used for the minimizer, while gauss_prior_mean is only used for MCMC
 params_config:
   bias:
     min_value:

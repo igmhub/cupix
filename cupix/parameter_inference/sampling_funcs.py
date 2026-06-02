@@ -8,8 +8,8 @@ from getdist import MCSamples, plots
 # ours
 from forestflow import priors
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.model_lya import get_priors_gadget, get_priors_colore
-
+from cupix.likelihood.model_lya import get_priors_gadget, get_priors_colore, allowed_igm_params, allowed_lya_params
+from cupix.likelihood.model_contaminants import allowed_continuum_params, allowed_hcd_params, allowed_metal_params, allowed_sky_params
 
 def get_latex_label(parname):
     if parname == 'bias':
@@ -53,12 +53,17 @@ def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini =
     free_params_list = [] # list of FreeParameter objects
     z = theory.z
     default_lya_model = theory_config.get('default_lya_model', '')
+
+    # first, split the free param names into lya/igm or contaminants
+    free_param_names_lyaigm = [par for par in free_param_names if par in allowed_lya_params() or par in allowed_igm_params()]
+    free_param_names_cont   = [par for par in free_param_names if par in allowed_continuum_params() or par in allowed_hcd_params() or par in allowed_metal_params() or par in allowed_sky_params()]
+
     if 'p1d' in default_lya_model.lower():
         if 'igm' in default_lya_model.lower():
             prior_info = priors.get_IGM_priors(z=z, tag='DESI_DR1_P1D')
         elif 'arinyo' in default_lya_model.lower():
             prior_info = priors.get_arinyo_priors(z=z, tag='DESI_DR1_P1D')
-        for parname in free_param_names:
+        for parname in free_param_names_lyaigm:
             this_param = FreeParameter(
                 name=parname,
                 min_value=prior_info["percen_5"][parname], # note that this is only used in minimizer
@@ -76,7 +81,7 @@ def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini =
             prior_info = get_priors_gadget(z=z, model='igm')
         elif 'arinyo' in default_lya_model.lower():
             prior_info = get_priors_gadget(z=z, model='arinyo')
-        for parname in free_param_names:
+        for parname in free_param_names_lyaigm:
             this_param = FreeParameter(
                 name=parname,
                 min_value=prior_info[parname]["min"], # note that this is only used in minimizer
@@ -92,7 +97,7 @@ def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini =
 
     elif 'colore' in default_lya_model.lower():
         prior_info = get_priors_colore(z)
-        for parname in free_param_names:
+        for parname in free_param_names_lyaigm:
             this_param = FreeParameter(
                 name=parname,
                 min_value=prior_info[parname]["min"],
@@ -115,7 +120,7 @@ def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini =
             par.gauss_prior_mean = params_config[par.name].get('gauss_prior_mean', par.gauss_prior_mean)
             par.gauss_prior_width = params_config[par.name].get('gauss_prior_width', par.gauss_prior_width)
             par.delta = params_config[par.name].get('delta', par.delta)
-    for parname in params_config: # create the FreeParam object for any missing ones. This is the case when default_lya_model is None.
+    for parname in params_config: # create the FreeParam object for any missing ones. This is the case when default_lya_model is None and for any contaminant params.
         if (parname not in [par.name for par in free_params_list]) and (parname in free_param_names):
             this_param = FreeParameter(
                 name=parname,
@@ -137,8 +142,6 @@ def plot_tau_estimates(tau_estimates, fname):
     plt.ylabel("estimated autocorrelation time")
     plt.savefig(fname)
     plt.clf()
-
-
 
 def plot_chains(outdir, emcee_sampler, free_params, param_idx):
     # first get the full chain and plot one, to understand burnin
@@ -197,3 +200,28 @@ def create_output_directory(inf_config, runname):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     return output_dir
+
+def get_initial_walkers(free_params, nwalkers):
+    """Setup initial states of walkers in sensible points """
+
+    ndim = len(free_params)
+
+    # Random values between [0, 1) --> [-0.5, 0.5)
+    shifts = -0.5 + np.random.rand(ndim * nwalkers).reshape((nwalkers, ndim))
+    ini_walkers = np.empty_like(shifts)
+    for ip, par in enumerate(free_params):
+        ini_value = par.gauss_prior_mean
+        rms = par.gauss_prior_width
+        val = ini_value + shifts[:, ip] * rms
+        # check that you don't end up outside the bounds
+        min_val = par.min_value
+        max_val = par.max_value
+        _ = val < min_val
+        val[_] = min_val + 0.01 * rms
+        _ = val > max_val
+        val[_] = max_val - 0.01 * rms
+
+        # store into ndarray 
+        ini_walkers[:, ip] = val
+
+    return ini_walkers

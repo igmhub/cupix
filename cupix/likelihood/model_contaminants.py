@@ -166,12 +166,19 @@ class ContaminantsModel(object):
 
 def no_unrecognized_cont_params(config):
     " Check that the contaminant_config have the right names"
-    allowed_hcd_params = ['b_H', 'beta_H', 'L_H_Mpc']
-    allowed_metal_params = ['b_X', 'beta_X']
-    allowed_sky_params = ['b_noise_Mpc']
-    allowed_continuum_params = ['kC_Mpc', 'pC']
-    allowed_cont_params = allowed_hcd_params + allowed_metal_params + allowed_sky_params + allowed_continuum_params
+    allowed_cont_params = allowed_hcd_params() + allowed_metal_params() + allowed_sky_params() + allowed_continuum_params()
     if config is not None:
         for par in config:
             assert par in allowed_cont_params, f"contaminant_param {par} not recognized, allowed parameters are {allowed_cont_params}"
         
+def allowed_sky_params():
+    return ['b_noise_Mpc']
+
+def allowed_hcd_params():
+    return ['b_H', 'beta_H', 'L_H_Mpc']
+
+def allowed_metal_params():
+    return ['b_X', 'beta_X']
+
+def allowed_continuum_params():
+    return ['kC_Mpc', 'pC']

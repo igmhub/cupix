@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --qos=debug
-#SBATCH --time=00:15:00
+#SBATCH --time=00:30:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=64
 #SBATCH --constraint=cpu
 #SBATCH --account=desi
 #SBATCH --output=/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/logs/%x-%j.out
@@ -19,4 +19,4 @@ export NUMEXPR_NUM_THREADS=1
 
 module load python
 conda activate cupix
-python /global/common/software/desi/users/mlokken/cupix/scripts/mcmc_sampler.py test /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/fcast_best_fit_arinyo_from_p1d_theory_config.yaml /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/inference_config_ex.yaml
+python /global/common/software/desi/users/mlokken/cupix/scripts/mcmc_sampler.py dist_cont /pscratch/sd/m/mloklya/px/dr2_analysis/example_theory_config.yaml /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/example_inference_config.yaml

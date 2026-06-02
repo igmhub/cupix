@@ -266,35 +266,38 @@ def get_priors_colore(z):
 
 def no_unrecognized_lya_params(config):
     " Check that the config does not contain any unrecognized parameters "
-    allowed_lya_params = ['bias', 'beta', 'q1', 'kv_Mpc', 'av', 'bv', 'kp_Mpc', 'q2']
     for par in config:
-        assert par in allowed_lya_params, f"lya_param {par} not recognized, allowed parameters are {allowed_lya_params}"
+        assert par in allowed_lya_params(), f"lya_param {par} not recognized, allowed parameters are {allowed_lya_params}"
     
 def no_unrecognized_igm_params(config):
     " Check that the config does not contain any unrecognized parameters "
-    allowed_igm_params = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
     if config is not None:
         for par in config:
-            assert par in allowed_igm_params, f"igm_param {par} not recognized, allowed parameters are {allowed_igm_params}"
+            assert par in allowed_igm_params(), f"igm_param {par} not recognized, allowed parameters are {allowed_igm_params}"
+
+def allowed_lya_params():
+    return ['bias', 'beta', 'q1', 'kv_Mpc', 'av', 'bv', 'kp_Mpc', 'q2']
+
+def allowed_igm_params():
+    return ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
 
 def no_conflicting_params(config):
     """ Accepts a dictionary of theory config parameters,
     checks that the parameter names are all allowed and that the
     user is not trying to pass parameters for multiple model types at once """
-    allowed_lya_params = ['bias', 'beta', 'q1', 'kv_Mpc', 'av', 'bv', 'kp_Mpc', 'q2']
-    allowed_igm_params = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
-
+    
+    
     if 'default_lya_model' in config:
         assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"
         # make sure the default lya model does not conflict with input parameters
         if 'igm' in config['default_lya_model']:
-            for par in allowed_lya_params:
+            for par in allowed_lya_params():
                 assert par not in config, f"you cannot provide lya parameter {par} if default_lya_model is an igm model"
         elif 'arinyo' in config['default_lya_model']:
-            for par in allowed_igm_params:
+            for par in allowed_igm_params():
                 assert par not in config, f"you cannot provide igm parameter {par} if default_lya_model is an arinyo model"
     # make sure the input parameters do not conflict with each other
-    for par in allowed_lya_params:
+    for par in allowed_lya_params():
         if par in config:
-            for igm_par in allowed_igm_params:
+            for igm_par in allowed_igm_params():
                 assert igm_par not in config, f"you cannot provide both lya parameter {par} and igm parameter {igm_par}"
