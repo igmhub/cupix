@@ -1,4 +1,4 @@
-verbose_all: True
+verbose_all: False
 
 data_config:
   data_file: /global/common/software/desi/users/mlokken/cupix/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5

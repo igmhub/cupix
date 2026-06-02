@@ -136,7 +136,7 @@ def plot_tau_estimates(tau_estimates, fname):
     plt.xlabel("step")
     plt.ylabel("estimated autocorrelation time")
     plt.savefig(fname)
-    plt.clfg()
+    plt.clf()
 
 
 
@@ -160,8 +160,7 @@ def plot_contours(outdir, chain, free_params, title=None):
     # add truth values
     for i, par in enumerate(free_params):
         if par.true_value is not None:
-            g.add_x_marker(par.true_value, i)
-            g.add_y_marker(par.true_value, i)
+            g.add_param_markers({par.name:par.true_value})
     if title is not None:
         g.fig.suptitle(title)
     g.finish_plot()

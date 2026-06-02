@@ -19,7 +19,7 @@ from cupix.utils.utils import get_path_repo
 from cupix.parameter_inference.sampling_funcs import prepare_free_parameters
 from cupix.likelihood.config import Config
 from cupix.parameter_inference.inference_config import InferenceConfig
-from sampling_funcs import plot_tau_estimates, plot_chains, plot_contours, record_mcmc_settings
+from cupix.parameter_inference.sampling_funcs import plot_tau_estimates, plot_chains, plot_contours, record_mcmc_settings, create_output_directory, save_chain
 
 _POST = None
 
@@ -27,7 +27,6 @@ def init_worker(post):
     global _POST
     _POST = post
     _POST.like.get_chi2() # will run camb and store the results in post.like.theory, which will be shared across workers
-    init_end = time.time()
     
 
 def log_prob_wrapper(values):
@@ -108,7 +107,9 @@ def main():
     
     post = Posterior(like, free_params, config=inf_config.post_config)
 
-    nthreads_available = len(os.sched_getaffinity(0))
+    # nthreads_available = len(os.sched_getaffinity(0))
+    print(os.environ.get("SLURM_CPUS_PER_TASK"))
+    nthreads_available = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
     ncores_use = nthreads_available-1 # leave 1 to run the figure plotting etc in the end of the main function
     print("Starting pool with %d logical cpus available" % ncores_use)
 
@@ -118,6 +119,7 @@ def main():
     nburnin = 50 + 3 * Np**3
     # read emcee configuration to update if needed
     nwalkers = inf_config.samp_config.get('nwalkers', nwalkers)
+    print("Will use %d walkers" % nwalkers)
     max_nsteps = inf_config.samp_config.get('max_nsteps', max_nsteps)
     nburnin = inf_config.samp_config.get('nburnin', nburnin)
     verbose = inf_config.samp_config.get('verbose', False)
@@ -182,6 +184,7 @@ def main():
         plot_tau_estimates(tau_estimates, os.path.join(outdir, "tau.png"))
         plot_chains(outdir, emcee_sampler, free_params, 0)
         chain = emcee_sampler.get_chain(discard=nburnin, thin=2, flat=True)
+        save_chain(outdir, chain, free_params)
         plot_contours(outdir, chain, free_params, title=runname)
         
 

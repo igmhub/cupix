@@ -1,4 +1,4 @@
-verbose_all: True
+verbose_all:
 
 posterior_config:
   verbose: False
@@ -10,11 +10,11 @@ minimizer_config:
 
 sampler_config:
   # set these only if you want to change the defaults
-  verbose:
-  nwalkers:
-  max_nsteps:
-  nburnin:
-  outputs_dir: /pscratch/sd/m/mlokken/desi-lya/px/
+  verbose: True
+  nwalkers: 16
+  max_nsteps: 100
+  nburnin: 10
+  outputs_dir: /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/
 
 params_config:
   bias:
