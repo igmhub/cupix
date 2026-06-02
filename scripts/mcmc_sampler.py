@@ -56,8 +56,8 @@ def main():
     outdir = create_output_directory(inf_config, runname)
     print("Outputs will be saved to", outdir)
     # copy the run config into the outdir
-    shutil.copy(setup_config_path, os.path.join(outdir, os.path.basename(setup_config_path)))
-    shutil.copy(inf_config_path, os.path.join(outdir, os.path.basename(inf_config_path)))
+    shutil.copy(setup_config_path, os.path.join(outdir, 'setup_config.yaml'))
+    shutil.copy(inf_config_path, os.path.join(outdir, 'inference_config.yaml'))
 
     data = DESI_DR2(setup_config.data_config)
     iz = setup_config.theory_config['iz']
@@ -161,10 +161,10 @@ def main():
             nburnin = emcee_sampler.iteration // 2
 
         plot_tau_estimates(tau_estimates, os.path.join(outdir, "tau.png"))
-        plot_chains(outdir, emcee_sampler, free_params, 0)
         chain = emcee_sampler.get_chain(discard=nburnin, thin=2, flat=True)
         save_chain(outdir, chain, free_params)
-        plot_contours(outdir, chain, free_params, title=runname)
+        plot_chains(chain, free_params, 0, save=True, show=False, outdir=outdir)
+        plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)
         
 
 

@@ -10,6 +10,12 @@ from forestflow import priors
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.model_lya import get_priors_gadget, get_priors_colore, allowed_igm_params, allowed_lya_params
 from cupix.likelihood.model_contaminants import allowed_continuum_params, allowed_hcd_params, allowed_metal_params, allowed_sky_params
+from cupix.likelihood.config import Config
+from cupix.parameter_inference.inference_config import InferenceConfig
+from cupix.likelihood.theory import Theory
+from cupix.likelihood.likelihood import Likelihood
+from cupix.px_data.data_DESI_DR2 import DESI_DR2
+from lace.cosmo import cosmology
 
 def get_latex_label(parname):
     if parname == 'bias':
@@ -40,6 +46,25 @@ def get_latex_label(parname):
         return r'\sigma_T [Mpc]'
     if parname == 'kF_Mpc':
         return r'k_F [Mpc^{-1}]'
+    
+    if parname == 'L_H_Mpc':
+        return r'L_H [Mpc]'
+    if parname == 'b_noise_Mpc':
+        return r'b_{noise} [Mpc]'
+    if parname == 'b_H':
+        return r'b_H'
+    if parname == 'beta_H':
+        return r'\beta_H'
+    if parname == 'b_X':
+        return r'b_X'
+    if parname == 'beta_X':
+        return r'\beta_X'
+    if parname == 'kC_Mpc':
+        return r'k_C [Mpc^{-1}]'
+    if parname == 'pC':
+        return r'p_C'
+    else:
+        return parname
     
 def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini = .05, params_config={}):
     """
@@ -143,18 +168,37 @@ def plot_tau_estimates(tau_estimates, fname):
     plt.savefig(fname)
     plt.clf()
 
-def plot_chains(outdir, emcee_sampler, free_params, param_idx):
+def plot_chains(chain_full, free_params, param_idx, save=False, show=True, outdir=None):
     # first get the full chain and plot one, to understand burnin
     param_name = free_params[param_idx].name
-    chain_full = emcee_sampler.get_chain(flat=False)
     plt.plot(chain_full[:, :, param_idx], alpha=0.5)
     plt.ylabel(free_params[param_idx].latex_label)
     plt.xlabel("step")
     plt.title("Full chain for parameter %s" % free_params[0].name)
-    plt.savefig(os.path.join(outdir, f"chain_full_{param_name}.png"))
+    if save:
+        if outdir is None:
+            raise ValueError("outdir must be provided if save is True")
+        plt.savefig(os.path.join(outdir, f"chain_full_{param_name}.png"))
+    if show:
+        plt.show()
+    plt.clf()
+
+def plot_chain_flattened(chain_flattened, free_params, param_idx, save=False, show=True, outdir=None):
+    # get the flattened chain across walkers, and plot one parameter
+    param_name = free_params[param_idx].name
+    plt.plot(chain_flattened[:, param_idx], alpha=0.5)
+    plt.ylabel(rf'${free_params[param_idx].latex_label}$')
+    plt.xlabel("step")
+    plt.title("Full chain for parameter %s" % free_params[0].name)
+    if save:
+        if outdir is None:
+            raise ValueError("outdir must be provided if save is True")
+        plt.savefig(os.path.join(outdir, f"chain_full_{param_name}.png"))
+    if show:
+        plt.show()
     plt.clf()
     
-def plot_contours(outdir, chain, free_params, title=None):
+def plot_contours(chain, free_params, title=None, save=False, show=True, outdir=None):
     gdnames  = [par.name for par in free_params]
     gdlabels = [par.latex_label for par in free_params]
     gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
@@ -167,7 +211,13 @@ def plot_contours(outdir, chain, free_params, title=None):
     if title is not None:
         g.fig.suptitle(title)
     g.finish_plot()
-    plt.savefig(os.path.join(outdir, "contours.png"))
+    if save:
+        if outdir is None:
+            raise ValueError("outdir must be provided if save is True")
+        plt.savefig(os.path.join(outdir, "contours.png"))
+    if show:
+        plt.show()
+    plt.clf()
 
 def save_chain(outdir, chain, free_params):
     # save the chain
@@ -225,3 +275,39 @@ def get_initial_walkers(free_params, nwalkers):
         ini_walkers[:, ip] = val
 
     return ini_walkers
+
+def load_mcmc_results(chain_directory):
+    """ Load the chain, and all setup configs, from directory to be able to re-create or continue working
+    with analysis."""
+    # Martine note: I might change this to a class later, since there are a lot of items to be returned
+    # load the chain
+    chain_fname = os.path.join(chain_directory, "chain.h5")
+    with h5.File(chain_fname, 'r') as f:
+        chain = f['chain'][:]
+    # recreate the theory, posterior, and likelihood objects
+    setup_config = Config(os.path.join(chain_directory, 'setup_config.yaml'))
+    inf_config = InferenceConfig(os.path.join(chain_directory, 'inference_config.yaml'))
+    mcmc_extra = os.path.join(chain_directory, 'mcmc_settings.yaml')
+    mcmc_settings = {}
+    if os.path.exists(mcmc_extra):
+        with open(mcmc_extra, 'r') as f:
+            mcmc_settings = yaml.safe_load(f)
+    else:
+        print("No mcmc_settings.yaml found in the chain directory. Will not be able to recover the settings used for the sampler.")
+    for key, value in inf_config.params_config.items():
+        # replace with key from mcmc_settings if it exists
+        if key in mcmc_settings:
+            inf_config.params_config[key] = mcmc_settings[key]
+
+            
+    data = DESI_DR2(setup_config.data_config)
+    iz = setup_config.theory_config['iz']
+    z = data.z[iz]
+    cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
+    theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
+    like = Likelihood(data=data, theory=theory, iz=iz, 
+                  config=setup_config.like_config)
+    free_param_names = list(inf_config.params_config.keys())
+    free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
+
+    return chain, free_params, data, cosmo, theory, like, setup_config, inf_config
