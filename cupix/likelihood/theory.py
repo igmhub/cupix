@@ -4,10 +4,8 @@ import numpy as np
 # our modules below
 from lace.cosmo import cosmology, rescale_cosmology
 from forestflow import integrate_p3d
-from cupix.likelihood.likelihood_parameter import dict_from_likeparam
 from cupix.likelihood.model_lya import LyaModel
 from cupix.likelihood.model_contaminants import ContaminantsModel
-
 
 
 class Theory(object):
@@ -65,35 +63,39 @@ class Theory(object):
         return cosmo
 
 
-    # currently needed by the old likelihood class, keeping the format as is
-    def get_px_AA(self, 
-        k_AA,
-        theta_arcmin,
-        zs=None,
-        like_params={},
-        return_arinyo_coeffs=False,
-        verbose=None
-    ):
-        if verbose is None:
-            verbose = self.verbose
-        if verbose:
-            print('inside Theory::get_px_AA')
+    # # currently needed by the old likelihood class, keeping the format as is
+    # def get_px_AA(self, 
+    #     k_AA,
+    #     theta_arcmin,
+    #     zs=None,
+    #     like_params={},
+    #     return_arinyo_coeffs=False,
+    #     verbose=None
+    # ):
+    #     if verbose is None:
+    #         verbose = self.verbose
+    #     if verbose:
+    #         print('inside Theory::get_px_AA')
 
-        # convert list of LikelihoodParameters to dictionary
-        params_dict = dict_from_likeparam(like_params)
-        if verbose:
-            print('params_dict', params_dict)
+    #     # convert list of LikelihoodParameters to dictionary
+    #     params_dict = dict_from_likeparam(like_params)
+    #     if verbose:
+    #         print('params_dict', params_dict)
 
-        assert zs == self.z, "Input redshift does not match one in theory"
+    #     assert zs == self.z, "Input redshift does not match one in theory"
 
-        if self.verbose:
-            print('Theta bins (arcmin)', theta_arcmin)
+    #     if self.verbose:
+    #         print('Theta bins (arcmin)', theta_arcmin)
 
-        return self.get_px_obs(theta_arc=theta_arcmin, k_AA=k_AA, 
-                               params=params_dict)
+    #     return self.get_px_obs(theta_arc=theta_arcmin, k_AA=k_AA, 
+    #                            params=params_dict)
 
 
     def get_px_obs(self, theta_arc, k_AA, cosmo=None, params={}):
+        # make sure all passed params are OK
+        self.lya_model.no_conflicting_params(params)
+        all_params_dict = self.all_set_default_params()
+        self.no_unrecognized_params(params)
         
         # figure out the cosmology to use 
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
@@ -526,3 +528,29 @@ class Theory(object):
         cont_dist = np.tanh( (kp_Mpc/kC_Mpc)**pC )
 
         return cont_dist
+
+    def all_set_default_params(self):
+        all_params = {
+            **(self.lya_model.default_igm_params or {}),
+            **(self.lya_model.default_lya_params or {}),
+            **(self.cont_model.default_hcd_params or {}),
+            **(self.cont_model.default_metal_params or {}),
+            **(self.cont_model.default_sky_params or {}),
+            **(self.cont_model.default_continuum_params or {}),
+        }
+        return all_params
+    
+    def get_param(self, param_name):
+        all_params_dict = self.all_set_default_params()
+        
+        if param_name in all_params_dict.keys():    
+            return all_params_dict[param_name]
+        else:
+            raise ValueError(f"Parameter {param_name} not found in theory model parameters.")
+        
+    def no_unrecognized_params(self, params):
+        """ checks if any params are passed that aren't in the defaults somewhere."""
+        all_params_dict = self.all_set_default_params()
+        for key in params.keys():
+            if key not in all_params_dict.keys():
+                raise ValueError(f"Parameter {key} not recognized in theory model parameters.")

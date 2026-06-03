@@ -194,6 +194,18 @@ class LyaModel(object):
 
         return lya_params
 
+    def no_conflicting_params(self, params):
+        """ Accepts a dictionary of params,
+        checks that the parameter names are all allowed given the default model."""
+        if self.default_lya_model is not None:
+            if 'igm' in self.default_lya_model:
+                for par in allowed_lya_params():
+                    assert par not in params, f"you cannot provide lya parameter {par} if default_lya_model is an igm model"
+            elif 'arinyo' in self.default_lya_model:
+                for par in allowed_igm_params():
+                    assert par not in params, f"you cannot provide igm parameter {par} if default_lya_model is an arinyo model"
+            
+            
 def get_priors_gadget(z, model, verbose=False):
     igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
     ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
@@ -301,3 +313,4 @@ def no_conflicting_params(config):
         if par in config:
             for igm_par in allowed_igm_params():
                 assert igm_par not in config, f"you cannot provide both lya parameter {par} and igm parameter {igm_par}"
+

@@ -42,7 +42,7 @@ if include_xi_fits:
     cosmo = cosmology.Cosmology()
     for z in zs:
         theories_xi.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_colore'}))
-                                                                
+
 
 # %%
 

@@ -11,7 +11,7 @@ from cupix.likelihood.free_parameter import FreeParameter
 from cupix.likelihood.model_lya import get_priors_gadget, get_priors_colore, allowed_igm_params, allowed_lya_params
 from cupix.likelihood.model_contaminants import allowed_continuum_params, allowed_hcd_params, allowed_metal_params, allowed_sky_params
 from cupix.likelihood.config import Config
-from cupix.parameter_inference.inference_config import InferenceConfig
+from cupix.inference.inference_config import InferenceConfig
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.px_data.data_DESI_DR2 import DESI_DR2

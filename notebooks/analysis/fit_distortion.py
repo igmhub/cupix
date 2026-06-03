@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -29,8 +29,8 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.parameter_inference.posterior import Posterior
-from cupix.parameter_inference.minimize_posterior import Minimizer
+from cupix.inference.posterior import Posterior
+from cupix.inference.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ### Read the Px from the stack of 50 mocks

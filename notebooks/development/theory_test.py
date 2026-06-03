@@ -17,7 +17,7 @@
 import sys
 import numpy as np
 from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
+from cupix.obsolete.forestflow_emu import FF_emulator
 from cupix.likelihood.input_pipeline import Args
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 # %load_ext autoreload

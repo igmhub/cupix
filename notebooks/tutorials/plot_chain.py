@@ -14,7 +14,7 @@
 # ---
 
 # %%
-from cupix.parameter_inference.sampling_funcs import load_mcmc_results, plot_chain_flattened, plot_contours
+from cupix.inference.sampling_funcs import load_mcmc_results, plot_chain_flattened, plot_contours
 # %load_ext autoreload
 # %autoreload 2
 

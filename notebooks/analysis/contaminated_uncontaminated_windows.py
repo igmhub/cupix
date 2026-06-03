@@ -25,9 +25,6 @@ from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.free_parameter import FreeParameter
-from cupix.parameter_inference.posterior import Posterior
-from cupix.parameter_inference.minimize_posterior import Minimizer
 
 # %%
 # path to mocks
@@ -37,8 +34,8 @@ uncont_fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_
 cont_fname = mockdir + "contaminated/contaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
 
 iz = 1
-data_uncont = DESI_DR2(uncont_fname, theta_min_cut_arcmin=20)
-data_cont = DESI_DR2(cont_fname, theta_min_cut_arcmin=20)
+data_uncont = DESI_DR2(config = {'data_file':uncont_fname, 'theta_min_cut_arcmin':20})
+data_cont = DESI_DR2(config = {'data_file':cont_fname, 'theta_min_cut_arcmin':20})
 z = data_cont.z[iz]
 print('analyze zbin {}, z = {}'.format(iz, z))
 
@@ -53,7 +50,8 @@ plt.clf()
 # setup cosmology defuault
 cosmo = cosmology.Cosmology()
 # starting point for Lya bias parameters in mocks
-default_lya_model = 'best_fit_p1d_from_dr1'
+# default_lya_model = 'best_fit_p1d_from_dr1'
+default_lya_model = 'best_fit_arinyo_from_colore'
 
 theory_config = {'verbose': False, 'default_lya_model': default_lya_model, 'include_continuum': True, 'include_hcd':True}
 theory = Theory(z=z, fid_cosmo=cosmo, config=theory_config)
@@ -79,12 +77,21 @@ k_AA = like_cont.data.k_M_centers_AA
 
 # %%
 # colors = ['C{}'.format(i) for i in range(len(model_px_cont))]
+has_label = False
 for theta_A in range(len(model_px_cont))[4:]:
-    plt.plot(k_AA, model_px_uncont[theta_A], label='uncontaminated',   linestyle='dashed')
-    plt.plot(k_AA, model_px_cont[theta_A], label='contaminated', color='k', linestyle='dotted')
-    
-plt.xlim([0, 0.3])
-
+    if not has_label:
+        labelun = 'uncontaminated'
+        labelcont = 'contaminated'
+        has_label = True
+    else:
+        labelun = None
+        labelcont = None
+    plt.plot(k_AA, k_AA**2*model_px_uncont[theta_A], label=labelun,   linestyle='solid')
+    plt.plot(k_AA, k_AA**2*model_px_cont[theta_A], label=labelcont, color='k', linestyle='dotted')
+    print(data_cont.theta_centers_arcmin[theta_A])
+plt.xlim([0, 0.6])
+plt.ylabel(r'$k^2 P_\times(k)$')
+plt.legend()
 
 # %%
 # plot residuals
@@ -97,5 +104,6 @@ plt.axhspan(-.03,.03, label='3%', color='grey', alpha=.5)
 plt.ylabel('residual (cont - uncont) / uncont')
 plt.xlabel('k [1/AA]')
 plt.legend(fontsize=12, ncol=2)
+plt.ylim([-.1,.1])
 
 # %%

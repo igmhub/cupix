@@ -21,7 +21,7 @@
 import numpy as np
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.lya_theory import Theory
-from cupix.likelihood.forestflow_emu import FF_emulator
+from cupix.obsolete.forestflow_emu import FF_emulator
 from lace.cosmo import camb_cosmo
 import matplotlib.pyplot as plt
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter, par_index, dict_from_likeparam

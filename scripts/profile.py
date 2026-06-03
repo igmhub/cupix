@@ -8,7 +8,7 @@ os.environ["OPENBLAS_NUM_THREADS"]="1"
 
 import numpy as np
 from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
+from cupix.obsolete.forestflow_emu import FF_emulator
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood
 from lace.cosmo import camb_cosmo

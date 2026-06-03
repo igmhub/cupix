@@ -3,7 +3,7 @@ import numpy as np
 import numpy as np
 import os
 from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
+from cupix.obsolete.forestflow_emu import FF_emulator
 from cupix.likelihood.input_pipeline import Args
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood

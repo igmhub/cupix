@@ -1,6 +1,6 @@
 import sys
 import time
-from cupix.parameter_inference.posterior import Posterior
+from cupix.inference.posterior import Posterior
 import numpy as np
 import matplotlib.pyplot as plt
 import multiprocessing as mp
@@ -16,10 +16,10 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 
 from cupix.utils.utils import get_path_repo
-from cupix.parameter_inference.sampling_funcs import prepare_free_parameters, get_initial_walkers
+from cupix.inference.sampling_funcs import prepare_free_parameters, get_initial_walkers
 from cupix.likelihood.config import Config
-from cupix.parameter_inference.inference_config import InferenceConfig
-from cupix.parameter_inference.sampling_funcs import plot_tau_estimates, plot_chains, plot_contours, record_mcmc_settings, create_output_directory, save_chain
+from cupix.inference.inference_config import InferenceConfig
+from cupix.inference.sampling_funcs import plot_tau_estimates, plot_chains, plot_contours, record_mcmc_settings, create_output_directory, save_chain
 
 _POST = None
 

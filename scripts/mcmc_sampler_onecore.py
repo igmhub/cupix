@@ -1,6 +1,6 @@
 from getdist import MCSamples, plots
 import time
-from cupix.parameter_inference.posterior import Posterior
+from cupix.inference.posterior import Posterior
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py as h5
@@ -11,7 +11,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
 from cupix.utils.utils import get_path_repo
-from cupix.parameter_inference.sampler import Sampler
+from cupix.inference.sampler import Sampler
 
 start = time.time()
 cupixpath = get_path_repo('cupix')
