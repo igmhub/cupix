@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from iminuit import Minuit
-
+import os
+import cupix
 
 class Minimizer(object):
     """Wrapper around an iminuit minimizer for the Posterior class"""
@@ -166,7 +167,7 @@ class Minimizer(object):
 
     def plot_ellipses(self, pname_x, pname_y, nsig=2, 
                       true_vals=None, true_val_label="true value", 
-                      show_ini_vals=False, xrange=None, yrange=None):
+                      xrange=None, yrange=None):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot. """
 
@@ -236,9 +237,7 @@ class Minimizer(object):
             plt.ylim(yrange)
             plt.xlim(xrange)
             # show initial values (if asked for)
-        if show_ini_vals:
-            plt.axvline(self.ini_values[ix], color='orange', linestyle='dotted', label='ini value')
-            plt.axhline(self.ini_values[iy], color='orange', linestyle='dotted')
+        
         plt.legend()
 
 

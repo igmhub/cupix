@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -29,8 +29,8 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.inference.posterior import Posterior
+from cupix.inference.minimize_posterior import Minimizer
 
 # %%
 # path to mocks
@@ -38,7 +38,7 @@ mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stack
 fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
 # dummy data object, only to get the redshift of interest
 iz = 1
-dummy_data = DESI_DR2(fname)
+dummy_data = DESI_DR2(config={'data_file':fname})
 z = dummy_data.z[iz]
 print('analyze zbin {}, z = {}'.format(iz, z))
 
@@ -46,7 +46,7 @@ print('analyze zbin {}, z = {}'.format(iz, z))
 # setup cosmology (should check this is the right cosmology in the mocks)
 cosmo = cosmology.Cosmology()
 # starting point for Lya bias parameters in mocks
-default_lya_model = 'pressure_only_fits_from_colore'
+default_lya_model = 'pressure_only_arinyo_from_colore'
 #default_lya_model = 'best_fit_arinyo_from_colore'
 theory_config = {'verbose': False, 'default_lya_model': default_lya_model, 'include_continuum': False}
 theory = Theory(z=z, fid_cosmo=cosmo, config=theory_config)
@@ -86,7 +86,7 @@ km_max_cut_AA=1.1*kM_max_cut_AA
 runs = []
 for theta in [0.5, 1.0, 2.0, 3.0, 6.0, 10.0, 15.0, 20.0, 30.0]:
     run = {}
-    run['data'] = DESI_DR2(fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA, theta_min_cut_arcmin=theta)
+    run['data'] = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta})
     run['theta_min'] = run['data'].theta_min_a_arcmin[0]
     run['theory'] = theory
     run['like'] = Likelihood(data=run['data'], theory=run['theory'], iz=iz, config={'verbose':False})
@@ -211,7 +211,7 @@ for par in free_params:
 runs_DNL = []
 for theta in [0.5, 1.0, 2.0, 3.0, 5.0, 10.0]:
     run = {}
-    run['data'] = DESI_DR2(fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA, theta_min_cut_arcmin=theta)
+    run['data'] = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta})
     run['theta_min'] = run['data'].theta_min_a_arcmin[0]
     run['theory'] = Theory(z=z, fid_cosmo=cosmo, config=theory_config)
     run['like'] = Likelihood(data=run['data'], theory=run['theory'], iz=iz, config={'verbose':False})

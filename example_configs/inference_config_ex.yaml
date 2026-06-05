@@ -1,0 +1,63 @@
+verbose_all:
+
+posterior_config:
+  verbose: False
+  fixed_params:
+
+minimizer_config:
+  verbose:
+
+
+sampler_config:
+  # set these only if you want to change the defaults
+  verbose: True
+  nwalkers: 16
+  max_nsteps: 100
+  nburnin: 10
+  outputs_dir: /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/
+
+# any parameters listed here will be used as free parameters.
+# It is not necessary to add the attributes unless you want to replace the defaults.
+# Not all values get used depending on what analysis you are doing. For example,
+# min_value is only used for the minimizer, while gauss_prior_mean is only used for MCMC
+params_config:
+  bias:
+    min_value:
+    max_value:
+    ini_value:
+    true_value:
+    gauss_prior_mean:
+    gauss_prior_width:
+    delta:
+  beta:
+    min_value:
+    max_value:
+    ini_value:
+    true_value:
+    gauss_prior_mean:
+    gauss_prior_width:
+    delta:
+  q1:
+    min_value:
+    max_value:
+    ini_value:
+    true_value:
+    gauss_prior_mean:
+    gauss_prior_width:
+    delta:
+  bv:
+    min_value:
+    max_value:
+    ini_value:
+    true_value:
+    gauss_prior_mean:
+    gauss_prior_width:
+    delta:
+  av:
+    min_value:
+    max_value:
+    ini_value:
+    true_value:
+    gauss_prior_mean:
+    gauss_prior_width:
+    delta:

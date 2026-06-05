@@ -8,7 +8,7 @@ os.environ["OPENBLAS_NUM_THREADS"]="1"
 
 import numpy as np
 from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
+from cupix.obsolete.forestflow_emu import FF_emulator
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood
 from lace.cosmo import camb_cosmo
@@ -115,7 +115,7 @@ like = Likelihood(forecast, theory_AA, free_param_names=["mF", "gamma"], iz_choi
 
 
 
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
 mini = IminuitMinimizer(like, verbose=False)
 start = time.time()
 mini.minimize(compute_hesse=True)

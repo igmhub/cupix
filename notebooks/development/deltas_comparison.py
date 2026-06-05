@@ -16,7 +16,7 @@
 # %%
 import numpy as np
 from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
+from cupix.obsolete.forestflow_emu import FF_emulator
 from cupix.likelihood.input_pipeline import Args
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood
@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 from cupix.likelihood.window_and_rebin import convolve_window, rebin_theta
 from cupix.px_data.data_lyacolore import Px_Lyacolore
 import scipy
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer
 import copy
 # %load_ext autoreload
 # %autoreload 2

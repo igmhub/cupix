@@ -6,15 +6,15 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
-# # Use iminuit to fit Px from DESI DR2
+# # Read and plot Px from DESI DR2
 
 # %%
 import numpy as np
@@ -26,20 +26,33 @@ import h5py as h5
 # %%
 from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
-from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.likelihood.theory import Theory
 
 # %% [markdown]
 # ## Step 1: Read the data from DESI DR2 and plot it
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-data = DESI_DR2(fname, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=1.5)
+fnames = []
+fnames.append(basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5")
+fnames.append(basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5")
+fnames.append(basedir + "binned_out_px-zbins_4-thetabins_10_w_res.hdf5")
+#fnames.append(basedir + "binned_out_px-zbins_4-thetabins_20_w_res.hdf5")
+for fname in fnames:
+    data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':1, 'km_max_cut_AA':1.})
+    Nz, Nt_a, Nk_M, Nk_m = data.U_ZaMn.shape
+    print(f"native binning: Nz={Nz}, Nt_a={Nt_a}, Nk_m={Nk_m}")
+    # rebinned values
+    Nz, Nt_A, Nk_M = data.Px_ZAM.shape
+    print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
+    print('--------')
+
+# %%
+#fname = basedir + "binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+#fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':1, 'km_max_cut_AA':1.2})
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -81,9 +94,25 @@ def plot_z_bin(iz, its_M):
 
 
 # %%
+plot_z_bin(iz=0, its_M=range(5))
+
+# %%
+plot_z_bin(iz=0, its_M=range(5,10))
+
+
+# %%
+def plot_z_bin_two_panels(iz):
+    plt.figure(figsize=(10, 4))
+    plt.subplot(1, 2, 1)
+    plot_z_bin(iz, its_M=range(5))
+    plt.subplot(1, 2, 2)
+    plot_z_bin(iz, its_M=range(5,10))
+    plt.tight_layout(w_pad=3)
+
+
+# %%
 for iz in range(4):
-    plt.figure(figsize=[8,3])
-    plot_z_bin(iz=iz, its_M=range(Nt_A))
+    plot_z_bin_two_panels(iz=iz)
 
 # %% [markdown]
 # ## Step 2: setup theory objects, with and without contaminants (one per z)
@@ -138,7 +167,7 @@ def compare_theta_bin(iz, it_M):
 
 # %%
 # one z, multiple theta
-for it_M in range(Nt_A):
+for it_M in [2, 4, 6, 8]:
     plt.figure()
     compare_theta_bin(iz=2, it_M=it_M)
 
@@ -147,124 +176,5 @@ for it_M in range(Nt_A):
 for iz, z in enumerate(zs):
     plt.figure()
     compare_theta_bin(iz=iz, it_M=0)
-
-# %% [markdown]
-# ## Step 4: setup iminuit minimizers and fit for parameters
-
-# %%
-# set the likelihood parameters as the Arinyo params with some fiducial values
-bias = FreeParameter(
-    name='bias',
-    min_value=-0.5,
-    max_value=-0.01,
-    ini_value=-0.15,
-    delta=0.01,   
-)
-beta = FreeParameter(
-    name='beta',
-    min_value=0.1,
-    max_value=5.0,
-    ini_value=1.5,
-    delta=0.1,
-)
-free_params = [bias, beta]
-for par in free_params:
-    print(par.name, par.ini_value)
-
-# %%
-# do this only for one z bin
-fit_iz=1
-post_lya = Posterior(likes_lya[fit_iz], free_params, config={'verbose': True})
-post_cont = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
-mini_lya = Minimizer(post_lya, config={'verbose':True})
-mini_cont = Minimizer(post_cont, config={'verbose':True})
-
-# %%
-mini_lya.silence()
-mini_lya.minimize()
-
-# %%
-mini_cont.silence()
-mini_cont.minimize()
-
-# %%
-# number of data points (per z bin)
-Ndp = Nt_A * Nk_M
-chi2_lya = mini_lya.get_best_fit_chi2()
-chi2_cont = mini_cont.get_best_fit_chi2()
-print(Ndp, chi2_lya, chi2_cont)
-
-# %% [markdown]
-# ## Step 5: fit for contaminants
-
-# %%
-print('HCD', mini_cont.post.like.theory.cont_model.default_hcd_params)
-print('Metal', mini_cont.post.like.theory.cont_model.default_metal_params)
-print('Sky', mini_cont.post.like.theory.cont_model.default_sky_params)
-print('Cont', mini_cont.post.like.theory.cont_model.default_continuum_params)
-
-# %%
-# set the free parameters 
-free_params = [bias, beta]
-free_b_H=False
-free_b_X=True
-free_b_noise_Mpc=False
-free_kC_Mpc=False
-if free_b_H:
-    free_params.append(FreeParameter(
-        name='b_H',
-        min_value=-0.1,
-        max_value=-0.0,
-        ini_value=-0.02,
-        delta=0.001  
-        ))
-if free_b_X:
-    free_params.append(FreeParameter(
-        name='b_X',
-        min_value=-0.1,
-        max_value=-0.0,
-        ini_value=-0.01,
-        delta=0.001 
-        ))
-if free_b_noise_Mpc:
-    free_params.append(FreeParameter(
-        name='b_noise_Mpc',
-        min_value=1e-4,
-        max_value=1e-1,
-        ini_value=0.01,
-        delta=0.001
-        ))
-if free_kC_Mpc:
-    free_params.append(FreeParameter(
-        name='kCb_Mpc',
-        min_value=1e-3,
-        max_value=1e-1,
-        ini_value=0.01,
-        delta=0.001
-        ))    
-for par in free_params:
-    print(par.name)
-
-# %%
-post = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
-mini = Minimizer(post, config={'verbose':True})
-
-# %%
-mini.silence()
-mini.minimize()
-
-# %%
-mini.get_best_fit_chi2()
-
-# %%
-mini.plot_ellipses(pname_x='bias', pname_y='beta', nsig=2)
-
-# %%
-mini.plot_ellipses(pname_x='bias', pname_y='b_X', nsig=2)
-
-# %%
-mini.plot_best_fit(multiply_by_k=False, every_other_theta=True, xlim=[-.01, .6], datalabel="DR2 (z = {})".format(zs[fit_iz]), show=True)
-
-# %%
 
 # %%

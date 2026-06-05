@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -29,8 +29,8 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.inference.posterior import Posterior
+from cupix.inference.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ### Read the data from DESI DR2 (large angular separations only)
@@ -39,7 +39,7 @@ from cupix.likelihood.minimize_posterior import Minimizer
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
 fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
 #fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-data = DESI_DR2(fname, kM_max_cut_AA=0.5, km_max_cut_AA=0.55, theta_min_cut_arcmin=10.0)
+data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':0.5, 'km_max_cut_AA':0.55, 'theta_min_cut_arcmin':10.0})
 
 # %%
 # native binning (no rebinning)

@@ -3,7 +3,7 @@
 import numpy as np
 from cupix.likelihood.generate_fake_data import FakeData
 from cupix.likelihood.lya_theory import set_theory
-from cupix.likelihood.forestflow_emu import FF_emulator
+from cupix.obsolete.forestflow_emu import FF_emulator
 from cupix.likelihood.input_pipeline import Args
 from cupix.likelihood.likelihood_parameter import LikelihoodParameter
 from cupix.likelihood.likelihood import Likelihood
@@ -17,7 +17,7 @@ from forestflow.archive import GadgetArchive3D
 import forestflow
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 import h5py as h5
-from cupix.likelihood.iminuit_minimizer import IminuitMinimizer, save_analysis_npz
+from cupix.obsolete.iminuit_minimizer import IminuitMinimizer, save_analysis_npz
 import cupix
 from pathlib import Path
 import time

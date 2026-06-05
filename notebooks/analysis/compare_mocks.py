@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -37,14 +37,14 @@ Nm = 50
 # %%
 unco_fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-thetabins_10_w_res_avg{}.hdf5".format(Nm)
 #unco_fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg{}.hdf5".format(Nm)
-unco_data = DESI_DR2(unco_fname)
+unco_data = DESI_DR2(config={'data_file':unco_fname})
 if rescale_cov:
     unco_data.cov_ZAM *= 1.0 / Nm
 
 # %%
 # path to mocks
 cont_fname = mockdir + "contaminated/contaminated_binned_out_bf3_px-zbins_4-thetabins_10_w_res_avg{}.hdf5".format(Nm)
-cont_data = DESI_DR2(cont_fname)
+cont_data = DESI_DR2(config={'data_file':cont_fname})
 if rescale_cov:
     cont_data.cov_ZAM *= 1.0 / Nm
 

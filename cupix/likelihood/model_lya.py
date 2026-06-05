@@ -3,12 +3,11 @@ import numpy as np
 from astropy.io import fits
 import pandas as pd
 # our modules below
-from lace.cosmo.thermal_broadening import thermal_broadening_kms
 import forestflow
 from forestflow import priors
 from forestflow.P3D_cINN import P3DEmulator
 from cupix.utils.utils import get_path_repo
-import warnings
+
 
 def lya_params_from_forestflow_params(ff_params):
     lya_params = ff_params.copy()
@@ -37,7 +36,7 @@ class LyaModel(object):
 
         self.verbose = config.get('verbose', False)
         if self.verbose: print('LyaModel::setup_from_config')
-
+        no_unrecognized_default_models(config) # make sure the default lya model is known
         # setup default values for parameters
         self.default_lya_model = config.get('default_lya_model', 'best_fit_arinyo_from_p1d')
         if 'igm' in self.default_lya_model:
@@ -48,11 +47,13 @@ class LyaModel(object):
             emulator_label = config.get('emulator_label', 'forest_mpg')
             Nrealizations = config.get('Nrealizations', 3000)
             self.emulator = self.get_emulator(emulator_label, Nrealizations)
-        else:
+        elif 'arinyo' in self.default_lya_model:
             # default values of Lya params (bias, beta, arinyo)
             self.default_lya_params = self.get_default_lya_params(config)
             self.default_igm_params = None
             self.emulator = None
+        else:
+            raise ValueError("unknown default_lya_model", self.default_lya_model)
 
         return
 
@@ -64,21 +65,8 @@ class LyaModel(object):
             prior_info = priors.get_IGM_priors(z=self.z, tag='DESI_DR1_P1D')
             igm_params = prior_info['mean']
         elif 'gadget' in self.default_lya_model.lower():
-            # apply the model from the central gadget sims
-            gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
-            train_test_info = pd.read_csv(gadget_short_info_file)
-            igm_params = {}
-            # Martine note: at some point we can make this a smooth function of z
-            z_diffs = abs(train_test_info['z']-self.z)
-            iz_closest = np.argmin(z_diffs)
-            assert(z_diffs[iz_closest]<0.2), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
-            if self.verbose: print('closest training redshift', train_test_info['z'][iz_closest])
-            igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
-            for par in igm_parnames:
-                if par+"_central" in train_test_info.columns:
-                    igm_params[par] = train_test_info[par+"_central"][iz_closest]
-                else:
-                    print("Parameter", par, "not found in training info file for redshift", self.z)
+            prior_info = get_priors_gadget(z=self.z, model='igm', verbose=self.verbose)
+            igm_params = {par: prior_info[par]['mean'] for par in prior_info}
         else:
             raise ValueError("unknown default_lya_model", self.default_lya_model)
         # update parameters if present in config
@@ -93,22 +81,8 @@ class LyaModel(object):
         if self.verbose: print('LyaModel::get_default_lya_params')
 
         if 'colore' in self.default_lya_model.lower():
-            assert self.z in [2.2, 2.4, 2.6, 2.8], "We only have CoLoRe fits for redshifts in [2.2, 2.4, 2.6, 2.8]"
-            # Load Laura's CF fits for all redshifts
-            ff_params = {}
-            with fits.open(get_path_repo('cupix')+f"/data/colore_xi/bin_{self.z:.1f}/lyaxlya.fits") as zbin_cf_file:
-                zbin_cf_fit = zbin_cf_file[1].header
-                ff_params['bias'] = zbin_cf_fit['bias_LYA']
-                ff_params['beta'] = zbin_cf_fit['beta_LYA']
-                ff_params['q1'] = zbin_cf_fit['dnl_arinyo_q1']
-                ff_params['kvav'] = zbin_cf_fit['dnl_arinyo_kv']**zbin_cf_fit['dnl_arinyo_av']
-                ff_params['av'] = zbin_cf_fit['dnl_arinyo_av']
-                ff_params['bv'] = zbin_cf_fit['dnl_arinyo_bv']
-                ff_params['kp'] = zbin_cf_fit['dnl_arinyo_kp']
-                if 'dnl_arinyo_q2' in zbin_cf_fit:
-                    ff_params['q2'] = zbin_cf_fit['dnl_arinyo_q2']
-                else:
-                    ff_params['q2'] = 0
+            prior_info = get_priors_colore(self.z)
+            ff_params = {par: prior_info[par]['mean'] for par in prior_info}
             if 'pressure_only' in self.default_lya_model.lower():
                 ff_params['q1'] = 0.0
                 ff_params['q2'] = 0.0
@@ -125,20 +99,8 @@ class LyaModel(object):
 
         elif 'gadget' in self.default_lya_model.lower():
             # apply the best-fit model from the central gadget sims
-            gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
-            train_test_info = pd.read_csv(gadget_short_info_file)
-            # Martine note: at some point we can make this a smooth function of z
-            z_diffs = abs(train_test_info['z']-self.z)
-            iz_closest = np.argmin(z_diffs)
-            assert(z_diffs[iz_closest]<0.2), "could not find training info for redshift {}, cannot use Gadget default theory".format(self.z)
-            if self.verbose: print('closest training redshift', train_test_info['z'][iz_closest])
-            ff_params = {}
-            ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
-            for par in ff_parnames:
-                if par+"_central" in train_test_info.columns:
-                    ff_params[par] = train_test_info[par+"_central"][iz_closest]
-                else:
-                    print("Parameter", par, "not found in training info file for redshift", self.z)
+            prior_info = get_priors_gadget(z=self.z, model='arinyo', verbose=self.verbose)
+            ff_params = {par: prior_info[par]['mean'] for par in prior_info}
 
         else:
             raise ValueError("unknown default_lya_model", self.default_lya_model)
@@ -234,38 +196,126 @@ class LyaModel(object):
 
         return lya_params
 
+    def no_conflicting_params(self, params):
+        """ Accepts a dictionary of params,
+        checks that the parameter names are all allowed given the default model."""
+        if self.default_lya_model is not None:
+            if 'igm' in self.default_lya_model:
+                for par in allowed_lya_params():
+                    assert par not in params, f"you cannot provide lya parameter {par} if default_lya_model is an igm model"
+            elif 'arinyo' in self.default_lya_model:
+                for par in allowed_igm_params():
+                    assert par not in params, f"you cannot provide igm parameter {par} if default_lya_model is an arinyo model"
+            
+            
+def get_priors_gadget(z, model, verbose=False):
+    igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
+    ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+    if 'igm' in model:
+        parnames = igm_parnames
+    elif 'arinyo' in model:
+        parnames = ff_parnames
+    else:
+        raise ValueError("Error in get_priors_gadget: model should include either 'igm' or 'arinyo'")
+    # apply the model from the central gadget sims
+    gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
+    train_test_info = pd.read_csv(gadget_short_info_file)
+    # set up a smooth function of z for the mean, min, and max values of desired params
+    z_all = train_test_info['z']
+    priors_dict = {}
+    for par in parnames:
+        if par+"_central" in train_test_info.columns:
+            par_central_interp = np.interp(z, z_all, train_test_info[par+"_central"])
+            par_min_interp = np.interp(z, z_all, train_test_info[par+"_min"])
+            par_max_interp = np.interp(z, z_all, train_test_info[par+"_max"])
+            if verbose: print(f"for parameter {par}, interpolated central value is {par_central_interp}, min is {par_min_interp}, max is {par_max_interp}")
+            priors_dict[par] = {
+                "mean": par_central_interp,
+                "std": 0.5*(par_max_interp - par_min_interp), # approximation
+                "max": par_min_interp,
+                "min": par_max_interp
+            }
+        else:
+            print("Parameter", par, "not found in training info file for redshift", z)
+    return priors_dict
+
+def get_priors_colore(z):
+    assert z in [2.2, 2.4, 2.6, 2.8], "We only have CoLoRe fits for redshifts in [2.2, 2.4, 2.6, 2.8]"
+    ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
+    # Load Laura's CF fits for all redshifts
+    priors_dict = {}
+    
+    
+    with fits.open(get_path_repo('cupix')+f"/data/colore_xi/bin_{z:.1f}/lyaxlya.fits") as zbin_cf_file:
+        for par in ff_parnames:
+            if par == "bias":
+                val = zbin_cf_file[1].header['bias_LYA']
+            elif par == "beta":
+                val = zbin_cf_file[1].header['beta_LYA']
+            elif par == "q1":
+                val = zbin_cf_file[1].header['dnl_arinyo_q1']
+            elif par == "kvav":
+                val = zbin_cf_file[1].header['dnl_arinyo_kv']**zbin_cf_file[1].header['dnl_arinyo_av']
+            elif par == "av":
+                val = zbin_cf_file[1].header['dnl_arinyo_av']
+            elif par == "bv":
+                val = zbin_cf_file[1].header['dnl_arinyo_bv']
+            elif par == "kp":
+                val = zbin_cf_file[1].header['dnl_arinyo_kp']
+            elif par == "q2":
+                if 'dnl_arinyo_q2' in zbin_cf_file[1].header:
+                    val = zbin_cf_file[1].header['dnl_arinyo_q2']
+                else:
+                    val = 0
+            priors_dict[par] = {
+                "mean": val,
+                "std": 0.5*np.abs(val), # arbitrary
+                "max": val + 5 * 0.5*np.abs(val), # arbitrary
+                "min": val - 5 * 0.5*np.abs(val), # arbitrary
+
+            }
+    return priors_dict
+        
+    
 
 def no_unrecognized_lya_params(config):
     " Check that the config does not contain any unrecognized parameters "
-    allowed_lya_params = ['bias', 'beta', 'q1', 'kv_Mpc', 'av', 'bv', 'kp_Mpc', 'q2']
     for par in config:
-        assert par in allowed_lya_params, f"lya_param {par} not recognized, allowed parameters are {allowed_lya_params}"
+        assert par in allowed_lya_params(), f"lya_param {par} not recognized, allowed parameters are {allowed_lya_params}"
     
 def no_unrecognized_igm_params(config):
     " Check that the config does not contain any unrecognized parameters "
-    allowed_igm_params = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
     if config is not None:
         for par in config:
-            assert par in allowed_igm_params, f"igm_param {par} not recognized, allowed parameters are {allowed_igm_params}"
+            assert par in allowed_igm_params(), f"igm_param {par} not recognized, allowed parameters are {allowed_igm_params}"
+
+def allowed_lya_params():
+    return ['bias', 'beta', 'q1', 'kv_Mpc', 'av', 'bv', 'kp_Mpc', 'q2']
+
+def allowed_igm_params():
+    return ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
 
 def no_conflicting_params(config):
     """ Accepts a dictionary of theory config parameters,
     checks that the parameter names are all allowed and that the
     user is not trying to pass parameters for multiple model types at once """
-    allowed_lya_params = ['bias', 'beta', 'q1', 'kv_Mpc', 'av', 'bv', 'kp_Mpc', 'q2']
-    allowed_igm_params = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
-
+    
+    
     if 'default_lya_model' in config:
         assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"
         # make sure the default lya model does not conflict with input parameters
         if 'igm' in config['default_lya_model']:
-            for par in allowed_lya_params:
+            for par in allowed_lya_params():
                 assert par not in config, f"you cannot provide lya parameter {par} if default_lya_model is an igm model"
         elif 'arinyo' in config['default_lya_model']:
-            for par in allowed_igm_params:
+            for par in allowed_igm_params():
                 assert par not in config, f"you cannot provide igm parameter {par} if default_lya_model is an arinyo model"
     # make sure the input parameters do not conflict with each other
-    for par in allowed_lya_params:
+    for par in allowed_lya_params():
         if par in config:
-            for igm_par in allowed_igm_params:
+            for igm_par in allowed_igm_params():
                 assert igm_par not in config, f"you cannot provide both lya parameter {par} and igm parameter {igm_par}"
+
+def no_unrecognized_default_models(config):
+    if 'default_lya_model' in config:
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'pressure_only_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"   

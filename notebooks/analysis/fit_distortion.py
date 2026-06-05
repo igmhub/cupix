@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -29,8 +29,8 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.inference.posterior import Posterior
+from cupix.inference.minimize_posterior import Minimizer
 
 # %% [markdown]
 # ### Read the Px from the stack of 50 mocks
@@ -39,10 +39,10 @@ from cupix.likelihood.minimize_posterior import Minimizer
 mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
 # true continuum
 true_fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
-true_data = DESI_DR2(true_fname, kM_max_cut_AA=0.3, km_max_cut_AA=0.35, theta_min_cut_arcmin=20.0)
+true_data = DESI_DR2(config={'data_file':true_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
 # uncontaminated
 unco_fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-thetabins_10_w_res_avg50.hdf5"
-unco_data = DESI_DR2(unco_fname, kM_max_cut_AA=0.3, km_max_cut_AA=0.35, theta_min_cut_arcmin=20.0)
+unco_data = DESI_DR2(config={'data_file':unco_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
 
 # %% [markdown]
 # ### Start by fitting bias/beta from the stack of true-continuum mocks (one-z at a time)

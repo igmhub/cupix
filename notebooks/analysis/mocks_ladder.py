@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -36,8 +36,8 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.likelihood.free_parameter import FreeParameter
-from cupix.likelihood.posterior import Posterior
-from cupix.likelihood.minimize_posterior import Minimizer
+from cupix.inference.posterior import Posterior
+from cupix.inference.minimize_posterior import Minimizer
 
 # %%
 # In this notebook we will work with a single z bin
@@ -66,8 +66,8 @@ fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_re
 kM_max_cut_AA = 0.7
 km_max_cut_AA = 1.1*kM_max_cut_AA
 theta_min_cut_arcmin = 5.0
-data = DESI_DR2(fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA,
-                                 theta_min_cut_arcmin=theta_min_cut_arcmin)
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+data = DESI_DR2(data_config)
 z = data.z[iz]
 print('analyze zbin {}, z = {}'.format(iz, z))
 if rescale_cov:
@@ -137,8 +137,8 @@ fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-theta
 kM_max_cut_AA = 0.7
 km_max_cut_AA = 1.1*kM_max_cut_AA
 theta_min_cut_arcmin = 5.0
-data = DESI_DR2(fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA,
-                                 theta_min_cut_arcmin=theta_min_cut_arcmin)
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+data = DESI_DR2(data_config)
 z = data.z[iz]
 print('analyze zbin {}, z = {}'.format(iz, z))
 if rescale_cov:
@@ -224,8 +224,8 @@ fname = mockdir + "contaminated/contaminated_binned_out_bf3_px-zbins_4-thetabins
 kM_max_cut_AA = 0.7
 km_max_cut_AA = 1.1*kM_max_cut_AA
 theta_min_cut_arcmin = 3.0
-data = DESI_DR2(fname, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA,
-                                 theta_min_cut_arcmin=theta_min_cut_arcmin)
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+data = DESI_DR2(data_config)
 z = data.z[iz]
 print('analyze zbin {}, z = {}'.format(iz, z))
 if rescale_cov:

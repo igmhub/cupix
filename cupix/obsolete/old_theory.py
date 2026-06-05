@@ -1,8 +1,8 @@
 import numpy as np
 import copy
 from lace.cosmo import cosmology
-from cupix.likelihood.forestflow_emu import FF_emulator
-from cupix.likelihood.lyaP3D import LyaP3D
+from cupix.obsolete.forestflow_emu import FF_emulator
+from cupix.obsolete.lyaP3D import LyaP3D
 from cupix.likelihood.likelihood_parameter import likeparam_from_dict, LikelihoodParameter, dict_from_likeparam, format_like_params_dict
 import sys
 from lace.cosmo.thermal_broadening import thermal_broadening_kms

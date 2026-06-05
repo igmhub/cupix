@@ -13,6 +13,10 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# # Tutorial: Generate forecast data
+# This notebook shows how to generate a fully contaminated, distorted forecast.
+
 # %%
 import numpy as np
 from cupix.likelihood.likelihood import Likelihood
@@ -39,6 +43,8 @@ print(cupixpath)
 # --------- user settings --------
 lya_model  = "best_fit_arinyo_from_p1d" # options: "central_igm_from_gadget", "random_igm_from_gadget", "best_fit_arinyo_from_p1d", "best_fit_igm_from_p1d", "best_fit_arinyo_from_colore"
 add_noise  = False
+distort    = True # adds distortion
+contaminate = True # adds contamination
 params = {} # input a dictionary of specific params and values if you want to modify the default theory for the forecast
 # --------------------------
 
@@ -46,7 +52,7 @@ assert 'igm' in lya_model or 'arinyo' in lya_model, "lya_model must contain eith
 
 
 if 'gadget' in lya_model:
-    # set forecast location
+    # set forecast location: central simulation or random choice from within the Gadget space
     if "central" in lya_model:
         floc = "central" # "central" or "random"
     elif "random" in lya_model:
@@ -57,21 +63,30 @@ else:
 # %%
 # input the data file from which the covariance matrix and binning configurations will be used
 data_file = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-data = DESI_DR2(data_file)
-data_label = 'real'
-# overwrite data z with gadget z to facilitate gadget theory
-data.z = [2.25, 2.5, 2.75, 3.0]
+data = DESI_DR2(config={'data_file':data_file})
+window_label = 'realwin' # would be 'mockwin' otherwise
 
 # %%
 theories = []
 # set the default cosmology
 cosmo = cosmology.Cosmology()
-
-# set the Gadget central theory values
-if ('gadget' in lya_model and 'central' in lya_model) or 'colore' in lya_model or 'p1d' in lya_model:
-    for z in data.z:
-        print(z)
-        theories.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': True, 'default_lya_model':lya_model}))
+include_hcd = False
+include_metal = False
+include_sky = False
+include_continuum = False
+if contaminate:
+    include_hcd = True
+    include_metal = True
+    include_sky = True
+if distort:
+    include_continuum = True
+    
+theory_config={'verbose': True, 'default_lya_model':lya_model, 'include_hcd': include_hcd, 'include_metal': include_metal,
+        'include_sky': include_sky, 'include_continuum': include_continuum}
+# set the default theory values
+for z in data.z:
+    print(z)
+    theories.append(Theory(z=z, fid_cosmo=cosmo, config=theory_config))
 
 # %%
 # prepare to generate and write fake data
@@ -87,8 +102,13 @@ if floc=="random":
     rand_str = f"_{rng.choice(1000):03d}"
 else:
     rand_str = ""
-
-savestr = f"{filepath}/fcast_{lya_model}{rand_str}_{data_label}_{Path(data_file).stem}_{noise_str}.hdf5"
+contam_str = ""
+distort_str = ""
+if contaminate:
+    contam_str = "_contam"
+if distort:
+    distort_str = "_dist"
+savestr = f"{filepath}/fcast_{lya_model}{rand_str}{contam_str}{distort_str}_{window_label}_{Path(data_file).stem}_{noise_str}.hdf5"
 if os.path.exists(savestr):
     print("File already exists at", savestr)
 else:
@@ -124,8 +144,11 @@ if 'gadget' in lya_model and floc=='random':
 # initialize Likelihoods
 likes = []
 for iz, z in enumerate(data.z):
-    likes.append(Likelihood(data=data, theory=theories[iz], iz=iz, verbose=False))
+    likes.append(Likelihood(data=data, theory=theories[iz], iz=iz, config={'verbose':False}))
 
+
+# %%
+dir(theories[0].cont_model)
 
 # %%
 # make a copy of the data file at the forecast location
@@ -137,6 +160,18 @@ with h5.File(data_file, 'r') as f:
                 f.copy(group_name, f_out)
         f_out['metadata'].attrs['z_centers'] = data.z # do this manually in case data.z was overwritten by the user earlier in the notebook
         f_out['metadata'].attrs['z_centers_orig'] = f['metadata'].attrs['z_centers'] # save the original z_centers as well for reference. In some cases this will be the same as the new z_centers.
+        if contaminate or distort:
+            contam_group = f_out.create_group("contamination")
+            # save the iz=0 contaminant info since it doesn't change with z
+            
+            for par in likes[0].theory.cont_model.default_continuum_params:
+                contam_group.attrs[f"{par}"] = likes[0].theory.cont_model.default_continuum_params[par]
+            for par in likes[0].theory.cont_model.default_hcd_params:
+                contam_group.attrs[f"{par}"] = likes[0].theory.cont_model.default_hcd_params[par]
+            for par in likes[0].theory.cont_model.default_sky_params:
+                contam_group.attrs[f"{par}"] = likes[0].theory.cont_model.default_sky_params[par]
+            for par in likes[0].theory.cont_model.default_metal_params:
+                contam_group.attrs[f"{par}"] = likes[0].theory.cont_model.default_metal_params[par]
         # for the P_Z_AM group, we will overwrite the datasets with our forecast
         px_group = f_out.create_group("P_Z_AM")
         cosmo_group = f_out.create_group('cosmo_params')
@@ -144,6 +179,8 @@ with h5.File(data_file, 'r') as f:
         for par in likes[0].theory.fid_cosmo.background_params:
             print(par, likes[0].theory.fid_cosmo.background_params[par])
             cosmo_group.attrs[par] = likes[0].theory.fid_cosmo.background_params[par]
+        
+        
         for iz, like in enumerate(likes):
             px_group_z = px_group.create_group(f'z_{iz}')
             if 'igm' in like.theory.lya_model.default_lya_model:
@@ -177,7 +214,7 @@ with h5.File(data_file, 'r') as f:
 
 # %%
 # make sure it worked
-forecast_res = DESI_DR2(savestr)
+forecast_res = DESI_DR2(config={'data_file':savestr})
 
 
 # %%
@@ -201,8 +238,8 @@ theta_A_max = data.theta_max_A_arcmin
 
 # %%
 # make a plot for a couple of theta bins, and one redshift bin
-def plot_theta_bins(data, k_M, iz, it_M):
-    label = '{:.2f} < theta < {:.2f}'.format(theta_A_min[it_M], theta_A_max[it_M])
+def plot_theta_bins(data, k_M, iz, it_M, labeladd=''):
+    label = '{:.2f} < theta < {:.2f}, {:s}'.format(theta_A_min[it_M], theta_A_max[it_M], labeladd)
     # 1D array with measured Px, length Nk_M
     Px = data.Px_ZAM[iz][it_M]
     # get also errorbars
@@ -212,8 +249,8 @@ def plot_theta_bins(data, k_M, iz, it_M):
 
 
 # %%
-plot_theta_bins(forecast_res, k_M, iz=3, it_M=5)
-plot_theta_bins(data, k_M, iz=3, it_M=5) # original data, not saved in forecast file
+plot_theta_bins(forecast_res, k_M, iz=3, it_M=5, labeladd='forecast')
+plot_theta_bins(data, k_M, iz=3, it_M=5, labeladd='data') # original data, not saved in forecast file
 plt.legend()
 
 # %%
@@ -238,5 +275,8 @@ with h5.File(savestr) as f:
     if 'ff_emulated_params' in f['P_Z_AM']['z_0'].keys():
         print("Here")
         print(f['P_Z_AM']['z_0']['ff_emulated_params'].attrs.keys(), f['P_Z_AM']['z_0']['ff_emulated_params'].attrs['bias'], f['P_Z_AM']['z_0']['ff_emulated_params'].attrs['beta'])
+    if 'contamination' in f.keys():
+        print(f['contamination'].attrs.keys())
+        print(f['contamination'].attrs['b_H'], f['contamination'].attrs['pC'])
 
 # %%
