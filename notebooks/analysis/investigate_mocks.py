@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -42,9 +42,9 @@ theta_min_cut_arcmin=3.0
 # path to mocks
 mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/analysis-49/"
 fname_1 = mockdir + "uncontaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-data_1 = DESI_DR2(fname_1, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA, theta_min_cut_arcmin=theta_min_cut_arcmin)
+data_1 = DESI_DR2(config={'data_file':fname_1, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin})
 fname_2 = mockdir + "uncont_w_contweights/bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-data_2 = DESI_DR2(fname_2, kM_max_cut_AA=kM_max_cut_AA, km_max_cut_AA=km_max_cut_AA, theta_min_cut_arcmin=theta_min_cut_arcmin)
+data_2 = DESI_DR2(config={'data_file':fname_2, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin})
 # dummy data object, only to get the redshift of interest
 iz = 1
 z = data_1.z[iz]

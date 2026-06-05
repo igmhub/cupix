@@ -197,7 +197,7 @@ class Likelihood(object):
     def plot_px(self, params={}, multiply_by_k=True, every_other_theta=False, show=True,
                 theorylabel=None, datalabel=None, plot_fname=None,
                 ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False,
-                extra_params=None, extra_label=None):
+                extra_params=None, extra_label=None, include_probability=False, include_chi2=False):
         """Plot the Px data and theory."""
         import matplotlib.pyplot as plt
         import matplotlib.lines as mlines
@@ -284,7 +284,13 @@ class Likelihood(object):
             if extra_label is None:
                 extra_label = 'Extra theory prediction'
             handles.append(plt.Line2D([], [], color='black', linestyle=':', label=extra_label))
-
+        if include_probability:
+            prob = self.get_probability(params=params)
+            ax[0].text(0.35, 0.95, f'Fit prob = {prob:.2f}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
+        if include_chi2:
+            chi2 = self.get_chi2(params=params)
+            ndata = self.get_ndata()
+            ax[0].text(0.35, 0.9, f'Chi2/dof = {chi2:.1f}/{ndata}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         ax[0].legend(handles=handles, loc='upper right', fontsize='small')
         plt.tight_layout()
         if plot_fname is not None:
@@ -293,4 +299,5 @@ class Likelihood(object):
         else:
             if show:
                 plt.show()
+        
         return

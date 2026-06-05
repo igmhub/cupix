@@ -36,7 +36,7 @@ class LyaModel(object):
 
         self.verbose = config.get('verbose', False)
         if self.verbose: print('LyaModel::setup_from_config')
-
+        no_unrecognized_default_models(config) # make sure the default lya model is known
         # setup default values for parameters
         self.default_lya_model = config.get('default_lya_model', 'best_fit_arinyo_from_p1d')
         if 'igm' in self.default_lya_model:
@@ -47,11 +47,13 @@ class LyaModel(object):
             emulator_label = config.get('emulator_label', 'forest_mpg')
             Nrealizations = config.get('Nrealizations', 3000)
             self.emulator = self.get_emulator(emulator_label, Nrealizations)
-        else:
+        elif 'arinyo' in self.default_lya_model:
             # default values of Lya params (bias, beta, arinyo)
             self.default_lya_params = self.get_default_lya_params(config)
             self.default_igm_params = None
             self.emulator = None
+        else:
+            raise ValueError("unknown default_lya_model", self.default_lya_model)
 
         return
 
@@ -314,3 +316,6 @@ def no_conflicting_params(config):
             for igm_par in allowed_igm_params():
                 assert igm_par not in config, f"you cannot provide both lya parameter {par} and igm parameter {igm_par}"
 
+def no_unrecognized_default_models(config):
+    if 'default_lya_model' in config:
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'pressure_only_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"   

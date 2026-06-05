@@ -10,3 +10,4 @@ cupix.egg-info
 data/chi2_scans/*
 *.npz
 data/fitter_results/*
+*.png

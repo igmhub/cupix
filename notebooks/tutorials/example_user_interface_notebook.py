@@ -85,11 +85,11 @@ cosmo = cosmology.Cosmology(cosmo_params_dict=cosmo_dict)
 # 'best_fit_igm_from_p1d': same but for IGM parameters
 # 'best_fit_arinyo_from_colore': best fit to xi from colore mocks. Only works for z=2.2, 2.4, 2.6, 2.8
 # for each z, set up a Theory object
-theory_config = {'default_lya_theory': 'best_fit_arinyo_from_p1d', 'emulator_label': 'forest_mpg', 'verbose': True}
+theory_config = {'default_lya_model': 'best_fit_arinyo_from_p1d', 'emulator_label': 'forest_mpg', 'verbose': True}
 theories = []
 for z in data.z:
     theories.append(Theory(z, fid_cosmo=cosmo, config=theory_config))
-# theory_colore = Theory(z, bkgd_cosmo=cosmo, default_lya_theory='best_fit_arinyo_from_colore', p3d_label='arinyo', emulator_label='forestflow_emu', k_unit='iAA', verbose=True)
+
 
 # %%
 # check full cosmo dictionary to see what other default parameters were used

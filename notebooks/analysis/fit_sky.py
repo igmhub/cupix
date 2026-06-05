@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -38,7 +38,7 @@ from cupix.inference.minimize_posterior import Minimizer
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
 fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-data = DESI_DR2(fname, kM_min_cut_AA=0.5, kM_max_cut_AA=1.0, km_max_cut_AA=1.2, theta_min_cut_arcmin=10.0)
+data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.5, 'kM_max_cut_AA':1.0, 'km_max_cut_AA':1.2, 'theta_min_cut_arcmin':10.0})
 
 # %%
 # get the central value of each redshift bin, of length Nz
