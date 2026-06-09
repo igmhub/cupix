@@ -239,7 +239,7 @@ def get_priors_gadget(z, model, verbose=False):
             print("Parameter", par, "not found in training info file for redshift", z)
     return priors_dict
 
-def get_priors_colore(z):
+def get_priors_colore(z, as_lyaparams=False):
     assert z in [2.2, 2.4, 2.6, 2.8], "We only have CoLoRe fits for redshifts in [2.2, 2.4, 2.6, 2.8]"
     ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
     # Load Laura's CF fits for all redshifts
@@ -247,6 +247,7 @@ def get_priors_colore(z):
     
     
     with fits.open(get_path_repo('cupix')+f"/data/colore_xi/bin_{z:.1f}/lyaxlya.fits") as zbin_cf_file:
+        bestfit_params = {}
         for par in ff_parnames:
             if par == "bias":
                 val = zbin_cf_file[1].header['bias_LYA']
@@ -267,13 +268,23 @@ def get_priors_colore(z):
                     val = zbin_cf_file[1].header['dnl_arinyo_q2']
                 else:
                     val = 0
-            priors_dict[par] = {
-                "mean": val,
-                "std": 0.5*np.abs(val), # arbitrary
-                "max": val + 5 * 0.5*np.abs(val), # arbitrary
-                "min": val - 5 * 0.5*np.abs(val), # arbitrary
+            bestfit_params[par] = val
+    if as_lyaparams:
+        bestfit_params = lya_params_from_forestflow_params(bestfit_params)
+    for par in bestfit_params:
+        val = bestfit_params[par]
+        priors_dict[par] = {
+            "mean": val,
+            "std": 0.5*np.abs(val), # arbitrary
+            "max": val + 5 * 0.5*np.abs(val), # arbitrary
+            "min": val - 5 * 0.5*np.abs(val), # arbitrary
 
-            }
+        }
+    # replace with known minima
+    priors_dict['q1']['min'] = 0
+    priors_dict['q2']['min'] = 0
+    
+    
     return priors_dict
         
     

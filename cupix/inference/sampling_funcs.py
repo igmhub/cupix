@@ -121,7 +121,7 @@ def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini =
             free_params_list.append(this_param)
 
     elif 'colore' in default_lya_model.lower():
-        prior_info = get_priors_colore(z)
+        prior_info = get_priors_colore(z, as_lyaparams=True)
         for parname in free_param_names_lyaigm:
             this_param = FreeParameter(
                 name=parname,
@@ -159,6 +159,9 @@ def prepare_free_parameters(free_param_names, theory, theory_config, shift_ini =
                 latex_label=get_latex_label(parname)
             )
             free_params_list.append(this_param)
+    # if free params list is empty, throw a warning that there are no defaults for this parameter, and the user should pass params_config
+    if len(free_params_list) == 0:
+        print("Warning: no free parameters were prepared. This could be because the free_param_names are not yet setup with defaults, and no params_config was passed. Please try passing a params_config with the necessary information for the free parameters.")
     return free_params_list
 
 def plot_tau_estimates(tau_estimates, fname):

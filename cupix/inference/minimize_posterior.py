@@ -167,7 +167,7 @@ class Minimizer(object):
 
     def plot_ellipses(self, pname_x, pname_y, nsig=2, 
                       true_vals=None, true_val_label="true value", 
-                      xrange=None, yrange=None):
+                      xrange=None, yrange=None, ax=None, color='blue', extralabel=''):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot. """
 
@@ -177,7 +177,8 @@ class Minimizer(object):
         # figure out order of parameters in free parameters list
         ix = self.get_param_index(pname_x)
         iy = self.get_param_index(pname_y)
-
+        latexlabelx = self.post.free_params[ix].latex_label
+        latexlabely = self.post.free_params[iy].latex_label
         # find out best-fit values, errors and covariance for parameters
         val_x = self.minimizer.values[ix]
         val_y = self.minimizer.values[iy]
@@ -207,44 +208,49 @@ class Minimizer(object):
         alpha_deg = alpha * 180 / np.pi
 
         # make plot
-        fig = plt.subplot(111)
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            fig = ax.figure
         for isig in range(1, nsig + 1):
             ell = Ellipse(
-                (val_x, val_y), 2 * isig * a, 2 * isig * b, angle=alpha_deg
+                (val_x, val_y), 2 * isig * a, 2 * isig * b, angle=alpha_deg, color=color
             )
             ell.set_alpha(0.6 / isig)
-            fig.add_artist(ell)
+            # fig.add_artist(ell)
+            ax.add_patch(ell)
         # plot a marker at the central value
-        plt.plot(val_x, val_y, "ro", label="best fit")
+        ax.plot(val_x, val_y, marker="o", color=color, label="best fit "+extralabel)
         if true_vals is not None:
-            plt.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
-            plt.axhline(true_vals[pname_y], color='grey', linestyle='--')
+            ax.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
+            ax.axhline(true_vals[pname_y], color='grey', linestyle='--')
             
-        plt.xlabel(pname_x)
-        plt.ylabel(pname_y)
+        ax.set_xlabel(rf'${latexlabelx}$')
+        ax.set_ylabel(rf'${latexlabely}$')
         if xrange==None or yrange==None:
             if true_vals is None:
-                plt.xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
-                plt.ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
+                ax.set_xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
+                ax.set_ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
             else:
                 minx = min(val_x - (nsig + 1) * sig_x, true_vals[pname_x]-.1*abs(true_vals[pname_x]))
                 maxx = max(val_x + (nsig + 1) * sig_x, true_vals[pname_x]+.1*abs(true_vals[pname_x]))
                 miny = min(val_y - (nsig + 1) * sig_y, true_vals[pname_y]-.1*abs(true_vals[pname_y]))
                 maxy = max(val_y + (nsig + 1) * sig_y, true_vals[pname_y]+.1*abs(true_vals[pname_y]))
-                plt.ylim([miny,maxy])
-                plt.xlim([minx,maxx])
+                ax.set_ylim([miny,maxy])
+                ax.set_xlim([minx,maxx])
         else:
-            plt.ylim(yrange)
-            plt.xlim(xrange)
+            ax.set_ylim(yrange)
+            ax.set_xlim(xrange)
             # show initial values (if asked for)
         
-        plt.legend()
-
+        ax.legend()
+        return ax
+        
 
     def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, 
                       theorylabel=None, datalabel=None, plot_fname=None, 
                       ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False,
-                      extra_params=None, extra_label=None):
+                      extra_params=None, extra_label=None, include_chi2=False, include_probability=False):
         """Plot best-fit PX vs data."""
 
         # obtain dictionary of best-fit parameters (will minimize if needed)
@@ -268,7 +274,9 @@ class Minimizer(object):
             title=title,
             residual_to_theory=residual_to_theory,
             extra_params=extra_params,
-            extra_label=extra_label
+            extra_label=extra_label,
+            include_probability=include_probability,
+            include_chi2=include_chi2
         )
 
         return
@@ -287,6 +295,8 @@ class Minimizer(object):
                 mean = par.gauss_prior_mean
                 rms = par.gauss_prior_width
                 info += ' (prior = {:.4f} +/- {:.4f})'.format(mean, rms)
+            if par.min_value is not None and par.max_value is not None:
+                info += ' (limits = [{:.4f}, {:.4f}])'.format(par.min_value, par.max_value)
             print(info)
         for key, val in self.post.fixed_params.items():
             print('{} = {:.4f} (fixed)'.format(key, val))
