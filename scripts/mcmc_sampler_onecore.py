@@ -9,7 +9,7 @@ from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.free_parameter import FreeParameter
+from cupix.inference.free_parameter import FreeParameter
 from cupix.utils.utils import get_path_repo
 from cupix.inference.sampler import Sampler
 

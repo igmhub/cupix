@@ -26,17 +26,19 @@ from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.free_parameter import FreeParameter
+from cupix.inference.free_parameter import FreeParameter
 from cupix.inference.posterior import Posterior
 from cupix.inference.minimize_posterior import Minimizer
 from cupix.inference.sampling_funcs import prepare_free_parameters
 
 # %%
 # In this notebook we will work with a single z bin
-iz=1
+iz=0
 
 # setup cosmology (should check this is the right cosmology in the mocks)
-cosmo = cosmology.Cosmology()
+cosmodict = {'ombh2':0.02237, 'omch2':0.12, 'omk':0, 'h':0.6736, 'As':2.0830e-9, 'ns':0.9649, 'w0':-1, 'wa':0}
+
+cosmo = cosmology.Cosmology(cosmodict)
 # starting point for Lya bias parameters in mocks
 # default_lya_model = 'pressure_only_arinyo_from_colore'
 default_lya_model = 'best_fit_arinyo_from_colore'
@@ -68,9 +70,90 @@ theory = Theory(z=z, fid_cosmo=cosmo, config=theory_config)
 like = Likelihood(data=trucont_data, theory=theory, iz=iz, config={'verbose':False})
 
 # %%
-free_params = prepare_free_parameters(['bias','beta','kp_Mpc', 'q1', 'av', 'bv'], theory, theory_config)
+like.plot_px(params={'bias':-.13, 'beta':1.4, 'kp_Mpc':1.2, 'av':.1, 'bv':.1}, every_other_theta=True, multiply_by_k=False)
+
+# %%
+# # set broader priors than the defaults, since IFAE-QL mocks are different
+
+params_config = {
+    'bias': {'gauss_prior_width': None, 'gauss_prior_mean':None},
+    'beta': {'gauss_prior_width': None, 'gauss_prior_mean':None},
+    'q1': {'gauss_prior_width': None, 'gauss_prior_mean':None},
+}
+
+#     'kp_Mpc': {'gauss_prior_width': None, 'gauss_prior_mean':None},
+#     'q1': {'gauss_prior_width': None, 'gauss_prior_mean':None},
+#     'av': {'gauss_prior_width': None, 'gauss_prior_mean':None},
+#     'bv': {'gauss_prior_width': None, 'gauss_prior_mean':None},
+#
+
+free_params = prepare_free_parameters(['bias','beta', 'q1'], theory, theory_config, params_config=params_config)
+# free_params = prepare_free_parameters(['bias','beta','kp_Mpc', 'q1', 'av', 'bv'], theory, theory_config, params_config=params_config)
 for p in free_params:
-    print(p.name, p.true_value, p.min_value, p.max_value) 
+    # print all attributes
+    print(p.__dict__)
+    # set initial value for bias / beta based on best-fit values from Laura
+# ini_bias = theory.lya_model.default_lya_params['bias']
+# ini_beta = theory.lya_model.default_lya_params['beta']
+# par_bias = FreeParameter(
+#     name='bias',
+#     min_value=-0.5,
+#     max_value=-0.01,
+#     ini_value=ini_bias,
+#     delta=0.01,   
+# )
+# par_beta = FreeParameter(
+#     name='beta',
+#     min_value=0.1,
+#     max_value=5.0,
+#     ini_value=ini_beta,
+#     delta=0.1,
+# )
+
+# # add other free parameters (without prior values for now)
+# ini_q1 = theory.lya_model.default_lya_params['q1']
+# par_q1 = FreeParameter(
+#     name='q1',
+#     min_value=0.0,
+#     max_value=5.0,
+#     ini_value=ini_q1,
+#     delta=0.01
+# )
+# ini_av = theory.lya_model.default_lya_params['av']
+# par_av = FreeParameter(
+#     name='av',
+#     min_value=0.0,
+#     max_value=5.0,
+#     ini_value=ini_av,
+#     delta=0.01
+# )
+# ini_bv = theory.lya_model.default_lya_params['bv']
+# par_bv = FreeParameter(
+#     name='bv',
+#     min_value=0.0,
+#     max_value=5.0,
+#     ini_value=ini_bv,
+#     delta=0.01
+# )
+# ini_kp = theory.lya_model.default_lya_params['kp_Mpc']
+# par_kp = FreeParameter(
+#     name='kp_Mpc',
+#     min_value=0.0,
+#     max_value=5.0,
+#     ini_value=ini_kp,
+#     delta=0.01
+# )
+# ini_kv = theory.lya_model.default_lya_params['kv_Mpc']
+# par_kv = FreeParameter(
+#     name='kv_Mpc',
+#     min_value=0.0,
+#     max_value=5.0,
+#     ini_value=ini_kv,
+#     delta=0.01
+# )
+
+# %%
+# free_params = [par_bias, par_beta, par_q1, par_av, par_bv, par_kp, par_kv]
 
 # %%
 post = Posterior(like, free_params, config={'verbose':False})
@@ -86,6 +169,10 @@ true_cont_mini.print_results()
 
 # %%
 true_cont_mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, residual_to_theory=True, include_chi2=True)
+
+# %%
+true_cont_mini.plot_ellipses('bias','beta')
+true_cont_mini.plot_corner()
 
 # %% [markdown]
 # # Fit uncontaminated mocks

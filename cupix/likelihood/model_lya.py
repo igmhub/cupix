@@ -237,6 +237,14 @@ def get_priors_gadget(z, model, verbose=False):
             }
         else:
             print("Parameter", par, "not found in training info file for redshift", z)
+    if 'arinyo' in model:
+        # replace with known minima/maxima where needed
+        priors_dict['q1']['min'] = max(0, priors_dict['q1']['min']) # q1 should be positive or zero
+        priors_dict['q2']['min'] = max(0, priors_dict['q2']['min']) # q2 should be positive or zero
+        priors_dict['av']['min'] = max(0, priors_dict['av']['min']) # av should be positive or zero
+        priors_dict['bv']['min'] = max(0, priors_dict['bv']['min']) # bv should be positive or zero
+        priors_dict['beta']['min'] = max(0, priors_dict['beta']['min']) # beta should be positive
+        priors_dict['bias']['max'] = min(0, priors_dict['bias']['max']) # bias should be negative
     return priors_dict
 
 def get_priors_colore(z, as_lyaparams=False):
@@ -281,9 +289,12 @@ def get_priors_colore(z, as_lyaparams=False):
 
         }
     # replace with known minima
-    priors_dict['q1']['min'] = 0
-    priors_dict['q2']['min'] = 0
-    
+    priors_dict['q1']['min'] = max(0, priors_dict['q1']['min']) # q1 should be positive or zero
+    priors_dict['q2']['min'] = max(0, priors_dict['q2']['min']) # q2 should be positive or zero
+    priors_dict['av']['min'] = max(0, priors_dict['av']['min']) # av should be positive or zero
+    priors_dict['bv']['min'] = max(0, priors_dict['bv']['min']) # bv should be positive or zero
+    priors_dict['beta']['min'] = max(0, priors_dict['beta']['min']) # beta should be positive
+    priors_dict['bias']['max'] = min(0, priors_dict['bias']['max']) # bias should be negative
     
     return priors_dict
         

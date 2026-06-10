@@ -7,7 +7,7 @@ import h5py as h5
 from getdist import MCSamples, plots
 # ours
 from forestflow import priors
-from cupix.likelihood.free_parameter import FreeParameter
+from cupix.inference.free_parameter import FreeParameter
 from cupix.likelihood.model_lya import get_priors_gadget, get_priors_colore, allowed_igm_params, allowed_lya_params
 from cupix.likelihood.model_contaminants import allowed_continuum_params, allowed_hcd_params, allowed_metal_params, allowed_sky_params
 from cupix.likelihood.config import Config
@@ -288,8 +288,8 @@ def load_mcmc_results(chain_directory):
     with h5.File(chain_fname, 'r') as f:
         chain = f['chain'][:]
     # recreate the theory, posterior, and likelihood objects
-    setup_config = Config(os.path.join(chain_directory, 'setup_config.yaml'))
-    inf_config = InferenceConfig(os.path.join(chain_directory, 'inference_config.yaml'))
+    setup_config = Config(os.path.join(chain_directory, 'setup_config_mcmc.yaml'))
+    inf_config = InferenceConfig(os.path.join(chain_directory, 'inference_config_mcmc.yaml'))
     mcmc_extra = os.path.join(chain_directory, 'mcmc_settings.yaml')
     mcmc_settings = {}
     if os.path.exists(mcmc_extra):
@@ -314,3 +314,4 @@ def load_mcmc_results(chain_directory):
     free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
 
     return chain, free_params, data, cosmo, theory, like, setup_config, inf_config
+

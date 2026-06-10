@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from iminuit import Minuit
 import os
 import cupix
+from scipy.stats import chi2
 
 class Minimizer(object):
     """Wrapper around an iminuit minimizer for the Posterior class"""
@@ -245,12 +246,169 @@ class Minimizer(object):
         
         ax.legend()
         return ax
-        
+    
+
+    def plot_corner(self,
+                nsig=2,
+                show_truth=True,
+                true_val_label="true value",
+                figsize=None,
+                color="C0",
+                extralabel=""):
+        """
+        Gaussian corner plot from best-fit values and covariance.
+
+        Parameters
+        ----------
+        nsig : int
+            Number of sigma contours.
+        true_vals : dict or None
+            Dictionary of true parameter values keyed by parameter name.
+        """
+
+        from matplotlib.patches import Ellipse
+        from numpy import linalg as LA
+
+        npar = len(self.post.free_params)
+
+        if figsize is None:
+            figsize = (3*npar, 3*npar)
+
+        fig, axes = plt.subplots(npar, npar, figsize=figsize)
+
+        values = np.asarray(self.minimizer.values)
+        errors = np.asarray(self.minimizer.errors)
+        cov = np.asarray(self.minimizer.covariance)
+
+        for i in range(npar):
+
+            pname_i = self.post.free_params[i].name
+            label_i = self.post.free_params[i].latex_label
+
+            # -------------------------
+            # Diagonal: 1D Gaussian
+            # -------------------------
+            ax = axes[i, i]
+
+            x = np.linspace(values[i]-4*errors[i],
+                            values[i]+4*errors[i], 300)
+
+            y = np.exp(-(x-values[i])**2/(2*errors[i]**2))
+            y /= y.max()
+
+            ax.plot(x, y, color=color)
+
+            if show_truth:
+                ax.axvline(self.post.free_params[i].true_value,
+                        ls="--",
+                        color="grey",
+                        label=true_val_label)
+
+            ax.set_yticks([])
+            ax.set_xlabel(rf"${label_i}$")
+
+            # -------------------------
+            # Lower triangle
+            # -------------------------
+            for j in range(i):
+
+                ax = axes[i, j]
+
+                C = cov[np.ix_([j, i], [j, i])]
+
+                w, v = LA.eigh(C)
+
+                # sort largest eigenvalue first
+                order = np.argsort(w)[::-1]
+                w = w[order]
+                v = v[:, order]
+
+                angle = np.degrees(np.arctan2(v[1,0], v[0,0]))
+
+                a = np.sqrt(w[0])
+                b = np.sqrt(w[1])
+                # 1σ, 2σ, 3σ enclosed probabilities
+                probs = [0.682689492, 0.954499736, 0.997300204]
+                for p in probs[:nsig]:
+                    scale = np.sqrt(chi2.ppf(p, df=2))
+                
+
+                    ell = Ellipse(
+                        (values[j], values[i]),
+                        width=2*a*scale,
+                        height=2*b*scale,
+                        angle=angle,
+                        facecolor=color,
+                        alpha=0.25/scale,
+                        edgecolor=color
+                    )
+
+                    ax.add_patch(ell)
+
+                ax.plot(values[j], values[i],
+                        "o",
+                        color=color,
+                        label="best fit "+extralabel if (i,j)==(1,0) else None)
+
+                if show_truth:
+                    ax.axvline(self.post.free_params[j].true_value,
+                            color="grey",
+                            ls="--")
+                    ax.axhline(self.post.free_params[i].true_value,
+                            color="grey",
+                            ls="--")
+
+                sx = errors[j]
+                sy = errors[i]
+
+                xmin = values[j]-(nsig+1)*sx
+                xmax = values[j]+(nsig+1)*sx
+                ymin = values[i]-(nsig+1)*sy
+                ymax = values[i]+(nsig+1)*sy
+
+                if show_truth:
+                    tx = self.post.free_params[j].true_value
+                    ty = self.post.free_params[i].true_value
+
+                    xmin = min(xmin, tx-0.1*abs(tx))
+                    xmax = max(xmax, tx+0.1*abs(tx))
+                    ymin = min(ymin, ty-0.1*abs(ty))
+                    ymax = max(ymax, ty+0.1*abs(ty))
+
+                ax.set_xlim(xmin, xmax)
+                ax.set_ylim(ymin, ymax)
+
+                if i == npar-1:
+                    ax.set_xlabel(rf"${self.post.free_params[j].latex_label}$")
+                else:
+                    ax.set_xticklabels([])
+
+                if j == 0:
+                    ax.set_ylabel(rf"${label_i}$")
+                else:
+                    ax.set_yticklabels([])
+
+            # -------------------------
+            # Upper triangle
+            # -------------------------
+            for j in range(i+1, npar):
+                axes[i, j].axis("off")
+
+        handles, labels = axes[1,0].get_legend_handles_labels()
+        if handles:
+            fig.legend(handles, labels, loc="upper right")
+
+        fig.tight_layout()
+
+        return fig, axes
+
 
     def plot_best_fit(self, multiply_by_k=True, every_other_theta=False, show=True, 
                       theorylabel=None, datalabel=None, plot_fname=None, 
                       ylim=None, xlim=None, ylim2=None, title=None, residual_to_theory=False,
-                      extra_params=None, extra_label=None, include_chi2=False, include_probability=False):
+                      extra_params=None, extra_label=None, include_chi2=False, include_probability=False,
+                      outdir=None, out_fname=None
+                      ):
         """Plot best-fit PX vs data."""
 
         # obtain dictionary of best-fit parameters (will minimize if needed)
@@ -278,7 +436,11 @@ class Minimizer(object):
             include_probability=include_probability,
             include_chi2=include_chi2
         )
-
+        if outdir is not None:
+            if out_fname is None:
+                plt.savefig(os.path.join(outdir, "best_fit_plot.png"))
+            else:
+                plt.savefig(os.path.join(outdir, out_fname))
         return
 
 
@@ -323,14 +485,14 @@ class Minimizer(object):
         return results_dict
 
 
-    def save_results(self, outfile=None, outpath=None):
+    def save_results(self, outfile=None, outdir=None):
         results_dict = self.get_results_dict()
-        if outpath is None:
+        if outdir is None:
             repo = os.path.dirname(cupix.__path__[0])
-            outpath = os.path.join(repo, "data", "fitter_results")
+            outdir = os.path.join(repo, "data", "fitter_results")
         if outfile is None:
             outfile = f"iminuit_results.npz"
-        savepath = os.path.join(outpath, outfile)
+        savepath = os.path.join(outdir, outfile)
         print("Saving results to", savepath)
         save_analysis_npz(results_dict, filename=savepath)
 
@@ -410,3 +572,160 @@ def plot_ellipses(val_x, val_y, pname_x, pname_y, sig_x, sig_y, cov, nsig=2, tru
         plt.ylim(yrange)
         plt.xlim(xrange)
     plt.legend()
+
+
+
+def plot_corner(results_dict,
+            free_params,
+            nsig=2,
+            show_truth=True,
+            true_val_label="true value",
+            figsize=None,
+            color="C0",
+            extralabel=""):
+    """
+    Gaussian corner plot from best-fit values and covariance.
+
+    Parameters
+    ----------
+    nsig : int
+        Number of sigma contours.
+    true_vals : dict or None
+        Dictionary of true parameter values keyed by parameter name.
+    """
+
+    from matplotlib.patches import Ellipse
+    from numpy import linalg as LA
+
+    npar = len(free_params)
+
+    if figsize is None:
+        figsize = (3*npar, 3*npar)
+
+    fig, axes = plt.subplots(npar, npar, figsize=figsize)
+
+    values = np.asarray([results_dict[par.name] for par in free_params])
+    errors = np.asarray([results_dict[par.name+'_err'] for par in free_params])
+    cov = np.asarray(results_dict['cov'])
+
+    for i in range(npar):
+
+        pname_i = free_params[i].name
+        label_i = free_params[i].latex_label
+
+        # -------------------------
+        # Diagonal: 1D Gaussian
+        # -------------------------
+        ax = axes[i, i]
+
+        x = np.linspace(values[i]-4*errors[i],
+                        values[i]+4*errors[i], 300)
+
+        y = np.exp(-(x-values[i])**2/(2*errors[i]**2))
+        y /= y.max()
+
+        ax.plot(x, y, color=color)
+
+        if show_truth:
+            ax.axvline(free_params[i].true_value,
+                    ls="--",
+                    color="grey",
+                    label=true_val_label)
+
+        ax.set_yticks([])
+        ax.set_xlabel(rf"${label_i}$")
+
+        # -------------------------
+        # Lower triangle
+        # -------------------------
+        for j in range(i):
+
+            ax = axes[i, j]
+
+            C = cov[np.ix_([j, i], [j, i])]
+
+            w, v = LA.eigh(C)
+
+            # sort largest eigenvalue first
+            order = np.argsort(w)[::-1]
+            w = w[order]
+            v = v[:, order]
+
+            angle = np.degrees(np.arctan2(v[1,0], v[0,0]))
+
+            a = np.sqrt(w[0])
+            b = np.sqrt(w[1])
+            # 1σ, 2σ, 3σ enclosed probabilities
+            probs = [0.682689492, 0.954499736, 0.997300204]
+            for p in probs[:nsig]:
+                scale = np.sqrt(chi2.ppf(p, df=2))
+            
+
+                ell = Ellipse(
+                    (values[j], values[i]),
+                    width=2*a*scale,
+                    height=2*b*scale,
+                    angle=angle,
+                    facecolor=color,
+                    alpha=0.25/scale,
+                    edgecolor=color
+                )
+
+                ax.add_patch(ell)
+
+            ax.plot(values[j], values[i],
+                    "o",
+                    color=color,
+                    label="best fit "+extralabel if (i,j)==(1,0) else None)
+
+            if show_truth:
+                ax.axvline(free_params[j].true_value,
+                        color="grey",
+                        ls="--")
+                ax.axhline(free_params[i].true_value,
+                        color="grey",
+                        ls="--")
+
+            sx = errors[j]
+            sy = errors[i]
+
+            xmin = values[j]-(nsig+1)*sx
+            xmax = values[j]+(nsig+1)*sx
+            ymin = values[i]-(nsig+1)*sy
+            ymax = values[i]+(nsig+1)*sy
+
+            if show_truth:
+                tx = free_params[j].true_value
+                ty = free_params[i].true_value
+
+                xmin = min(xmin, tx-0.1*abs(tx))
+                xmax = max(xmax, tx+0.1*abs(tx))
+                ymin = min(ymin, ty-0.1*abs(ty))
+                ymax = max(ymax, ty+0.1*abs(ty))
+
+            ax.set_xlim(xmin, xmax)
+            ax.set_ylim(ymin, ymax)
+
+            if i == npar-1:
+                ax.set_xlabel(rf"${free_params[j].latex_label}$")
+            else:
+                ax.set_xticklabels([])
+
+            if j == 0:
+                ax.set_ylabel(rf"${label_i}$")
+            else:
+                ax.set_yticklabels([])
+
+        # -------------------------
+        # Upper triangle
+        # -------------------------
+        for j in range(i+1, npar):
+            axes[i, j].axis("off")
+
+    handles, labels = axes[1,0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="upper right")
+
+    fig.tight_layout()
+
+    return fig, axes
