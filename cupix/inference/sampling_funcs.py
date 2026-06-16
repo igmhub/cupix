@@ -1,5 +1,4 @@
 import numpy as np
-import emcee
 import matplotlib.pyplot as plt
 import yaml
 import os
@@ -16,6 +15,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from lace.cosmo import cosmology
+
 
 def get_latex_label(parname):
     if parname == 'bias':
@@ -315,3 +315,70 @@ def load_mcmc_results(chain_directory):
 
     return chain, free_params, data, cosmo, theory, like, setup_config, inf_config
 
+
+
+def plot_compare_corner(chain,
+                        results_dict,
+                        free_params,
+                        title=None,
+                        gaussian_nsamples=50000,
+                        colors=("C0", "C1"),
+                        labels=("MCMC", "Minimizer")):
+
+    names  = [p.name for p in free_params]
+    labels_latex = [p.latex_label for p in free_params]
+
+    # -------------------
+    # MCMC samples
+    # -------------------
+    mcmc = MCSamples(
+        samples=chain,
+        names=names,
+        labels=labels_latex,
+        label=labels[0]
+    )
+
+    # -------------------
+    # Gaussian samples from minimizer
+    # -------------------
+    mean = np.array([results_dict[p.name] for p in free_params])
+    cov = np.asarray(results_dict["cov"])
+
+    gauss_chain = np.random.multivariate_normal(
+        mean,
+        cov,
+        size=gaussian_nsamples
+    )
+
+    minimizer = MCSamples(
+        samples=gauss_chain,
+        names=names,
+        labels=labels_latex,
+        label=labels[1]
+    )
+
+    # -------------------
+    # Plot
+    # -------------------
+    g = plots.get_subplot_plotter()
+
+    g.triangle_plot(
+        [mcmc, minimizer],
+        filled=False,
+        contour_colors=list(colors),
+        legend_labels=list(labels),
+    )
+
+    # truth values
+    markers = {}
+    for p in free_params:
+        if p.true_value is not None:
+            markers[p.name] = p.true_value
+
+    if markers:
+        g.add_param_markers(markers)
+
+    if title is not None:
+        g.fig.suptitle(title)
+
+    return g
