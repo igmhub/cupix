@@ -168,7 +168,7 @@ class Minimizer(object):
 
     def plot_ellipses(self, pname_x, pname_y, nsig=2, 
                       true_vals=None, true_val_label="true value", 
-                      xrange=None, yrange=None, ax=None, color='blue', extralabel=''):
+                      xrange=None, yrange=None, ax=None, color='blue', label=''):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot. """
 
@@ -221,7 +221,7 @@ class Minimizer(object):
             # fig.add_artist(ell)
             ax.add_patch(ell)
         # plot a marker at the central value
-        ax.plot(val_x, val_y, marker="o", color=color, label="best fit "+extralabel)
+        ax.plot(val_x, val_y, marker="o", color=color, label=label)
         if true_vals is not None:
             ax.axvline(true_vals[pname_x], color='grey', linestyle='--', label=true_val_label)
             ax.axhline(true_vals[pname_y], color='grey', linestyle='--')
@@ -254,7 +254,7 @@ class Minimizer(object):
                 true_val_label="true value",
                 figsize=None,
                 color="C0",
-                extralabel=""):
+                label=""):
         """
         Gaussian corner plot from best-fit values and covariance.
 
@@ -348,7 +348,7 @@ class Minimizer(object):
                 ax.plot(values[j], values[i],
                         "o",
                         color=color,
-                        label="best fit "+extralabel if (i,j)==(1,0) else None)
+                        label=label if (i,j)==(1,0) else None)
 
                 if show_truth:
                     ax.axvline(self.post.free_params[j].true_value,
@@ -578,11 +578,13 @@ def plot_ellipses(val_x, val_y, pname_x, pname_y, sig_x, sig_y, cov, nsig=2, tru
 def plot_corner(results_dict,
             free_params,
             nsig=2,
+            fig=None,
+            axes=None,
             show_truth=True,
             true_val_label="true value",
             figsize=None,
             color="C0",
-            extralabel=""):
+            label=""):
     """
     Gaussian corner plot from best-fit values and covariance.
 
@@ -602,7 +604,8 @@ def plot_corner(results_dict,
     if figsize is None:
         figsize = (3*npar, 3*npar)
 
-    fig, axes = plt.subplots(npar, npar, figsize=figsize)
+    if axes is None:
+        fig, axes = plt.subplots(npar, npar, figsize=figsize)
 
     values = np.asarray([results_dict[par.name] for par in free_params])
     errors = np.asarray([results_dict[par.name+'_err'] for par in free_params])
@@ -676,7 +679,7 @@ def plot_corner(results_dict,
             ax.plot(values[j], values[i],
                     "o",
                     color=color,
-                    label="best fit "+extralabel if (i,j)==(1,0) else None)
+                    label=label if (i,j)==(1,0) else None)
 
             if show_truth:
                 ax.axvline(free_params[j].true_value,
