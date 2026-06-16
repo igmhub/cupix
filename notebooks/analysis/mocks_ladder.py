@@ -35,7 +35,7 @@ from lace.cosmo import cosmology
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
-from cupix.likelihood.free_parameter import FreeParameter
+from cupix.inference.free_parameter import FreeParameter
 from cupix.inference.posterior import Posterior
 from cupix.inference.minimize_posterior import Minimizer
 
@@ -46,7 +46,7 @@ iz=1
 # setup cosmology (should check this is the right cosmology in the mocks)
 cosmo = cosmology.Cosmology()
 # starting point for Lya bias parameters in mocks
-default_lya_model = 'pressure_only_fits_from_colore'
+default_lya_model = 'pressure_only_arinyo_from_colore'
 #default_lya_model = 'best_fit_arinyo_from_colore'
 
 # path to mocks

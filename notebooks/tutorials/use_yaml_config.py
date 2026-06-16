@@ -30,7 +30,7 @@ from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 #from cupix.likelihood.likelihood_parameter import LikelihoodParameter, like_parameter_by_name
 #from cupix.likelihood.iminuit_minimizer import IminuitMinimizer
-from cupix.likelihood.free_parameter import FreeParameter
+from cupix.inference.free_parameter import FreeParameter
 from cupix.inference.posterior import Posterior
 from cupix.inference.minimize_posterior import Minimizer
 from cupix.utils.utils import get_path_repo
