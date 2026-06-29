@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Use iminuit to fit Px from DESI DR2
+# # Use iminuit to fit Px from DESI DR2 for IGM parameters
 
 # %%
 import numpy as np
@@ -31,6 +31,7 @@ from cupix.likelihood.likelihood import Likelihood
 from cupix.inference.free_parameter import FreeParameter
 from cupix.inference.posterior import Posterior
 from cupix.inference.minimize_posterior import Minimizer
+from cupix.inference.sampling_funcs import prepare_free_parameters
 
 # %% [markdown]
 # ## Step 1: Read the data from DESI DR2 and plot it
@@ -39,12 +40,11 @@ from cupix.inference.minimize_posterior import Minimizer
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
 #fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
 # fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-fname_wbals = basedir + "wp1d/drop_DLAs/GP_plus_snrcut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
+# fname = basedir + "wp1d/drop_DLAs/GP_plus_snrcut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 fname = basedir + "wp1d/drop_BALs_and_DLAs/fs_cut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 kM_max_cut_AA = .7
 km_max_cut_AA = 1.1 * kM_max_cut_AA
 data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
-data_wbals= DESI_DR2(config={'data_file':fname_wbals, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -65,35 +65,30 @@ print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
 
 
 # %%
-def plot_theta_bin(data, iz, it_M, ls = 'solid'):
-    colors = plt.get_cmap('tab10')
+def plot_theta_bin(iz, it_M):
     label = r"${:.2f}' < \theta < {:.2f}'$".format(theta_A_min[it_M], theta_A_max[it_M])
     # 1D array with measured Px, length Nk_M
     Px = data.Px_ZAM[iz][it_M]
     # get also errorbars
     sig_Px = np.sqrt(np.diagonal(data.cov_ZAM[iz][it_M]))
 #    print(len(k_M), len(Px), len(sig_Px))
-    plt.errorbar(k_M, Px, sig_Px, label=label, ls=ls, color=colors(it_M))
+    plt.errorbar(k_M, Px, sig_Px, label=label)
 
 
 # %%
-
-def plot_z_bin(data, iz, its_M, ls= 'solid'):
-    
-    for it_M in its_M[::3]:
-        plot_theta_bin(data=data, iz=iz, it_M=it_M, ls=ls)
+def plot_z_bin(iz, its_M):
+    for it_M in its_M:
+        plot_theta_bin(iz=iz, it_M=it_M)
     plt.title('DESI DR2 at z={:.1f}'.format(zs[iz]))
-    plt.legend(fontsize=5)
+    plt.legend()
     plt.xlabel(r'$k_\parallel$ [1/A]')
     plt.ylabel(r'$P_\times(\theta, k_\parallel)$ [A]')
 
 
 # %%
 for iz in range(4):
-    
     plt.figure(figsize=[8,3])
-    plot_z_bin(data, iz=iz, its_M=range(Nt_A))
-    plot_z_bin(data_wbals, iz=iz, its_M = range(Nt_A), ls='dashed')
+    plot_z_bin(iz=iz, its_M=range(Nt_A))
 
 # %% [markdown]
 # ## Step 2: setup theory objects, with and without contaminants (one per z)
@@ -110,10 +105,10 @@ theories_lya = []
 theories_cont = []
 iz = 0
 for z in zs:
-    theories_lya.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_p1d'}))
+    theories_lya.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_igm_from_p1d'}))
     theories_cont.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 
                                                             'include_hcd': True, 'include_metal': True,
-                                                            'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_arinyo_from_p1d',
+                                                            'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_igm_from_p1d',
                                                             'b_noise': b_noise[iz]} ))
     iz += 1
 
@@ -134,64 +129,27 @@ for iz, z in enumerate(zs):
     models_lya.append(likes_lya[iz].get_convolved_px(params={}))
     models_cont.append(likes_cont[iz].get_convolved_px(params={}))
 
-
-# %%
-def compare_theta_bin(iz, it_M):
-    plt.title(r"DESI DR2,   z = {:.1f},   ${:.2f}' < \theta < {:.2f}'$".format(
-                                                zs[iz], theta_A_min[it_M], theta_A_max[it_M]))
-    # 1D array with measured Px, length Nk_M
-    Px = data.Px_ZAM[iz][it_M]
-    # get also errorbars
-    sig_Px = np.sqrt(np.diagonal(data.cov_ZAM[iz][it_M]))
-    plt.errorbar(k_M, Px, sig_Px, label='data')    
-    plt.plot(k_M, models_lya[iz][it_M], label='Lya only')
-    plt.plot(k_M, models_cont[iz][it_M], label='Lya + cont')
-    plt.legend()
-    plt.xlabel(r'$k_\parallel$ [1/A]')
-    plt.ylabel(r'$P_\times(\theta, k_\parallel)$ [A]')
-    plt.axhline(y=0, ls=':', color='gray')
-
-
-# %%
-# one z, multiple theta
-for it_M in range(Nt_A):
-    plt.figure()
-    compare_theta_bin(iz=2, it_M=it_M)
-
-# %%
-# one theta, multiple z
-for iz, z in enumerate(zs):
-    plt.figure()
-    compare_theta_bin(iz=iz, it_M=0)
-
 # %% [markdown]
 # ## Step 4: setup iminuit minimizers and fit for parameters
 
 # %%
 # set the likelihood parameters as the Arinyo params with some fiducial values
-bias = FreeParameter(
-    name='bias',
-    min_value=-0.5,
-    max_value=-0.01,
-    ini_value=-0.15,
-    delta=0.01,   
-)
-beta = FreeParameter(
-    name='beta',
-    min_value=0.1,
-    max_value=5.0,
-    ini_value=1.5,
-    delta=0.1,
-)
-free_params = [bias, beta]
-for par in free_params:
-    print(par.name, par.ini_value)
+freepars = []
+for iz, z in enumerate(zs):
+    freeparams = prepare_free_parameters(['mF','sigT_Mpc', 'gamma'], theories_cont[iz], theory_config={'verbose': False, 
+                                                            'include_hcd': True, 'include_metal': True,
+                                                            'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_igm_from_p1d',
+                                                            'b_noise': b_noise[iz]} )
+    print(theories_cont[iz].z)
+    for par in freeparams:
+        print(par.name, par.true_value, par.ini_value, par.min_value, par.max_value, par.delta)
+    freepars.append(freeparams)
 
 # %%
 # do this only for one z bin
-fit_iz=0
+fit_iz=3
 # post_lya = Posterior(likes_lya[fit_iz], free_params, config={'verbose': True})
-post_cont = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
+post_cont = Posterior(likes_cont[fit_iz], freepars[fit_iz], config={'verbose': True})
 # mini_lya = Minimizer(post_lya, config={'verbose':True})
 mini_cont = Minimizer(post_cont, config={'verbose':True})
 
@@ -210,14 +168,11 @@ mini_cont.print_results()
 mini_cont.plot_best_fit(include_chi2=True, multiply_by_k=False)
 
 # %%
-mini_cont.plot_ellipse('bias','beta')
+# mini_cont.plot_ellipse('mF','sigT_Mpc')
+mini_cont.plot_corner(true_val_label='DESI DR1 P1D')
 
 # %%
-mini_cont.save_results(outdir="/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/drop_dla_bal_fscut/", outfile=f"mini_biasbeta_defaultcont_propersky_z{fit_iz}")
-
-# %%
-# read all results from directory
-
+mini_cont.save_results(outdir="/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/drop_dla_bal_fscut/", outfile=f"mini_mFgammasigT_defaultcont_propersky_z{fit_iz}")
 
 # %% [markdown]
 # ## Step 5: fit for contaminants

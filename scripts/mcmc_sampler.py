@@ -26,8 +26,10 @@ _POST = None
 def init_worker(post):
     global _POST
     _POST = post
+    if _POST.like.theory.lya_model.delayload_emulator:
+        # load the emulator now. This is necessary to avoid pickling problems earlier (frEIA package contains a lambda function)
+        _POST.like.theory.lya_model.emulator = _POST.like.theory.lya_model.get_emulator(_POST.like.theory.lya_model.emulator_label, _POST.like.theory.lya_model.Nrealizations)
     _POST.like.get_chi2() # will run camb and store the results in post.like.theory, which will be shared across workers
-    
 
 def log_prob_wrapper(values):
     return _POST.get_log_posterior_from_values(values)
@@ -71,6 +73,7 @@ def main():
 
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     
+    setup_config.theory_config["delay_load_emu"] = True # delay loading the emulator to avoid pickling issues
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
     like = Likelihood(data=data, theory=theory, iz=iz, 
                   config=setup_config.like_config)
@@ -106,9 +109,9 @@ def main():
     assert nburnin < max_nsteps, 'nburnin >= max_nsteps'
     # record to file all the settings that might have been changed due to ncores available
     record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin)
-
+    nprocess = int(nthreads_available/2)
     init_start = time.time()
-    with mp.Pool(processes=nthreads_available, initializer=init_worker, initargs=(post,)) as pool:
+    with mp.Pool(processes=nprocess, initializer=init_worker, initargs=(post,)) as pool:
         init_end = time.time()
         print("Time to initialize pool and run CAMB in each worker: %.2f seconds" % (init_end - init_start))    
         if verbose:

@@ -37,7 +37,8 @@ from cupix.inference.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+# fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+fname = basedir + "wp1d/drop_DLAs/GP_plus_snrcut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.5, 'kM_max_cut_AA':1.0, 'km_max_cut_AA':1.2, 'theta_min_cut_arcmin':10.0})
 
 # %%
@@ -118,9 +119,11 @@ for par in free_params:
 config={'verbose': True, 'include_hcd': False, 'include_metal': False,
         'include_sky': True, 'include_continuum': True}
 minis = []
+likes = []
 for iz, z in enumerate(data.z): 
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
     like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True})
+        likes.append(like)
     post = Posterior(like, free_params, config={'verbose': True})
     mini = Minimizer(post, config={'verbose':True}) 
     minis.append(mini)
@@ -139,6 +142,16 @@ for mini in minis:
     best_fit = mini.get_best_fit_params()
     print('best fit chi2 and params')
     print(z, Ndp, chi2, best_fit)
+
+
+# %%
+for mini in minis:
+    mini.print_results()
+
+# %%
+# and if we were to just use the defaults?
+for like in likes:
+    print(like.get_chi2(), like.get_probability())
 
 # %%
 for mini in minis:

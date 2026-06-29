@@ -55,32 +55,9 @@ mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/colore/"
 # ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/colore/analysis-200
 
 # %%
-# speed-up code by only looking at low kpar
-kM_max_cut_AA = 0.7
-km_max_cut_AA = 1.1*kM_max_cut_AA
-theta_min_cut_arcmin = 25.0
-fname = mockdir + "analysis-200/tru_cont/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
-data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
-trucont_data = DESI_DR2(data_config)
-fname = mockdir + "analysis-200/uncontaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
-data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
-uncont_data = DESI_DR2(data_config)
-fname = mockdir + f"partially_contaminated/analysis-200/onlydlas_nomask/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
-data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
-DLA_contam_data = DESI_DR2(data_config)
-fname = mockdir + f"partially_contaminated/analysis-200/onlydlas_mask/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
-data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
-DLA_contam_data_mask = DESI_DR2(data_config)
-fname = mockdir + f"partially_contaminated/analysis-200/onlymetals/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
-data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
-metal_contam = DESI_DR2(data_config)
-fname = mockdir + f"analysis-200/contaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
-data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
-fully_contam = DESI_DR2(data_config)
-
-
-# %%
-def plot_onetheta_bin(data_list, iz, it_M,  data_labels=None):
+def plot_onetheta_bin(data_list, iz, it_M,  data_labels=None, colors=None):
+    if colors is None:
+        colors = plt.cm.tab10(np.linspace(0, 1, len(data_list)))
     c = 0
     if data_labels is None:
         data_labels = ['data {}'.format(i) for i in range(len(data_list))]
@@ -100,14 +77,107 @@ def plot_onetheta_bin(data_list, iz, it_M,  data_labels=None):
     title = '{} < theta < {}'.format(theta_A_min[it_M], theta_A_max[it_M])
     plt.title(title)
 
+def plot_px_and_window_residuals(measurement_files, measurement_labels, iz, itheta):
+    fnames = [mockdir + file for file in measurement_files]
+    colors = plt.cm.tab10(np.linspace(0, 1, len(measurement_files)))
+    linestyles = ['solid', 'dashed', 'dotted']
+    data_list = []
+    kM_max_cut_AA = 1.0 # 0.7
+    km_max_cut_AA = 1.1*kM_max_cut_AA
+    theta_min_cut_arcmin = 0 # 25.0
+    for m in fnames:
+        print(m)
+        data_config = {'data_file':m, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+        data = DESI_DR2(data_config)
+        data_list.append(data)
+    plot_onetheta_bin(data_list, iz, itheta,  data_labels=measurement_labels, colors=colors)
+    plt.show()
+    plt.clf()
+    z = data.z[iz]
+    theories = []
+    likes = []
+    for data in data_list:
+        theory_config = {'verbose': True, 'default_lya_model': default_lya_model, 'include_continuum':False}
+        theory = Theory(z=z, fid_cosmo=cosmo, config=theory_config)
+        like = Likelihood(theory=theory, data=data, iz=iz)
+        theories.append(theory)
+        likes.append(like)
+    
+    model_px_list = []
+    
+    for l, like in enumerate(likes):
+        model_px = like.get_convolved_px()
+        theory_iA = model_px[itheta]
+        model_px_list.append(theory_iA)
+        plt.plot(data_list[l].k_M_centers_AA, theory_iA, color=colors[l], linewidth=1, label=measurement_labels[l])
+        
+    plt.legend()
+    plt.show()
+    plt.clf()
+
+    # plot residuals to first convolved theory in the list
+    plt.axhspan(-.03,.03, label='3%', color='grey', alpha=.1)
+    for i in range(len(model_px_list)-1):
+        plt.plot(data_list[i].k_M_centers_AA, (model_px_list[i+1] - model_px_list[0])/model_px_list[0], color=colors[i+1], label=measurement_labels[i+1], ls=linestyles[i])
+    
+    plt.xlim([0, 1])
+    plt.title(rf"$z={z}, \theta={data_list[0].theta_centers_arcmin[itheta]}$")
+
+    plt.ylabel(f'residual w.r.t. {measurement_labels[0]}', fontsize=15)
+    plt.xlabel('k [1/AA]')
+    plt.legend(fontsize=12, ncol=2)
+    # plt.ylim([-1,1])
+    
+
 
 # %%
-analysis_type_labels = ['trucont', 'uncont', 'DLA contam no mask', 'DLA contam mask', 'metal contam', 'fully contam']
-plot_onetheta_bin([trucont_data, uncont_data, DLA_contam_data, DLA_contam_data_mask, metal_contam, fully_contam], iz=iz, it_M=0, data_labels=analysis_type_labels)
+files = ["analysis-200/uncontaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+         "analysis-200/contaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+         "analysis-200/contaminated/drop_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+         "analysis-200/contaminated/drop_DLAs_and_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"]
+labels = ["uncont", "fully_cont", "drop_BAL", "drop_DLA+BAL"]
+iz = 2
+itheta = 17
+plot_px_and_window_residuals(files, labels, iz, itheta)
+
+# %%
+# speed-up code by only looking at low kpar
+kM_max_cut_AA = 1.0 # 0.7
+km_max_cut_AA = 1.1*kM_max_cut_AA
+theta_min_cut_arcmin = 0 # 25.0
+fname = mockdir + "analysis-200/tru_cont/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+trucont_data = DESI_DR2(data_config)
+fname = mockdir + "analysis-200/uncontaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+uncont_data = DESI_DR2(data_config)
+fname = mockdir + f"partially_contaminated/analysis-200/onlydlas_nomask/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+DLA_contam_data = DESI_DR2(data_config)
+fname = mockdir + f"partially_contaminated/analysis-200/onlydlas_mask/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+DLA_contam_data_mask = DESI_DR2(data_config)
+fname = mockdir + f"partially_contaminated/analysis-200/onlymetals/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+metal_contam = DESI_DR2(data_config)
+fname = mockdir + f"analysis-200/contaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+fully_contam = DESI_DR2(data_config)
+fname = mockdir + f"analysis-200/contaminated/drop_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+fully_contam_drop_BAL = DESI_DR2(data_config)
+fname = mockdir + f"analysis-200/contaminated/drop_DLAs_and_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+data_config = {'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta_min_cut_arcmin}
+fully_contam_drop_BALDLA = DESI_DR2(data_config)
+
+# %%
+analysis_type_labels = ['trucont', 'uncont', 'DLA contam no mask', 'DLA contam mask', 'metal contam', 'fully contam', 'drop BAL', 'drop BAL+DLA']
+
+plot_onetheta_bin([trucont_data, uncont_data, DLA_contam_data, DLA_contam_data_mask, metal_contam, fully_contam, fully_contam_drop_BAL, fully_contam_drop_BALDLA], iz=iz, it_M=10, data_labels=analysis_type_labels)
 
 # %%
 # generate one example theory and apply each window function to it
-iz = 0
+iz = 2
 z = trucont_data.z[iz]
 theory_config = {'verbose': True, 'default_lya_model': default_lya_model, 'include_continuum':False}
 theory = Theory(z=z, fid_cosmo=cosmo, config=theory_config)
@@ -117,12 +187,15 @@ like_DLA_contam = Likelihood(theory=theory, data=DLA_contam_data, iz=iz)
 like_DLA_contam_mask = Likelihood(theory=theory, data=DLA_contam_data_mask, iz=iz)
 like_metal_contam = Likelihood(theory=theory, data=metal_contam, iz=iz)
 like_fully_contam = Likelihood(theory=theory, data=fully_contam, iz=iz)
-
-likes = [like_trucont, like_uncont, like_DLA_contam, like_DLA_contam_mask, like_metal_contam, like_fully_contam]
+like_drop_bal = Likelihood(theory=theory, data=fully_contam_drop_BAL, iz=iz)
+like_drop_baldla = Likelihood(theory=theory, data=fully_contam_drop_BALDLA, iz=iz)
+# likes = [like_trucont, like_uncont, like_DLA_contam, like_DLA_contam_mask, like_metal_contam, like_fully_contam, like_drop_bal, like_drop_baldla]
+likes = [like_trucont, like_uncont, like_fully_contam, like_drop_bal, like_drop_baldla]
 
 # %%
+analysis_type_labels = ['trucont', 'uncont', 'fully contam', 'drop BAL', 'drop BAL+DLA']
 colors = plt.cm.tab10(np.linspace(0, 1, len(likes)))
-it_A = 2
+it_A = 19
 l = 0
 model_px_list = []
 for like in likes:
@@ -136,17 +209,19 @@ for like in likes:
 plt.legend()
 
 # %%
+# compare_to = 'true_cont'
 compare_to = 'uncont'
-compare_to = 'true_cont'
 if compare_to == 'uncont':
     ic = 2
 else:
     ic = 1
 # plot residuals
+plt.axhspan(-.03,.03, label='3%', color='grey', alpha=.1)
 for i in range(len(model_px_list)-ic):
     plt.plot(DLA_contam_data.k_M_centers_AA, (model_px_list[i+ic] - model_px_list[ic-1])/model_px_list[ic-1], color=colors[i+ic], label=analysis_type_labels[i+ic])
 plt.xlim([0, 1])
-plt.axhspan(-.03,.03, label='3%', color='grey', alpha=.5)
+plt.title(rf"$\theta={uncont_data.theta_centers_arcmin[it_A]}$")
+
 plt.ylabel(f'residual w.r.t. {compare_to}', fontsize=15)
 plt.xlabel('k [1/AA]')
 plt.legend(fontsize=12, ncol=2)

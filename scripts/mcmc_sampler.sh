@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --qos=debug
+#SBATCH --qos=shared
 #SBATCH --time=00:30:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -10,7 +10,7 @@
 #SBATCH --error=/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/logs/%x-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mlokken@ifae.es
-
+#SBATCH --mem=64G
 
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
@@ -19,4 +19,4 @@ export NUMEXPR_NUM_THREADS=1
 
 module load python
 conda activate cupix
-python /global/common/software/desi/users/mlokken/cupix/scripts/mcmc_sampler.py dist_cont /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/example_theory_config.yaml /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/example_inference_config.yaml
+python /global/common/software/desi/users/mlokken/cupix/scripts/mcmc_sampler.py drop_bal_dla_igm /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/example_theory_config.yaml /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/example_igm_inference_config.yaml

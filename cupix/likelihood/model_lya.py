@@ -44,9 +44,17 @@ class LyaModel(object):
             self.default_igm_params = self.get_default_igm_params(config)
             self.default_lya_params = None
             # setup emulator
-            emulator_label = config.get('emulator_label', 'forest_mpg')
-            Nrealizations = config.get('Nrealizations', 3000)
-            self.emulator = self.get_emulator(emulator_label, Nrealizations)
+            self.emulator_label = config.get('emulator_label', 'forest_mpg')
+            self.Nrealizations = config.get('Nrealizations', 3000)
+            self.delayload_emulator = config.get('delay_load_emu', False)
+            if not self.delayload_emulator:
+                self.emulator = self.get_emulator(self.emulator_label, self.Nrealizations)
+                # self.hull = self.get_convex_hull()
+            else:
+                self.emulator = None
+                # self.hull = None
+                
+
         elif 'arinyo' in self.default_lya_model:
             # default values of Lya params (bias, beta, arinyo)
             self.default_lya_params = self.get_default_lya_params(config)
@@ -206,8 +214,47 @@ class LyaModel(object):
             elif 'arinyo' in self.default_lya_model:
                 for par in allowed_igm_params():
                     assert par not in params, f"you cannot provide igm parameter {par} if default_lya_model is an arinyo model"
-            
-            
+
+    def get_convex_hull(self):
+        """ sets up the convex hull from training simulations for the case of igm parameters """
+        from scipy.spatial import ConvexHull        
+        from forestflow.archive import GadgetArchive3D
+        igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc', 'T0']
+        if self.emulator_label == 'forest_mpg':
+            # Figure out the ForestFlow training central simulation
+            path_program = get_path_repo("forestflow")
+            Archive3D = GadgetArchive3D(
+                path_program
+            )
+            sim_dict_central =  Archive3D.get_testing_data("mpg_central")
+            training_data = Archive3D.training_data
+            gadget_zs = []
+            for sim_z in sim_dict_central:
+                gadget_zs.append(sim_z['z']) # save the redshifts
+            gadget_zs = np.asarray(gadget_zs)
+            sim_select_i = np.argmin(np.abs(gadget_zs - self.z)) # get the closest sim
+            points = []
+
+            nsims = int(len(training_data) / len(gadget_zs))
+            nz = len(gadget_zs)
+            for i in range(nsims):
+                nsim = int(i * nz + sim_select_i)
+                points_thissim = []
+                for par in igm_pars:
+                    points_thissim.append(training_data[nsim][par])
+                points.append(points_thissim)
+            points = np.asarray(points)
+            self.hull = ConvexHull(points)
+        else:
+            raise NotImplementedError("implement emulator_label", self.emulator_label)
+
+
+    def in_hull(self, params):
+        """ Ensures that the parameters are within the convex hull the emulator was trained with. """
+
+        return
+
+
 def get_priors_gadget(z, model, verbose=False):
     igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
     ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
