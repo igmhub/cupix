@@ -49,15 +49,14 @@ def get_latex_label(parname):
         return r"\Delta^2_p"
     if parname == "n_p":
         return r"n_p"
-    if parname == "mF":
-        return r"m_F"
     if parname == "gamma":
         return r"\gamma"
     if parname == "sigT_Mpc":
         return r"\sigma_T [Mpc]"
     if parname == "kF_Mpc":
         return r"k_F [Mpc^{-1}]"
-
+    if parname == 'mF':
+        return r"\overline{F}"
     if parname == "L_H_Mpc":
         return r"L_H [Mpc]"
     if parname == "b_noise_Mpc":
@@ -74,6 +73,7 @@ def get_latex_label(parname):
         return r"k_C [Mpc^{-1}]"
     if parname == "pC":
         return r"p_C"
+    
     else:
         return parname
 
@@ -116,12 +116,8 @@ def prepare_free_parameters(
         for parname in free_param_names_lyaigm:
             this_param = FreeParameter(
                 name=parname,
-                min_value=prior_info["percen_5"][
-                    parname
-                ],  # note that this is only used in minimizer
-                max_value=prior_info["percen_95"][
-                    parname
-                ],  # note that this is only used in minimizer
+                min_value=prior_info["mean"][parname] - 5 * prior_info["std"][parname],  # note that this is only used in minimizer
+                max_value=prior_info["mean"][parname] + 5 * prior_info["std"][parname],  # note that this is only used in minimizer
                 ini_value=prior_info["mean"][parname]
                 + shift_ini * prior_info["mean"][parname] * np.random.choice([-1, 1]),
                 true_value=prior_info["mean"][parname],
@@ -185,7 +181,7 @@ def prepare_free_parameters(
             free_params_list.append(this_param)
     # if params_config is not empty, replace with whatever is in params_config
     for par in free_params_list:
-        if par.name in params_config:
+        if par.name in params_config and params_config[par.name] is not None:
             par.min_value = params_config[par.name].get("min_value", par.min_value)
             par.max_value = params_config[par.name].get("max_value", par.max_value)
             par.ini_value = params_config[par.name].get("ini_value", par.ini_value)
@@ -219,6 +215,7 @@ def prepare_free_parameters(
                 latex_label=get_latex_label(parname),
             )
             free_params_list.append(this_param)
+        
     # if free params list is empty, throw a warning that there are no defaults for this parameter, and the user should pass params_config
     if len(free_params_list) == 0:
         print(

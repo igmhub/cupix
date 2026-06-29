@@ -15,12 +15,12 @@ from cupix.inference.sampling_funcs import prepare_free_parameters
 from lace.cosmo import cosmology
 
 
-def load_mini_results(results_directory):
+def load_mini_results(results_directory, filename='iminuit_results.npz', setup_config=None, inf_config=None):
     """ Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
     # Martine note: I might change this to a class later, since there are a lot of items to be returned
     # load the chain
-    minires_fname = os.path.join(results_directory, "iminuit_results.npz")
+    minires_fname = os.path.join(results_directory, filename)
     
     # Load results file
     outfile = np.load(minires_fname)
@@ -28,10 +28,13 @@ def load_mini_results(results_directory):
     results_dict = {key: outfile[key] for key in outfile.files}
 
     # recreate the theory, posterior, and likelihood objects
-    setup_config = Config(os.path.join(results_directory, 'setup_config_mini.yaml'))
-    inf_config = InferenceConfig(os.path.join(results_directory, 'inference_config_mini.yaml'))
+    if setup_config is None:
+        setup_config = Config(os.path.join(results_directory, 'setup_config_mini.yaml'))
+    if inf_config is None:
+        inf_config = InferenceConfig(os.path.join(results_directory, 'inference_config_mini.yaml'))
+    
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.theory_config['iz']
+    iz = setup_config.like_config['iz']
     z = data.z[iz]
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
@@ -52,7 +55,10 @@ def plot_corner(results_dict,
             true_val_label="true value",
             figsize=None,
             color="C0",
-            label=""):
+            label="",
+            title=None,
+            outdir=None,
+            outfile=None):
     """
     Gaussian corner plot from best-fit values and covariance.
 
@@ -199,6 +205,12 @@ def plot_corner(results_dict,
 
     fig.tight_layout()
 
+    if outdir is not None:
+        if outfile is None:
+            plt.savefig(os.path.join(outdir, "corner.png"))
+        else:
+            plt.savefig(os.path.join(outdir, outfile))
+        
     return fig, axes
 
 def plot_ellipse(
@@ -212,7 +224,10 @@ def plot_ellipse(
     true_vals=None,
     true_val_label="true value",
     xrange=None,
-    yrange=None
+    yrange=None,
+    outdir=None,
+    outfile=None,
+    title=None
 ):
     """
     Plot covariance ellipse using a flat results_dict.
@@ -306,7 +321,14 @@ def plot_ellipse(
     # if there are any labels, set legend
     if label is not None or (true_vals is not None and true_val_label is not None):
         ax.legend()
-
+    if title is not None:
+        ax.set_title(title)
+    if outdir is not None:
+        if outfile is None:
+            plt.savefig(os.path.join(outdir, f"{pname_x}_{pname_y}.png"))
+        else:
+            plt.savefig(os.path.join(outdir, outfile))
+        
     return ax
 
 def save_analysis_npz(results, filename="analysis_results.npz"):
@@ -326,3 +348,62 @@ def save_analysis_npz(results, filename="analysis_results.npz"):
     np.savez(filename, **out, allow_pickle=True)
 
 
+
+def plot_best_fit(
+        results_dict,
+        free_params,
+        like,
+        multiply_by_k=True,
+        every_other_theta=False,
+        show=True,
+        theorylabel=None,
+        datalabel=None,
+        plot_fname=None,
+        ylim=None,
+        xlim=None,
+        ylim2=None,
+        title=None,
+        residual_to_theory=False,
+        extra_params=None,
+        extra_label=None,
+        include_chi2=False,
+        include_probability=False,
+        outdir=None,
+        out_fname=None,
+    ):
+        """Plot best-fit PX vs data."""
+
+        # obtain dictionary of best-fit parameters (will minimize if needed)
+        params = {}
+        
+        for par in free_params:
+            params[par.name] = results_dict[par.name]
+        
+        # add fixed parameters in the posterior
+        # params.update(self.post.fixed_params)
+
+        # use plotting tool in likelihood object to plot data and theory
+        like.plot_px(
+            params=params,
+            every_other_theta=every_other_theta,
+            multiply_by_k=multiply_by_k,
+            xlim=xlim,
+            ylim=ylim,
+            show=show,
+            theorylabel=theorylabel,
+            datalabel=datalabel,
+            plot_fname=plot_fname,
+            ylim2=ylim2,
+            title=title,
+            residual_to_theory=residual_to_theory,
+            extra_params=extra_params,
+            extra_label=extra_label,
+            include_probability=include_probability,
+            include_chi2=include_chi2,
+        )
+        if outdir is not None:
+            if out_fname is None:
+                plt.savefig(os.path.join(outdir, "best_fit_plot.png"))
+            else:
+                plt.savefig(os.path.join(outdir, out_fname))
+        return

@@ -179,6 +179,9 @@ class Minimizer(object):
         ax=None,
         color="blue",
         label=None,
+        title=None,
+        outdir=None,
+        outfile=None
     ):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot."""
@@ -201,6 +204,9 @@ class Minimizer(object):
             true_val_label=true_val_label,
             xrange=xrange,
             yrange=yrange,
+            title=title,
+            outdir=outdir,
+            outfile=outfile
         )
 
         return ax
@@ -215,6 +221,9 @@ class Minimizer(object):
         figsize=None,
         color="C0",
         label="",
+        title=None,
+        outdir=None,
+        outfile=None
     ):
         """
         Gaussian corner plot from best-fit values and covariance.
@@ -237,6 +246,9 @@ class Minimizer(object):
             figsize=figsize,
             color=color,
             label=label,
+            title=title,
+            outdir=outdir,
+            outfile=outfile
         )
 
         return fig, axes
@@ -259,7 +271,7 @@ class Minimizer(object):
         include_chi2=False,
         include_probability=False,
         outdir=None,
-        out_fname=None,
+        outfile=None,
     ):
         """Plot best-fit PX vs data."""
 
@@ -289,10 +301,10 @@ class Minimizer(object):
             include_chi2=include_chi2,
         )
         if outdir is not None:
-            if out_fname is None:
+            if outfile is None:
                 plt.savefig(os.path.join(outdir, "best_fit_plot.png"))
             else:
-                plt.savefig(os.path.join(outdir, out_fname))
+                plt.savefig(os.path.join(outdir, outfile))
         return
 
     def print_results(self):

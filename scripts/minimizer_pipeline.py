@@ -47,6 +47,7 @@ shutil.copy(inf_config_path, os.path.join(outdir, 'inference_config_mini.yaml'))
 
 data = DESI_DR2(setup_config.data_config)
 iz = setup_config.theory_config['iz']
+print("Chose redshift bin ", iz)
 z = data.z[iz]
 
 # update config class with a use_truth option that could replace the cosmo and theory params with forecast values if it is a forecast and use_truth is True
@@ -76,7 +77,7 @@ mini.silence()
 mini.minimize()
 minimizer_end = time.time()
 print("Time to run sampler: %.2f seconds" % (minimizer_end - minimizer_start))
-mini.save_results(outdir=outdir) # will save to file called iminuit_results.npz
-mini.plot_ellipses('bias', 'kp_Mpc')
+mini.save_results(outdir=outdir, outfile=f'iminuit_results_{iz}') # will save to file called iminuit_results.npz
+mini.plot_ellipse('bias', 'beta', outdir = outdir, outfile=f'bias_beta_z{iz}.png', title=f'z={iz}')
 mini.print_results()
-mini.plot_best_fit(outdir=outdir)
+mini.plot_best_fit(outdir=outdir, outfile=f'bias_beta_z{iz}.png', multiply_by_k=False, title=f'z={iz}', include_chi2=True)
