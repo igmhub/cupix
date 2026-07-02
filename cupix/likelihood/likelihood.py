@@ -197,7 +197,7 @@ class Likelihood(object):
     def plot_px(self, params={}, multiply_by_k=True, every_other_theta=False, show=True,
                 theorylabel=None, datalabel=None, plot_fname=None,
                 ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False,
-                extra_params=None, extra_label=None, include_probability=False, include_chi2=False):
+                extra_params=None, extra_label=None, include_probability=True, include_chi2=False):
         """Plot the Px data and theory."""
         import matplotlib.pyplot as plt
         import matplotlib.lines as mlines
@@ -290,7 +290,7 @@ class Likelihood(object):
             chi2 = self.get_chi2(params=params)
             ndata = self.get_ndata()
             ax[0].text(0.35, 0.9, f'Chi2/dof = {chi2:.1f}/{ndata}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
-        ax[0].legend(handles=handles, loc='upper right', fontsize='small')
+        ax[0].legend(handles=handles, loc='upper right', fontsize=12, ncol=1)
         plt.tight_layout()
         if plot_fname is not None:
             plt.savefig(plot_fname + ".pdf")
@@ -353,7 +353,7 @@ class Likelihood(object):
                     ax[1].plot(k_M, (extra_theory_iA - theory_iA)/div, color=colors[it_A], ls=':', linewidth=2)
 
             # if more than 1 z plotted, add custom legend for the redshifts: "--, square: z=.., -., diamond: z=.." etc
-            ax[0].legend()
+            ax[0].legend(ncol=2)
             handles, labels = ax[0].get_legend_handles_labels()
             ax[1].axhline(0, color='black', linestyle='dashed', linewidth=1)
             ax[1].set_xlabel(r'$k [\AA^{-1}]$')

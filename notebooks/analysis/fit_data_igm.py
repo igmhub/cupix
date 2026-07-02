@@ -44,7 +44,8 @@ basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/base
 fname = basedir + "wp1d/drop_BALs_and_DLAs/fs_cut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 kM_max_cut_AA = .7
 km_max_cut_AA = 1.1 * kM_max_cut_AA
-data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
+print(km_max_cut_AA)
+data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.03, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':1})
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -98,7 +99,7 @@ for iz in range(4):
 cosmo = cosmology.Cosmology()
 
 # %%
-b_noise = [.0036, .0014, .0016, .0011]
+b_noise = [0.0040, 0.0017, 0.0017, 0.0016]
 
 # %%
 theories_lya = []
@@ -109,7 +110,7 @@ for z in zs:
     theories_cont.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 
                                                             'include_hcd': True, 'include_metal': True,
                                                             'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_igm_from_p1d',
-                                                            'b_noise': b_noise[iz]} ))
+                                                            'b_noise_Mpc': b_noise[iz]} ))
     iz += 1
 
 # %% [markdown]
@@ -133,23 +134,54 @@ for iz, z in enumerate(zs):
 # ## Step 4: setup iminuit minimizers and fit for parameters
 
 # %%
-# set the likelihood parameters as the Arinyo params with some fiducial values
-freepars = []
-for iz, z in enumerate(zs):
-    freeparams = prepare_free_parameters(['mF','sigT_Mpc', 'gamma'], theories_cont[iz], theory_config={'verbose': False, 
-                                                            'include_hcd': True, 'include_metal': True,
-                                                            'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_igm_from_p1d',
-                                                            'b_noise': b_noise[iz]} )
-    print(theories_cont[iz].z)
-    for par in freeparams:
-        print(par.name, par.true_value, par.ini_value, par.min_value, par.max_value, par.delta)
-    freepars.append(freeparams)
+free_params = []
+free_params.append(FreeParameter(
+    name='mF',
+    min_value=0.65,
+    max_value=0.9,
+    ini_value=0.8,
+    gauss_prior_mean=0.8,
+    gauss_prior_width=0.15,
+    delta=0.02
+    ))
+free_params.append(FreeParameter(
+    name='gamma',
+    min_value=1.24,
+    max_value=1.82,
+    ini_value=1.5,
+    gauss_prior_mean=1.5,
+    gauss_prior_width=0.3,
+    delta=0.1
+    ))
+free_params.append(FreeParameter(
+    name='sigT_Mpc',
+    min_value=0.1,
+    max_value=0.16,
+    ini_value=0.13,
+    gauss_prior_mean=0.13,
+    gauss_prior_width=0.03,
+    delta=0.005
+ ))
+
+# %%
+# # set the likelihood parameters as the Arinyo params with some fiducial values
+# freepars = []
+# for iz, z in enumerate(zs):
+#     freeparams = prepare_free_parameters(['mF','sigT_Mpc', 'gamma'], theories_cont[iz], theory_config={'verbose': False, 
+#                                                             'include_hcd': True, 'include_metal': True,
+#                                                             'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_igm_from_p1d',
+#                                                             'b_noise': b_noise[iz]} )
+#     print(theories_cont[iz].z)
+#     for par in freeparams:
+#         print(par.name, par.true_value, par.ini_value, par.min_value, par.max_value, par.delta)
+#     freepars.append(freeparams)
 
 # %%
 # do this only for one z bin
 fit_iz=3
 # post_lya = Posterior(likes_lya[fit_iz], free_params, config={'verbose': True})
-post_cont = Posterior(likes_cont[fit_iz], freepars[fit_iz], config={'verbose': True})
+# post_cont = Posterior(likes_cont[fit_iz], freepars[fit_iz], config={'verbose': True})
+post_cont = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
 # mini_lya = Minimizer(post_lya, config={'verbose':True})
 mini_cont = Minimizer(post_cont, config={'verbose':True})
 
@@ -165,11 +197,23 @@ mini_cont.minimize()
 mini_cont.print_results()
 
 # %%
-mini_cont.plot_best_fit(include_chi2=True, multiply_by_k=False)
+likes_cont[3].theory.cont_model.default_metal_params
 
 # %%
-# mini_cont.plot_ellipse('mF','sigT_Mpc')
-mini_cont.plot_corner(true_val_label='DESI DR1 P1D')
+# 'mF':0.75, 'gamma':1.24, 'sigT_Mpc':0.16, 
+
+# %%
+plt.imshow(data.cov_ZAM[3,1,:,:])
+
+# %%
+likes_cont[3].plot_px(params={'pC':1.4, 'mF':0.75, 'gamma':1.2, 'sigT_Mpc':0.15, 'b_H':-0.005, 'L_H_Mpc':2, 'beta_H':2, 'b_X':-0.02, 'beta_X':0.1}, multiply_by_k=False,every_other_theta=True, include_chi2=False)
+
+# %%
+mini_cont.plot_best_fit(include_chi2=True, multiply_by_k=False, title=f"z={fit_iz}", every_other_theta=True)
+
+# %%
+mini_cont.plot_ellipse('mF','sigT_Mpc')
+# mini_cont.plot_corner(true_val_label='DESI DR1 P1D')
 
 # %%
 mini_cont.save_results(outdir="/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/drop_dla_bal_fscut/", outfile=f"mini_mFgammasigT_defaultcont_propersky_z{fit_iz}")

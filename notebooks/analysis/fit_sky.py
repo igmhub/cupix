@@ -36,9 +36,12 @@ from cupix.inference.minimize_posterior import Minimizer
 # ### Read the data from DESI DR2 (large angular separations only)
 
 # %%
+# ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/wp1d/drop_BALs_and_DLAs/drop_all
+
+# %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
 # fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-fname = basedir + "wp1d/drop_DLAs/GP_plus_snrcut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
+fname = basedir + "wp1d/drop_BALs_and_DLAs/fs_cut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.5, 'kM_max_cut_AA':1.0, 'km_max_cut_AA':1.2, 'theta_min_cut_arcmin':10.0})
 
 # %%
@@ -123,7 +126,7 @@ likes = []
 for iz, z in enumerate(data.z): 
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
     like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True})
-        likes.append(like)
+    likes.append(like)
     post = Posterior(like, free_params, config={'verbose': True})
     mini = Minimizer(post, config={'verbose':True}) 
     minis.append(mini)

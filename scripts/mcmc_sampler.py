@@ -26,7 +26,7 @@ _POST = None
 def init_worker(post):
     global _POST
     _POST = post
-    if _POST.like.theory.lya_model.delayload_emulator:
+    if 'igm' in _POST.like.theory.lya_model.default_lya_model and _POST.like.theory.lya_model.delayload_emulator:
         # load the emulator now. This is necessary to avoid pickling problems earlier (frEIA package contains a lambda function)
         _POST.like.theory.lya_model.emulator = _POST.like.theory.lya_model.get_emulator(_POST.like.theory.lya_model.emulator_label, _POST.like.theory.lya_model.Nrealizations)
     _POST.like.get_chi2() # will run camb and store the results in post.like.theory, which will be shared across workers
@@ -62,7 +62,7 @@ def main():
     shutil.copy(inf_config_path, os.path.join(outdir, 'inference_config_mcmc.yaml'))
 
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.theory_config['iz']
+    iz = setup_config.like_config['iz']
     z = data.z[iz]
     
     # update config class with a use_truth option that could replace the cosmo and theory params with forecast values if it is a forecast and use_truth is True
@@ -82,7 +82,7 @@ def main():
     free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
     
     for par in free_params:
-        print("Free parameters are: (name, ini_value, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
+        print("Free parameters are: (name, ini_value, min, max, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.min_value, par.max_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
     
     post = Posterior(like, free_params, config=inf_config.post_config)
 
@@ -93,7 +93,7 @@ def main():
     if nthreads_available > 64:
         print("Warning: using more than 64 cores might cause very long setup time due to initialization of CAMB many times. Consider reducing the request, unless very long chains are expected.")
     Np = len(free_params)
-    nwalkers = 2*nthreads_available
+    nwalkers = nthreads_available # number of logicl cores, twice number of true cores
     if nwalkers < 2 * Np:
         print("Warning: number of walkers should be at least 2 times the number of parameters. Setting nwalkers to %d. Code may be less efficient." % (2*Np))
         nwalkers = 2*Np
@@ -148,12 +148,17 @@ def main():
                 
                 # check if tau estimates are stable
                 if it>100: # require at least 100 steps to have some estimate of tau
-                    if (np.std( tau_estimates[-10:] ) / mean_tau) < tau_stability:
+                    if (np.std( tau_estimates[-4:] ) / mean_tau) < tau_stability:
                         print("Tau estimates are stable")
                         # if we have over F * tau samples, end the chain
                         if it > (mean_tau * F):
                             print("Chain has converged after %d steps" % it)
                             break
+            if it%300 == 0:
+                # save chain at intermediate steps so as not to lose all progress
+                chain = emcee_sampler.get_chain(discard=0, thin=1, flat=True)
+                save_chain(outdir, chain, free_params, fname=f"chain_partial_it{it}.h5")
+
         sampling_end = time.time()
         print("Time to run sampler: %.2f seconds" % (sampling_end - sampling_start))
         if emcee_sampler.iteration == ntotal:
@@ -164,7 +169,7 @@ def main():
             nburnin = emcee_sampler.iteration // 2
 
         plot_tau_estimates(tau_estimates, os.path.join(outdir, "tau.png"))
-        chain = emcee_sampler.get_chain(discard=nburnin, thin=2, flat=True)
+        chain = emcee_sampler.get_chain(discard=nburnin, thin=1, flat=True)
         save_chain(outdir, chain, free_params)
         plot_chains(chain, free_params, 0, save=True, show=False, outdir=outdir)
         plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)

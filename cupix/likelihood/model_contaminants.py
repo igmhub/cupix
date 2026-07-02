@@ -67,9 +67,9 @@ class ContaminantsModel(object):
 
         # update parameters based on preliminary fits of DESI DR2
         if self.z_lya == 2.2:
-            sky_params['b_noise_Mpc'] = 0.0035
+            sky_params['b_noise_Mpc'] = 0.0040 # 0.0035 fitted without dropping BALS + DLAs
         else:
-            sky_params['b_noise_Mpc'] = 0.00125
+            sky_params['b_noise_Mpc'] = 0.00165 # 0.00125 fitted without dropping BALS + DLAs
 
         # update parameters if present in config
         for par in sky_params:

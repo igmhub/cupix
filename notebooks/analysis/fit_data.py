@@ -36,15 +36,23 @@ from cupix.inference.minimize_posterior import Minimizer
 # ## Step 1: Read the data from DESI DR2 and plot it
 
 # %%
+more /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/wp1d/drop_DLAs/GP_plus_snrcut/config.ini
+
+# %%
+# ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/wp1d/drop_DLAs
+
+# %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
 #fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
 # fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+fname_wbals_dlas = basedir + "wp1d/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 fname_wbals = basedir + "wp1d/drop_DLAs/GP_plus_snrcut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 fname = basedir + "wp1d/drop_BALs_and_DLAs/fs_cut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 kM_max_cut_AA = .7
 km_max_cut_AA = 1.1 * kM_max_cut_AA
-data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
-data_wbals= DESI_DR2(config={'data_file':fname_wbals, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
+data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':1})
+data_wbals= DESI_DR2(config={'data_file':fname_wbals, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':1})
+data_wbals_dlas = DESI_DR2(config={'data_file':fname_wbals_dlas, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':1})
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -66,7 +74,7 @@ print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
 
 # %%
 def plot_theta_bin(data, iz, it_M, ls = 'solid'):
-    colors = plt.get_cmap('tab10')
+    colors = plt.get_cmap('tab20')
     label = r"${:.2f}' < \theta < {:.2f}'$".format(theta_A_min[it_M], theta_A_max[it_M])
     # 1D array with measured Px, length Nk_M
     Px = data.Px_ZAM[iz][it_M]
@@ -78,14 +86,17 @@ def plot_theta_bin(data, iz, it_M, ls = 'solid'):
 
 # %%
 
-def plot_z_bin(data, iz, its_M, ls= 'solid'):
+def plot_z_bin(data, iz, its_M, ls= 'solid', show_legend=True):
     
-    for it_M in its_M[::3]:
+    for it_M in its_M[10:]:
         plot_theta_bin(data=data, iz=iz, it_M=it_M, ls=ls)
     plt.title('DESI DR2 at z={:.1f}'.format(zs[iz]))
-    plt.legend(fontsize=5)
+    if show_legend:
+        plt.legend(fontsize=10)
     plt.xlabel(r'$k_\parallel$ [1/A]')
     plt.ylabel(r'$P_\times(\theta, k_\parallel)$ [A]')
+    plt.xlim([0,0.2])
+    plt.ylim([0,0.01])
 
 
 # %%
@@ -93,7 +104,9 @@ for iz in range(4):
     
     plt.figure(figsize=[8,3])
     plot_z_bin(data, iz=iz, its_M=range(Nt_A))
-    plot_z_bin(data_wbals, iz=iz, its_M = range(Nt_A), ls='dashed')
+    plot_z_bin(data_wbals, iz=iz, its_M = range(Nt_A), ls='dashed', show_legend=False)
+    plot_z_bin(data_wbals_dlas, iz=iz, its_M = range(Nt_A), ls='dotted', show_legend=False)
+    
 
 # %% [markdown]
 # ## Step 2: setup theory objects, with and without contaminants (one per z)
@@ -103,7 +116,7 @@ for iz in range(4):
 cosmo = cosmology.Cosmology()
 
 # %%
-b_noise = [.0036, .0014, .0016, .0011]
+b_noise = [0.0040, 0.0017, 0.0017, 0.0016]
 
 # %%
 theories_lya = []
@@ -114,7 +127,7 @@ for z in zs:
     theories_cont.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 
                                                             'include_hcd': True, 'include_metal': True,
                                                             'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_arinyo_from_p1d',
-                                                            'b_noise': b_noise[iz]} ))
+                                                            'b_noise_Mpc': b_noise[iz]} ))
     iz += 1
 
 # %% [markdown]
@@ -153,16 +166,16 @@ def compare_theta_bin(iz, it_M):
 
 
 # %%
-# one z, multiple theta
-for it_M in range(Nt_A):
-    plt.figure()
-    compare_theta_bin(iz=2, it_M=it_M)
+# # one z, multiple theta
+# for it_M in range(Nt_A):
+#     plt.figure()
+#     compare_theta_bin(iz=2, it_M=it_M)
 
 # %%
-# one theta, multiple z
-for iz, z in enumerate(zs):
-    plt.figure()
-    compare_theta_bin(iz=iz, it_M=0)
+# # one theta, multiple z
+# for iz, z in enumerate(zs):
+#     plt.figure()
+#     compare_theta_bin(iz=iz, it_M=0)
 
 # %% [markdown]
 # ## Step 4: setup iminuit minimizers and fit for parameters
@@ -183,7 +196,14 @@ beta = FreeParameter(
     ini_value=1.5,
     delta=0.1,
 )
-free_params = [bias, beta]
+q1 = FreeParameter(
+    name='q1',
+    min_value=0.1,
+    max_value=2.0,
+    ini_value=.5,
+    delta=0.1,
+)
+free_params = [bias, beta,q1]
 for par in free_params:
     print(par.name, par.ini_value)
 

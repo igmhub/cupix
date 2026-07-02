@@ -18,7 +18,7 @@
 
 # %%
 import numpy as np
-from cupix.likelihood.new_minimizer import plot_ellipses
+from cupix.inference.minimizer_funcs import plot_ellipse, plot_corner, load_mini_results
 from cupix.likelihood.theory import Theory
 import matplotlib.pyplot as plt
 
@@ -38,34 +38,28 @@ include_xi_fits = True
 if include_xi_fits:
     # optional: set up theory if you want the colore best-fit for comparison
     from lace.cosmo import cosmology
-    theories_xi = []
+    
     cosmo = cosmology.Cosmology()
-    for z in zs:
-        theories_xi.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_colore'}))
-
-
-# %%
-
-# Load results file
-outfile = np.load(f"/global/common/software/desi/users/mlokken/cupix/data/fitter_results/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50_iminuit_{z_choice}.npz")
-
-for key in outfile.keys():
-    # print(key)
-    # print(outfile[key])
-    bias = outfile['bias']
-    bias_err = outfile['bias_err']
-    beta = outfile['beta']
-    beta_err = outfile['beta_err']
-    cov = outfile[f'cov']
-
-if include_xi_fits:
-    true_vals = {'bias':theories_xi[iz].lya_model.default_lya_params['bias'], 'beta':theories_xi[iz].lya_model.default_lya_params['beta']}
-    true_val_label = "Laura fit"
+    theory = Theory(z=z_choice, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_colore'})
+    true_vals = {'bias':theory.lya_model.default_lya_params['bias'], 'beta':theory.lya_model.default_lya_params['beta']}
+    true_val_label = rf"$\xi_{{3D}}$ fit"
 else:
     true_vals = None
     true_val_label = None
-plot_ellipses(bias, beta, 'bias', 'beta', bias_err, beta_err, cov, nsig=3, true_vals=true_vals, true_val_label=true_val_label) # you can also input xrange and yrange
-plt.title(f"z = {z_choice}")
 
+
+# %%
+# load mini results
+# enter the path to directory
+minires_fname = f"/global/common/software/desi/users/mlokken/cupix/data/fitter_results/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50_iminuit_{z_choice}.npz"
+
+outfile = np.load(minires_fname)
+# turn outfile into a dictionary
+results_dict = {key: outfile[key] for key in outfile.files}
+
+
+# %%
+plot_ellipse(results_dict, 'bias','beta', true_vals=true_vals, true_val_label=true_val_label)
+plt.title(f"z = {z_choice}")
 
 # %%
