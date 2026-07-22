@@ -496,8 +496,11 @@ class Theory(object):
         mask = x>0
         smooth[mask] = (np.sin(x[mask])/x[mask])**2
 
-        Px_sky = b_noise_Mpc * np.outer(xi_noise, smooth)
-
+        # Px_sky = b_noise_Mpc * np.outer(xi_noise, smooth)
+        # Martine change: I think we don't need to damp the sky noise because we are correcting the 
+        # measurement for the pixel smoothing and beam.
+        Px_sky = b_noise_Mpc * np.outer(xi_noise, np.ones_like(smooth))
+        
         return Px_sky
 
 

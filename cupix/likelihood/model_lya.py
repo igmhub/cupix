@@ -7,13 +7,16 @@ import forestflow
 from forestflow import priors
 from forestflow.P3D_cINN import P3DEmulator
 from cupix.utils.utils import get_path_repo
-
+from lace.cosmo import cosmology
+from lace.cosmo.thermal_broadening import thermal_broadening_kms
 
 def lya_params_from_forestflow_params(ff_params):
     lya_params = ff_params.copy()
     lya_params['kp_Mpc'] = lya_params.pop('kp')
     kvav = lya_params.pop('kvav')
     lya_params['kv_Mpc'] = np.exp( np.log(kvav) / lya_params['av'] )
+    if lya_params['bias'] > 0: # some versions of Forestflow might output a positive bias
+        lya_params['bias'] = -1.0 * lya_params['bias'] # change sign to match cupix convention
     return lya_params
 
 
@@ -77,6 +80,13 @@ class LyaModel(object):
             igm_params = {par: prior_info[par]['mean'] for par in prior_info}
         else:
             raise ValueError("unknown default_lya_model", self.default_lya_model)
+        
+        if 'gaikal' in self.default_lya_model.lower(): # fix particular params
+            prior_info_gaikal = get_priors_gaikal(z=self.z)
+            for par in prior_info_gaikal:
+                # replace with Gaikal+ 2021 values for T0 and gamma
+                igm_params[par] = prior_info_gaikal[par]['mean']
+        
         # update parameters if present in config
         for par in igm_params:
             if par in config:
@@ -164,7 +174,7 @@ class LyaModel(object):
             for key in lya_params:
                 if key in params:
                     lya_params[key] = params[key]
-
+        assert lya_params['bias'] < 0, "Lya bias must be negative."
         return lya_params
     
     def emulate_lya_params(self, cosmo, igm_params):
@@ -294,6 +304,40 @@ def get_priors_gadget(z, model, verbose=False):
         priors_dict['bias']['max'] = min(0, priors_dict['bias']['max']) # bias should be negative
     return priors_dict
 
+def get_priors_gaikal(z):
+    """ Gaikal+ 2021 IGM parameters """
+    # From Table 2 in https://arxiv.org/pdf/2009.00016:
+    zs = np.array([2.2, 2.4, 2.6, 2.8])
+    T0 = np.array([11000, 12750, 13500, 14750])
+    T0_errs = np.array([1028, 1132, 1390, 1341])
+    gamma = np.array([1.425, 1.325, 1.275, 1.250])
+    gamma_errs = np.array([0.133, 0.122, 0.122, 0.109])
+    # set up a smooth function of z for the mean, min, and max values of desired params
+    T0_interp = np.interp(z, zs, T0)
+    T0_err_interp = np.interp(z, zs, T0_errs)
+    
+    # convert T0 to sigmaT
+    # just use a Planck 18 cosmo
+    cosmo = cosmology.Cosmology()
+    dkms_dMpc = cosmo.get_dkms_dMpc(z)
+    sigT_kms = thermal_broadening_kms(T0_interp)
+    sigT_Mpc = sigT_kms / dkms_dMpc
+    sigT_kms_err = thermal_broadening_kms(T0_interp + T0_err_interp) - sigT_kms
+    sigT_Mpc_err = sigT_kms_err / dkms_dMpc
+    gamma_interp = np.interp(z, zs, gamma)
+    gamma_err_interp = np.interp(z, zs, gamma_errs)
+    priors_dict = {'sigT_Mpc':{}, 'gamma':{}}
+    priors_dict['sigT_Mpc']['mean'] = sigT_Mpc
+    priors_dict['sigT_Mpc']['std'] = T0_err_interp
+    priors_dict['sigT_Mpc']['min'] = T0_interp - 5*sigT_Mpc_err
+    priors_dict['sigT_Mpc']['max'] = T0_interp + 5*sigT_Mpc_err
+    priors_dict['gamma']['mean'] = gamma_interp
+    priors_dict['gamma']['std'] = gamma_err_interp
+    priors_dict['gamma']['min'] = gamma_interp - 5*gamma_err_interp
+    priors_dict['gamma']['max'] = gamma_interp + 5*gamma_err_interp
+
+    return priors_dict
+
 def get_priors_colore(z, as_lyaparams=False):
     assert z in [2.2, 2.4, 2.6, 2.8], "We only have CoLoRe fits for redshifts in [2.2, 2.4, 2.6, 2.8]"
     ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
@@ -371,7 +415,7 @@ def no_conflicting_params(config):
     
     
     if 'default_lya_model' in config:
-        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"
         # make sure the default lya model does not conflict with input parameters
         if 'igm' in config['default_lya_model']:
             for par in allowed_lya_params():
@@ -387,4 +431,4 @@ def no_conflicting_params(config):
 
 def no_unrecognized_default_models(config):
     if 'default_lya_model' in config:
-        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'pressure_only_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"   
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'pressure_only_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"   

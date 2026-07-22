@@ -107,7 +107,7 @@ def prepare_free_parameters(
         or par in allowed_metal_params()
         or par in allowed_sky_params()
     ]
-
+    # input default values. # uniform priors only for the moment, don't add in Gaussian ones in case the user intent is not to include Gaussian priors.
     if "p1d" in default_lya_model.lower():
         if "igm" in default_lya_model.lower():
             prior_info = priors.get_IGM_priors(z=z, tag="DESI_DR1_P1D")
@@ -186,14 +186,15 @@ def prepare_free_parameters(
             par.max_value = params_config[par.name].get("max_value", par.max_value)
             par.ini_value = params_config[par.name].get("ini_value", par.ini_value)
             par.true_value = params_config[par.name].get("true_value", par.true_value)
-            # par.gauss_prior_mean = params_config[par.name].get(
-            #     "gauss_prior_mean", par.gauss_prior_mean
-            # )
-            # par.gauss_prior_width = params_config[par.name].get(
-            #     "gauss_prior_width", par.gauss_prior_width
-            # )
+            par.gauss_prior_mean = params_config[par.name].get(
+                "gauss_prior_mean", par.gauss_prior_mean
+            )
+            par.gauss_prior_width = params_config[par.name].get(
+                "gauss_prior_width", par.gauss_prior_width
+            )
             par.delta = params_config[par.name].get("delta", par.delta)
     for parname in params_config:  # create the FreeParam object for any missing ones. This is the case when default_lya_model is None and for any contaminant params.
+        
         if (parname not in [par.name for par in free_params_list]) and (
             parname in free_param_names
         ):
@@ -203,15 +204,15 @@ def prepare_free_parameters(
                 max_value=params_config[parname].get("max_value", None),
                 ini_value=params_config[parname].get("ini_value", None),
                 true_value=params_config[parname].get("true_value", None),
-                # gauss_prior_mean=params_config[parname].get(
-                #     "gauss_prior_mean", None
-                # ),  # note that this is only used in sampler
-                # gauss_prior_width=params_config[parname].get(
-                #     "gauss_prior_width", None
-                # ),  # note that this is only used in sampler
-                # delta=params_config[parname].get(
-                #     "delta", None
-                # ),  # Will set steps of minimizer
+                gauss_prior_mean=params_config[parname].get(
+                    "gauss_prior_mean", None
+                ),  # note that this is only used in sampler
+                gauss_prior_width=params_config[parname].get(
+                    "gauss_prior_width", None
+                ),  # note that this is only used in sampler
+                delta=params_config[parname].get(
+                    "delta", None
+                ),  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
             free_params_list.append(this_param)
@@ -233,9 +234,9 @@ def plot_tau_estimates(tau_estimates, fname):
 
 
 def plot_chains(chain_full, free_params, param_idx, save=False, show=True, outdir=None):
-    # first get the full chain and plot one, to understand burnin
+    # first get the full chain and plot one param, all walkers, to understand burnin
     param_name = free_params[param_idx].name
-    plt.plot(chain_full[:, param_idx], alpha=0.5)
+    plt.plot(chain_full[:, :, param_idx], alpha=0.5)
     plt.ylabel(free_params[param_idx].latex_label)
     plt.xlabel("step")
     plt.title("Full chain for parameter %s" % free_params[0].name)
@@ -282,13 +283,11 @@ def plot_contours(chain, free_params, title=None, save=False, show_truth=False, 
                 g.add_param_markers({par.name: par.true_value})
         # add priors
         if show_priors:    
-            if par.gauss_prior_mean is None or par.gauss_prior_width is None:
-                continue
-
-            mu = par.gauss_prior_mean
-            sigma = par.gauss_prior_width
-            ax.axvspan(mu - sigma, mu + sigma,
-                    color="C1", alpha=0.3, zorder=0)
+            if par.gauss_prior_mean is not None and par.gauss_prior_width is not None:
+                mu = par.gauss_prior_mean
+                sigma = par.gauss_prior_width
+                ax.axvspan(mu - sigma, mu + sigma,
+                        color="C1", alpha=0.3, zorder=0)
 
         if show_bounds:
             if par.min_value is not None:

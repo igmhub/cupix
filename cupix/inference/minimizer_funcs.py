@@ -15,7 +15,7 @@ from cupix.inference.sampling_funcs import prepare_free_parameters
 from lace.cosmo import cosmology
 
 
-def load_mini_results(results_directory, filename='iminuit_results.npz', setup_config=None, inf_config=None):
+def load_mini_results(results_directory, filename='iminuit_results.npz', setup_config_fname=None, inf_config_fname=None):
     """ Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
     # Martine note: I might change this to a class later, since there are a lot of items to be returned
@@ -28,11 +28,14 @@ def load_mini_results(results_directory, filename='iminuit_results.npz', setup_c
     results_dict = {key: outfile[key] for key in outfile.files}
 
     # recreate the theory, posterior, and likelihood objects
-    if setup_config is None:
+    if setup_config_fname is None:
         setup_config = Config(os.path.join(results_directory, 'setup_config_mini.yaml'))
-    if inf_config is None:
+    else:
+        setup_config = Config(os.path.join(results_directory, setup_config_fname))
+    if inf_config_fname is None:
         inf_config = InferenceConfig(os.path.join(results_directory, 'inference_config_mini.yaml'))
-    
+    else:
+        inf_config = InferenceConfig(os.path.join(results_directory, inf_config_fname))
     data = DESI_DR2(setup_config.data_config)
     iz = setup_config.like_config['iz']
     z = data.z[iz]

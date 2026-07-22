@@ -37,6 +37,9 @@ def log_prob_wrapper(values):
 
 
 def main():
+    print("cpu_count =", os.cpu_count())
+    print("SLURM_CPUS_PER_TASK =", os.environ.get("SLURM_CPUS_PER_TASK"))
+    print("start method =", mp.get_start_method())
     # set the directory name
     # YYYYMMDD_HHMM_shorttag/
     if len(sys.argv) < 4:
@@ -130,7 +133,7 @@ def main():
         # total number of steps
         ntotal = nburnin + max_nsteps
         tau_estimates = []
-        F = inf_config.samp_config.get('F_tau', 30) # the number of autocorrelation times required to consider the chain converged
+        F = inf_config.samp_config.get('F_tau', 50) # the number of autocorrelation times required to consider the chain converged
         sampling_start = time.time()
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
             it = emcee_sampler.iteration
@@ -154,10 +157,13 @@ def main():
                         if it > (mean_tau * F):
                             print("Chain has converged after %d steps" % it)
                             break
-            if it%300 == 0:
+            if it%50 == 0:
                 # save chain at intermediate steps so as not to lose all progress
-                chain = emcee_sampler.get_chain(discard=0, thin=1, flat=True)
+                chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
                 save_chain(outdir, chain, free_params, fname=f"chain_partial_it{it}.h5")
+                # write tau to a file
+                tau_file = os.path.join(outdir, "tau_estimates.txt")
+                np.savetxt(tau_file, tau_estimates)
 
         sampling_end = time.time()
         print("Time to run sampler: %.2f seconds" % (sampling_end - sampling_start))
@@ -169,10 +175,10 @@ def main():
             nburnin = emcee_sampler.iteration // 2
 
         plot_tau_estimates(tau_estimates, os.path.join(outdir, "tau.png"))
-        chain = emcee_sampler.get_chain(discard=nburnin, thin=1, flat=True)
+        chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
         save_chain(outdir, chain, free_params)
         plot_chains(chain, free_params, 0, save=True, show=False, outdir=outdir)
-        plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)
+        # plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)
         
 
 

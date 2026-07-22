@@ -1,9 +1,8 @@
 #!/bin/bash
 #SBATCH --qos=shared
-#SBATCH --time=01:30:00
+#SBATCH --time=00:30:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
 #SBATCH --constraint=cpu
 #SBATCH --account=desi
 #SBATCH --output=/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/logs/%x-%j.out
@@ -14,6 +13,7 @@
 
 module load python
 conda activate cupix
-for z in {1..3}; do
-    python /global/common/software/desi/users/mlokken/cupix/scripts/minimizer_pipeline.py hi_snr_drop_dla /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/setup_config_mini_z${z}.yaml /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/inference_config_mini.yaml
-done
+python /global/common/software/desi/users/mlokken/cupix/scripts/minimizer_pipeline.py july_baseline /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/setup_config_mini_z0.yaml /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/inference_config_mini.yaml
+# for z in {1..3}; do
+# python /global/common/software/desi/users/mlokken/cupix/scripts/minimizer_pipeline.py july_baseline /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/setup_config_mini_z${z}.yaml /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/inference_config_mini.yaml
+# done
