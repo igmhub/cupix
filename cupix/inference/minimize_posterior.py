@@ -174,6 +174,7 @@ class Minimizer(object):
         nsig=2,
         plot_truth=False,
         true_val_label="true value",
+        true_vals = None,
         xrange=None,
         yrange=None,
         ax=None,
@@ -186,12 +187,21 @@ class Minimizer(object):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot."""
         if plot_truth:
-            true_vals = {}
-            for par in self.post.free_params:
-                if par.name in [pname_x, pname_y]:
-                    true_vals[par.name] = par.true_value
+            if true_vals is None:
+                true_vals = {}
+                for par in self.post.free_params:
+                    if par.name in [pname_x, pname_y]:
+                        assert par.true_value is not None, f"{par.name} does not have a true value. Try setting plot_truth to False or pass true_vals explicitly."
+                        true_vals[par.name] = par.true_value
         else:
             true_vals = None
+        
+        idx_x = [i for i in range(len(self.post.free_params)) if self.post.free_params[i].name == pname_x]
+        idx_y = [i for i in range(len(self.post.free_params)) if self.post.free_params[i].name == pname_y]
+        
+        latex_label_x = self.post.free_params[idx_x[0]].latex_label
+        latex_label_y = self.post.free_params[idx_y[0]].latex_label
+    
         ax = plot_ellipse_func(
             self.get_results_dict(),
             pname_x,
@@ -206,7 +216,9 @@ class Minimizer(object):
             yrange=yrange,
             title=title,
             outdir=outdir,
-            outfile=outfile
+            outfile=outfile,
+            latex_label_x=latex_label_x,
+            latex_label_y=latex_label_y
         )
 
         return ax

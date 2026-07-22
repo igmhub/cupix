@@ -230,7 +230,9 @@ def plot_ellipse(
     yrange=None,
     outdir=None,
     outfile=None,
-    title=None
+    title=None,
+    latex_label_x=None,
+    latex_label_y=None
 ):
     """
     Plot covariance ellipse using a flat results_dict.
@@ -319,8 +321,15 @@ def plot_ellipse(
     else:
         ax.set_ylim(yrange)
 
-    ax.set_xlabel(pname_x)
-    ax.set_ylabel(pname_y)
+    if latex_label_x is not None:
+        print(latex_label_x)
+        ax.set_xlabel(rf"${latex_label_x}$")
+    else:
+        ax.set_xlabel(pname_x)
+    if latex_label_y is not None:
+        ax.set_ylabel(rf"${latex_label_y}$")
+    else:
+        ax.set_ylabel(pname_y)
     # if there are any labels, set legend
     if label is not None or (true_vals is not None and true_val_label is not None):
         ax.legend()
