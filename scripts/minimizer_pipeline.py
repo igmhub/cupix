@@ -42,8 +42,8 @@ inf_config.print_all()
 outdir = create_output_directory(inf_config, runname)
 print("Outputs will be saved to", outdir)
 # copy the run config into the outdir
-shutil.copy(setup_config_path, os.path.join(outdir, 'setup_config_mini.yaml'))
-shutil.copy(inf_config_path, os.path.join(outdir, 'inference_config_mini.yaml'))
+shutil.copy(setup_config_path, outdir)
+shutil.copy(inf_config_path, outdir)
 
 data = DESI_DR2(setup_config.data_config)
 iz = setup_config.theory_config['iz']

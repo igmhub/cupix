@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %% [markdown]
@@ -21,6 +21,8 @@ import numpy as np
 from cupix.inference.minimizer_funcs import plot_ellipse, plot_corner, load_mini_results
 from cupix.likelihood.theory import Theory
 import matplotlib.pyplot as plt
+# %load_ext autoreload
+# %autoreload 2
 
 
 # %% [markdown]
@@ -28,38 +30,38 @@ import matplotlib.pyplot as plt
 
 # %%
 zs = [2.2, 2.4, 2.6, 2.8]
-iz = 0
 z_choice = zs[iz]
 
 # %%
 include_xi_fits = True
 
 # %%
-if include_xi_fits:
-    # optional: set up theory if you want the colore best-fit for comparison
-    from lace.cosmo import cosmology
+results = []
+freepars = []
+theories = []
+likes = []
+for iz in [0,1,2,3]:
+    results_directory = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/minimizer_fits/20260914_trucont_bias_beta_kp/"
+    results_dict, free_params, data, cosmo, theory, like, setup_config, inf_config = load_mini_results(results_directory, filename=f"iminuit_results_{iz}.npz", setup_config_fname=f"setup_config_mini_z{iz}.yaml")
+    results.append(results_dict)
+    freepars.append(free_params)
+    theories.append(theory)
+    likes.append(like)
+
+# %%
+plot_corner(results[0], freepars[0], show_truth=True)
+
+# %%
+for iz in [0,1,2,3]:
+    if include_xi_fits:
+        true_vals = {'bias':theories[iz].get_param('bias'), 'beta':theories[iz].get_param('beta'), 'kp':theories[iz].get_param('kp_Mpc')}
+        print(true_vals)
+        true_val_label = rf"$\xi_{{3D}}$ fit"
+    else:
+        true_vals = None
+        true_val_label = None
+    plot_ellipse(results[iz], 'bias','beta', color="green", label=f"z={zs[iz]}", true_vals=true_vals, true_val_label=true_val_label, title=f"z={zs[iz]}")
+    print(results[iz]['prob'], results[iz]['chi2'])
     
-    cosmo = cosmology.Cosmology()
-    theory = Theory(z=z_choice, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_colore'})
-    true_vals = {'bias':theory.lya_model.default_lya_params['bias'], 'beta':theory.lya_model.default_lya_params['beta']}
-    true_val_label = rf"$\xi_{{3D}}$ fit"
-else:
-    true_vals = None
-    true_val_label = None
-
-
-# %%
-# load mini results
-# enter the path to directory
-minires_fname = f"/global/common/software/desi/users/mlokken/cupix/data/fitter_results/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50_iminuit_{z_choice}.npz"
-
-outfile = np.load(minires_fname)
-# turn outfile into a dictionary
-results_dict = {key: outfile[key] for key in outfile.files}
-
-
-# %%
-plot_ellipse(results_dict, 'bias','beta', true_vals=true_vals, true_val_label=true_val_label)
-plt.title(f"z = {z_choice}")
 
 # %%

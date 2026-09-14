@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %% [markdown]
@@ -41,13 +41,13 @@ from cupix.inference.minimize_posterior import Minimizer
 
 # %%
 # In this notebook we will work with a single z bin
-iz=1
+iz=0
 
 # setup cosmology (should check this is the right cosmology in the mocks)
 cosmo = cosmology.Cosmology()
 # starting point for Lya bias parameters in mocks
-default_lya_model = 'pressure_only_arinyo_from_colore'
-#default_lya_model = 'best_fit_arinyo_from_colore'
+# default_lya_model = 'pressure_only_arinyo_from_colore'
+default_lya_model = 'best_fit_arinyo_from_colore'
 
 # path to mocks
 mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
@@ -125,6 +125,9 @@ true_cont_mini.print_results()
 
 # %%
 true_cont_mini.plot_best_fit(multiply_by_k=False, every_other_theta=False, residual_to_theory=True)
+
+# %%
+true_cont_mini.save_results(outdir="/pscratch/sd/m/mlokken/desi-lya/px/mocks/minimizer_fits/", outname="tru_cont_bf3_px-zbins_4-thetabins_20_w_res_avg{}_iz{}.hdf5".format(Nm, iz))
 
 # %% [markdown]
 # ## Step 2: Fit uncontaminated mocks (add kC_Mpc, pC)

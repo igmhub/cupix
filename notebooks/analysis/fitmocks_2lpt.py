@@ -131,13 +131,25 @@ def plot_px_and_window_residuals(measurement_files, measurement_labels, iz, ithe
 
 
 # %%
-files = ["analysis-200/uncontaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
-         "analysis-200/contaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
-         "analysis-200/contaminated/drop_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
-         "analysis-200/contaminated/drop_DLAs_and_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"]
-labels = ["uncont", "fully_cont", "drop_BAL", "drop_DLA+BAL"]
+# ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/colore/analysis-200/tru_cont/
+
+# %%
+# ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/colore/analysis-200/tru_cont
+
+# %%
+mockdir
+
+# %%
+files = ["analysis-200/tru_cont/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+    "analysis-200/uncontaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+        #  "analysis-200/contaminated/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+        #  "analysis-200/contaminated/drop_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+        #  "analysis-200/contaminated/drop_DLAs_and_BALs/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5",
+         "partially_contaminated/analysis-200/onlybals_mask/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"]
+# labels = ["uncont", "fully_cont", "drop_BAL", "drop_DLA+BAL"]
+labels = ["true-cont", "uncont", "only BAL"]
 iz = 2
-itheta = 17
+itheta = 10
 plot_px_and_window_residuals(files, labels, iz, itheta)
 
 # %%

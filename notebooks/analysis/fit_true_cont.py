@@ -35,9 +35,9 @@ from cupix.inference.minimize_posterior import Minimizer
 # %%
 # path to mocks
 mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
-fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_10_w_res_avg50.hdf5"
 # dummy data object, only to get the redshift of interest
-iz = 1
+iz = 3
 dummy_data = DESI_DR2(config={'data_file':fname})
 z = dummy_data.z[iz]
 print('analyze zbin {}, z = {}'.format(iz, z))
@@ -61,7 +61,8 @@ par_bias = FreeParameter(
     min_value=-0.5,
     max_value=-0.01,
     ini_value=ini_bias,
-    delta=0.01,   
+    delta=0.01,
+    latex_label='b'
 )
 par_beta = FreeParameter(
     name='beta',
@@ -69,6 +70,7 @@ par_beta = FreeParameter(
     max_value=5.0,
     ini_value=ini_beta,
     delta=0.1,
+    latex_label='\beta'
 )
 free_params = [par_bias, par_beta]
 for par in free_params:
@@ -79,12 +81,13 @@ for par in free_params:
 
 # %%
 # speed-up code by only looking at low kpar (should be enough for theta > 10 arcmin or so)
-kM_max_cut_AA=0.5
+kM_max_cut_AA=0.7
 km_max_cut_AA=1.1*kM_max_cut_AA
 
 # %%
 runs = []
-for theta in [0.5, 1.0, 2.0, 3.0, 6.0, 10.0, 15.0, 20.0, 30.0]:
+# for theta in [0.5, 1.0, 2.0, 3.0, 6.0, 10.0, 15.0, 20.0, 30.0]:
+for theta in [10]:
     run = {}
     run['data'] = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':theta})
     run['theta_min'] = run['data'].theta_min_a_arcmin[0]
@@ -102,6 +105,18 @@ for ii, run in enumerate(runs):
     run['mini'].silence()
     run['mini'].minimize()
     run['mini'].print_results()
+
+# %%
+import os
+outfile = os.path.join("/pscratch/sd/m/mlokken/desi-lya/px/mocks/", os.path.splitext(os.path.basename(fname))[0]+f"_iminuit_{z}")
+print(outfile)
+runs[0]['mini'].save_results(outfile=outfile)
+
+# %%
+runs[0]['mini'].plot_ellipse('bias','beta', plot_truth=True, true_vals={'bias':runs[0]['theory'].get_param('bias'), 'beta':runs[0]['theory'].get_param('beta')}, true_val_label=r'$\xi_\mathrm{3D}$')
+
+# %%
+runs[6]['mini'].plot_best_fit()
 
 # %%
 theta_min = [ run['theta_min'] for run in runs]
@@ -127,6 +142,11 @@ plt.xlabel(r'$\theta_{\rm min}$ [arcmin]');
 plt.errorbar(theta_min, beta, beta_err)
 plt.ylabel(r'$\beta_\alpha$')
 plt.xlabel(r'$\theta_{\rm min}$ [arcmin]');
+
+# %% [markdown]
+# ## Step 2: Save results for all zs
+
+# %%
 
 # %% [markdown]
 # ## Fit D_NL parameters using smaller scales 

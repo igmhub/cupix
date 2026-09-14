@@ -37,7 +37,7 @@ def load_mini_results(results_directory, filename='iminuit_results.npz', setup_c
     else:
         inf_config = InferenceConfig(os.path.join(results_directory, inf_config_fname))
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.like_config['iz']
+    iz = setup_config.theory_config['iz']
     z = data.z[iz]
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)

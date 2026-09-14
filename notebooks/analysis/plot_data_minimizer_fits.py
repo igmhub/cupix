@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -45,6 +45,26 @@ for iz in [0,1,2,3]:
     likes.append(like)
 
 # %%
+results_wq1 = []
+freepars_wq1 = []
+theories_wq1 = []
+likes_wq1 = []
+for iz in [0]:
+    results_directory = "/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20260713_july_baseline_plusq1/"
+    results_dict, free_params, data, cosmo, theory, like, setup_config, inf_config = load_mini_results(results_directory, filename=f"iminuit_results_{iz}.npz", setup_config_fname="setup_config_mini.yaml")
+    results_wq1.append(results_dict)
+    freepars_wq1.append(free_params)
+    theories_wq1.append(theory)
+    likes_wq1.append(like)
+
+# %%
+plot_corner(results_wq1[0], freepars_wq1[0], show_truth=False)
+
+# %%
+
+likes_wq1[0].plot_px(params={'bias': results_wq1[0]['bias'], 'beta': results_wq1[0]['beta'], 'b_H': results_wq1[0]['b_H'], 'b_X': results_wq1[0]['b_X']}, multiply_by_k=False, include_probability=True,  title=f"z={zs[0]}", datalabel='DESI DR2', theorylabel="Best-fit theory")
+
+# %%
 for iz in [0, 1, 2,3]:
     plot_corner(results[iz-1], freepars[iz-1], show_truth=False)
 
@@ -63,35 +83,20 @@ hiram_b_hcd = [-0.061, -0.024, -0.0102]
 hiram_bhcd_err = [.01, .01, .01]
 total_bias_hiram = [-0.1317,-0.1670, -0.2388]
 total_bias_err_hiram = [0.0035, 0.0045, 0.0045]
+hiram_beta = [2.25, 1.469, 1.208]
+hiram_beta_err = [0.3, .1, .55]
 
 # %%
-free_params
-
-# %%
-
 # get balpha index
 balpha_i = [i for i in range(len(free_params)) if free_params[i].name == "bias"]
 beta_i = [i for i in range(len(free_params)) if free_params[i].name == "beta"]
 
 # %%
-balpha_i, beta_i
-
-# %%
 results
 
 # %%
-results[0]['cov'].shape
-
-# %%
-
-# %%
-results[0]['cov'][3,0]
-
-# %%
-cov_balpha_bH
-
-# %%
 beta_alpha = np.array([res['beta'] for res in results])
+beta_alpha_err = np.array([res['beta_err'] for res in results])
 bH   = np.array([res['b_H'] for res in results])
 bH_err = np.array([res['b_H_err'] for res in results])
 balpha = np.array([res['bias'] for res in results])
@@ -106,6 +111,13 @@ beta_alpha_prime_relerr = bias_prime_err/bias_prime + beta_alpha * balpha_err/ba
 beta_prime_hiram = np.array([1.423, 1.322, 1.176])
 beta_prime_err_hiram = np.array([0.048, 0.045, 0.046])
 
+
+# %%
+plt.errorbar(zs, beta_alpha, yerr=beta_alpha_err, fmt='o', color='black',label=r'$P_\times$')
+plt.errorbar(z_hiram, hiram_beta, yerr=hiram_beta_err, color='red', fmt='o', label='Herrera-Alcantar+26')
+plt.ylabel(r"$\beta_\alpha$")
+plt.xlabel(r"$z$")
+plt.legend()
 
 # %%
 plt.errorbar(zs, balpha, yerr=balpha_err, fmt='o', color='black',label=r'$P_\times$')
@@ -128,18 +140,26 @@ font = {'size'   : 18}
 matplotlib.rc('font', **font)
 
 plt.errorbar(zs, bias_prime, yerr=bias_prime_err, fmt='o', color='black', label=r'$P_\times$')
-# plt.errorbar(z_hiram, total_bias_hiram, yerr=total_bias_err_hiram, color='red', fmt='o', label='Herrera-Alcantar+26')
-plt.ylabel(r"$b\prime_\alpha$ = $b_\alpha + b_\mathrm{{HCD}}$")
-plt.scatter(2.33, -0.16, marker='*', color='blue', s=80, label='DESI DR2')
+plt.errorbar(z_hiram, total_bias_hiram, yerr=total_bias_err_hiram, color='red', fmt='o', label='BAO multi-$z$')
+plt.ylabel(r"$b^{\prime}_\alpha$ = $b_\alpha + b_\mathrm{{HCD}}$")
+plt.errorbar(2.33, -0.1558, yerr=0.0027, fmt='*', color='blue', ms=10, label='BAO')
 plt.xlabel(r"$z$")
-plt.legend()
+plt.legend(loc='upper right')
 
 # %%
 
-plt.errorbar(zs, beta_alpha_prime, np.abs(beta_alpha_prime_relerr*beta_alpha_prime), fmt='o', color='black', label=r'$P_\times$')
+# %%
+
+# %%
+
+# %%
+
+# %%
+plt.scatter(zs, beta_alpha_prime, marker='o', color='black', label=r'$P_\times$')
+# plt.errorbar(zs, beta_alpha_prime, np.abs(beta_alpha_prime_relerr*beta_alpha_prime), fmt='o', color='black', label=r'$P_\times$')
 plt.errorbar(z_hiram, beta_prime_hiram, yerr=beta_prime_err_hiram, color='red', fmt='o', label='Herrera-Alcantar+26')
-plt.ylabel(r"$\beta\prime_\alpha$")
-plt.scatter(2.33, 1.31, marker='*', color='blue', s=80, label='DESI DR2')
+plt.ylabel(r"$\beta^{\prime}_\alpha$")
+plt.scatter(2.33, 1.31, marker='*', color='blue', s=80, label='DESI DR2 BAO')
 plt.xlabel(r"$z$")
 plt.legend()
 

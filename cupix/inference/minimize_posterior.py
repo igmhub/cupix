@@ -217,8 +217,8 @@ class Minimizer(object):
             title=title,
             outdir=outdir,
             outfile=outfile,
-            latex_label_x=latex_label_x,
-            latex_label_y=latex_label_y
+            latex_label_x=None,
+            latex_label_y=None
         )
 
         return ax

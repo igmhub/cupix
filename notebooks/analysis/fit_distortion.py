@@ -39,22 +39,36 @@ from cupix.inference.minimize_posterior import Minimizer
 # ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/uncontaminated/
 
 # %%
-# drop bals and dlas
-mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
-# true continuum
-true_fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
-true_data = DESI_DR2(config={'data_file':true_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
-# # uncontaminated
-unco_fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
-unco_data = DESI_DR2(config={'data_file':unco_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
+# ls /global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/colore/
 
-# contaminated, drop BALs and DLAs
-co_fname = mockdir + "contaminated/contaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
-co_data = DESI_DR2(config={'data_file':co_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
+# %%
+# colore
+mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/colore/"
+balonly_fname = mockdir + "partially_contaminated/analysis-200/onlybals_mask/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+balonly = DESI_DR2(config={'data_file': balonly_fname})
 
-# contaminated, drop BALs and DLAs
-co_fname_nobal_nodla = mockdir + "contaminated/drop_BALs_and_DLAs/contaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
-co_data_nobal_nodla = DESI_DR2(config={'data_file':co_fname_nobal_nodla, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
+mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/colore/"
+balonly_fname = mockdir + "uncontaminated/analysis-200/onlybals_mask/bf3_binned_out_px-zbins_4-thetabins_20_w_res_w_p1d.hdf5"
+balonly = DESI_DR2(config={'data_file': balonly_fname})
+
+# %%
+# ifae-ql
+# # drop bals and dlas
+# mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
+# # true continuum
+# true_fname = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+# true_data = DESI_DR2(config={'data_file':true_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
+# # # uncontaminated
+# unco_fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+# unco_data = DESI_DR2(config={'data_file':unco_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
+
+# # contaminated, drop BALs and DLAs
+# co_fname = mockdir + "contaminated/contaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+# co_data = DESI_DR2(config={'data_file':co_fname, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
+
+# # contaminated, drop BALs and DLAs
+# co_fname_nobal_nodla = mockdir + "contaminated/drop_BALs_and_DLAs/contaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
+# co_data_nobal_nodla = DESI_DR2(config={'data_file':co_fname_nobal_nodla, 'kM_max_cut_AA':0.3, 'km_max_cut_AA':0.35, 'theta_min_cut_arcmin':20.0})
 
 # %%
 from matplotlib.lines import Line2D
