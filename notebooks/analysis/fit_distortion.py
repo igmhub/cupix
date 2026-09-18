@@ -128,7 +128,7 @@ for iz in range(4):
     plot_z_bin(unco_data, iz=iz, its_M = range(Nt_A), ls='dashed', show_legend=False)
     plot_z_bin(co_data, iz=iz, its_M = range(Nt_A), ls='dotted', show_legend=False)
     plot_z_bin(co_data_nobal_nodla, iz=iz, its_M = range(Nt_A), ls='dashdot', show_legend=False)
-    
+
 
 # %% [markdown]
 # ### Start by fitting bias/beta from the stack of true-continuum mocks (one-z at a time)

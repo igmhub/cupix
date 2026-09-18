@@ -90,11 +90,13 @@ class ContaminantsModel(object):
         # for now, use these values obtained from preliminary fits on mocks
         if self.z_lya == 2.2:
             continuum_params['kC_Mpc'] = 0.019
-            continuum_params['pC'] = 0.63
+            continuum_params['pC'] = 0.58
+        elif self.z_lya == 2.8:
+            continuum_params['pC'] = 0.51
+            continuum_params['kC_Mpc'] = 0.011
         else:
             continuum_params['kC_Mpc'] = 0.012
-            continuum_params['pC'] = 0.45
-
+            continuum_params['pC'] = 0.5
         # update parameters if present in config
         for par in continuum_params:
             if par in config:

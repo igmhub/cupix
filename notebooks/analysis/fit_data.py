@@ -99,7 +99,7 @@ for iz in range(4):
     plot_z_bin(data, iz=iz, its_M=range(Nt_A))
     plot_z_bin(data_nodla, iz=iz, its_M = range(Nt_A), ls='dashed', show_legend=False)
     plot_z_bin(data_nomaskdla, iz=iz, its_M = range(Nt_A), ls='dotted', show_legend=False)
-    
+
 
 # %% [markdown]
 # ## Step 2: setup theory objects, with and without contaminants (one per z)

@@ -37,7 +37,7 @@ def load_mini_results(results_directory, filename='iminuit_results.npz', setup_c
     else:
         inf_config = InferenceConfig(os.path.join(results_directory, inf_config_fname))
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.theory_config['iz']
+    iz = setup_config.like_config['iz']
     z = data.z[iz]
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
@@ -226,13 +226,16 @@ def plot_ellipse(
     label=None,
     true_vals=None,
     true_val_label="true value",
-    xrange=None,
-    yrange=None,
+    xlim=None,
+    ylim=None,
     outdir=None,
     outfile=None,
     title=None,
-    latex_label_x=None,
-    latex_label_y=None
+    xlabel=None,
+    ylabel=None,
+    fill=True,
+    linestyle='solid',
+    include_point = True
 ):
     """
     Plot covariance ellipse using a flat results_dict.
@@ -292,6 +295,10 @@ def plot_ellipse(
     # draw ellipses
     # -------------------------
     for isig in range(1, nsig + 1):
+        if isig==1:
+            inputlabel=label
+        else:
+            inputlabel=""
         ell = Ellipse(
             (val_x, val_y),
             width=2 * isig * a,
@@ -299,10 +306,14 @@ def plot_ellipse(
             angle=angle_deg,
             color=color,
             alpha=0.6 / isig,
+            fill=fill,
+            linestyle=linestyle,
+            label=inputlabel
         )
         ax.add_patch(ell)
 
-    ax.plot(val_x, val_y, "o", color=color, label=label)
+    if include_point:
+        ax.plot(val_x, val_y, "o", color=color)
 
     # truth values
     if true_vals is not None:
@@ -312,22 +323,21 @@ def plot_ellipse(
     # -------------------------
     # axis limits
     # -------------------------
-    if xrange is None:
+    if xlim is None:
         ax.set_xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
     else:
-        ax.set_xlim(xrange)
-    if yrange is None:
+        ax.set_xlim(xlim)
+    if ylim is None:
         ax.set_ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
     else:
-        ax.set_ylim(yrange)
+        ax.set_ylim(ylim)
 
-    if latex_label_x is not None:
-        print(latex_label_x)
-        ax.set_xlabel(rf"${latex_label_x}$")
+    if xlabel is not None:
+        ax.set_xlabel(xlabel) #rf"${latex_label_x}$"
     else:
         ax.set_xlabel(pname_x)
-    if latex_label_y is not None:
-        ax.set_ylabel(rf"${latex_label_y}$")
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)# rf"${ylabel}$"
     else:
         ax.set_ylabel(pname_y)
     # if there are any labels, set legend

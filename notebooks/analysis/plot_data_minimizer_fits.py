@@ -8,13 +8,13 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.1
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %% [markdown]
-# # Tutorial: Plot saved results from the minimizer
+# Plot saved results from the minimizer
 
 # %%
 import numpy as np
@@ -169,6 +169,6 @@ likes
 # %%
 for l, like in enumerate(likes):
     like.plot_px(params={'bias': results[l]['bias'], 'beta': results[l]['beta'], 'b_H': results[l]['b_H'], 'b_X': results[l]['b_X']}, multiply_by_k=False, include_probability=True,  title=f"z={zs[l]}", datalabel='DESI DR2', theorylabel="Best-fit theory")
-    
+
 
 # %%

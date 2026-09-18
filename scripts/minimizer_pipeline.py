@@ -46,7 +46,7 @@ shutil.copy(setup_config_path, outdir)
 shutil.copy(inf_config_path, outdir)
 
 data = DESI_DR2(setup_config.data_config)
-iz = setup_config.theory_config['iz']
+iz = setup_config.like_config['iz']
 print("Chose redshift bin ", iz)
 z = data.z[iz]
 

@@ -15,11 +15,10 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 
-from cupix.utils.utils import get_path_repo
 from cupix.inference.sampling_funcs import prepare_free_parameters, get_initial_walkers
 from cupix.likelihood.config import Config
 from cupix.inference.inference_config import InferenceConfig
-from cupix.inference.sampling_funcs import plot_tau_estimates, plot_chains, plot_contours, record_mcmc_settings, create_output_directory, save_chain
+from cupix.inference.sampling_funcs import plot_tau_estimates, plot_chains, record_mcmc_settings, create_output_directory, save_chain
 
 _POST = None
 
@@ -61,8 +60,8 @@ def main():
     outdir = create_output_directory(inf_config, runname)
     print("Outputs will be saved to", outdir)
     # copy the run config into the outdir
-    shutil.copy(setup_config_path, os.path.join(outdir, 'setup_config_mcmc.yaml'))
-    shutil.copy(inf_config_path, os.path.join(outdir, 'inference_config_mcmc.yaml'))
+    shutil.copy(setup_config_path, outdir)
+    shutil.copy(inf_config_path, outdir)
 
     data = DESI_DR2(setup_config.data_config)
     iz = setup_config.like_config['iz']
@@ -160,7 +159,8 @@ def main():
             if it%50 == 0:
                 # save chain at intermediate steps so as not to lose all progress
                 chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
-                save_chain(outdir, chain, free_params, fname=f"chain_partial_it{it}.h5")
+                logprob = emcee_sampler.get_log_prob(discard=0, thin=1, flat=False)
+                save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_partial_it{it}.h5")
                 # write tau to a file
                 tau_file = os.path.join(outdir, "tau_estimates.txt")
                 np.savetxt(tau_file, tau_estimates)

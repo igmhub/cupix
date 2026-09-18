@@ -267,7 +267,7 @@ def plot_chain_flattened(
     plt.clf()
 
 
-def plot_contours(chain, free_params, title=None, save=False, show_truth=False, show=True, outdir=None, show_priors=False,  show_bounds=False):
+def plot_contours(chain, free_params, title=None, save=False, show_truth=False, show=True, outdir=None, show_priors=False,  show_bounds=False, show_best_fit=True):
     gdnames = [par.name for par in free_params]
     gdlabels = [par.latex_label for par in free_params]
     gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
@@ -294,6 +294,22 @@ def plot_contours(chain, free_params, title=None, save=False, show_truth=False, 
                 ax.axvline(par.min_value, color="blue", ls="--", lw=1)
             if par.max_value is not None:
                 ax.axvline(par.max_value, color="blue", ls="--", lw=1)
+
+        if show_best_fit:
+            bestfit_dict = chain_bestfit_dict(chain, free_params)
+            if par.name in bestfit_dict:
+                bestfit_value = bestfit_dict[par.name]
+                ax.axvline(bestfit_value, color="red", ls="-", lw=1)
+                ax.text(
+                    0.95,
+                    0.95,
+                    f"Best fit: {bestfit_value:.3f}",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    verticalalignment="top",
+                    horizontalalignment="right",
+                    color="red",
+                )
         # Lower triangle (2D posteriors)
         for j in range(i):
 
@@ -344,7 +360,7 @@ def plot_contours(chain, free_params, title=None, save=False, show_truth=False, 
     plt.clf()
 
 
-def save_chain(outdir, chain, free_params, fname=None):
+def save_chain(outdir, chain, free_params, log_prob=None, fname=None):
     # save the chain
     if fname is None:
         chain_fname = os.path.join(outdir, "chain.h5")
@@ -356,10 +372,13 @@ def save_chain(outdir, chain, free_params, fname=None):
         f.create_dataset("chain", data=chain)
         f.attrs["gdnames"] = gdnames
         f.attrs["gdlabels"] = gdlabels
+        if log_prob is not None:
+            f.create_dataset("log_prob", data=log_prob)
         for par in free_params:
             if par.true_value is not None:
                 f.attrs[f"{par.name}_true_value"] = par.true_value
             f.attrs[f"{par.name}_ini_value"] = par.ini_value
+    
 
 
 def record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin):
@@ -410,7 +429,7 @@ def get_initial_walkers(free_params, nwalkers):
     return ini_walkers
 
 
-def load_mcmc_results(chain_directory, fname="chain.h5"):
+def load_mcmc_results(chain_directory, fname="chain.h5", iz=0):
     """Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
     # Martine note: I might change this to a class later, since there are a lot of items to be returned
@@ -419,9 +438,9 @@ def load_mcmc_results(chain_directory, fname="chain.h5"):
     with h5.File(chain_fname, "r") as f:
         chain = f["chain"][:]
     # recreate the theory, posterior, and likelihood objects
-    setup_config = Config(os.path.join(chain_directory, "setup_config_mcmc.yaml"))
+    setup_config = Config(os.path.join(chain_directory, f"setup_config_mcmc_z{iz}.yaml"))
     inf_config = InferenceConfig(
-        os.path.join(chain_directory, "inference_config_mcmc.yaml")
+        os.path.join(chain_directory, f"inference_config_mcmc_z{iz}.yaml")
     )
     mcmc_extra = os.path.join(chain_directory, "mcmc_settings.yaml")
     mcmc_settings = {}
@@ -512,6 +531,13 @@ def plot_compare_corner(
 
 def chain_bestfit_dict(chain, free_params, nburnin=0):
     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
-    bestfit = np.mean(chain[nburnin:], axis=0)
+    bestfit = np.median(chain[nburnin:], axis=0)
     bestfit_dict = {par.name: bestfit[i] for i, par in enumerate(free_params)}
     return bestfit_dict
+
+# may want to do something like this later
+# def likestats(chain, free_params, nburnin=0):
+#     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
+#     samples = MCSamples(samples=chain, names=[p.name for p in free_params])
+    
+#     return samples.getLikeStats()

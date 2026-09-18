@@ -379,7 +379,7 @@ class Minimizer(object):
             repo = os.path.dirname(cupix.__path__[0])
             outdir = os.path.join(repo, "data", "fitter_results")
         if outfile is None:
-            outfile = f"iminuit_results.npz"
+            outfile = "iminuit_results.npz"
         savepath = os.path.join(outdir, outfile)
         print("Saving results to", savepath)
         save_analysis_npz(self.get_results_dict(), filename=savepath)
