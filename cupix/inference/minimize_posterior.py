@@ -175,8 +175,8 @@ class Minimizer(object):
         plot_truth=False,
         true_val_label="true value",
         true_vals = None,
-        xrange=None,
-        yrange=None,
+        xlim=None,
+        ylim=None,
         ax=None,
         color="blue",
         label=None,
@@ -200,7 +200,9 @@ class Minimizer(object):
         idx_y = [i for i in range(len(self.post.free_params)) if self.post.free_params[i].name == pname_y]
         
         latex_label_x = self.post.free_params[idx_x[0]].latex_label
+        xlabel = [rf"${latex_label_x}$" if latex_label_x is not None else pname_x][0]
         latex_label_y = self.post.free_params[idx_y[0]].latex_label
+        ylabel = [rf"${latex_label_y}$" if latex_label_y is not None else pname_y][0]
     
         ax = plot_ellipse_func(
             self.get_results_dict(),
@@ -212,13 +214,13 @@ class Minimizer(object):
             label=label,
             true_vals=true_vals,
             true_val_label=true_val_label,
-            xrange=xrange,
-            yrange=yrange,
+            xlim=xlim,
+            ylim=ylim,
             title=title,
             outdir=outdir,
             outfile=outfile,
-            latex_label_x=None,
-            latex_label_y=None
+            xlabel=xlabel,
+            ylabel=ylabel
         )
 
         return ax
