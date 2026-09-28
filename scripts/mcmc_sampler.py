@@ -82,7 +82,6 @@ def main():
     
     free_param_names = list(inf_config.params_config.keys())
     free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
-    
     for par in free_params:
         print("Free parameters are: (name, ini_value, min, max, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.min_value, par.max_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
     
@@ -134,6 +133,9 @@ def main():
         tau_estimates = []
         F = inf_config.samp_config.get('F_tau', 50) # the number of autocorrelation times required to consider the chain converged
         sampling_start = time.time()
+
+        # how often to save partial chains
+        save_every = 50
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
             it = emcee_sampler.iteration
             if it%10 == 0:
@@ -156,11 +158,13 @@ def main():
                         if it > (mean_tau * F):
                             print("Chain has converged after %d steps" % it)
                             break
-            if it%50 == 0:
+            if it%save_every == 0:
                 # save chain at intermediate steps so as not to lose all progress
                 chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
                 logprob = emcee_sampler.get_log_prob(discard=0, thin=1, flat=False)
+                # delete the last partial chain
                 save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_partial_it{it}.h5")
+                os.remove(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) if os.path.exists(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) else None
                 # write tau to a file
                 tau_file = os.path.join(outdir, "tau_estimates.txt")
                 np.savetxt(tau_file, tau_estimates)

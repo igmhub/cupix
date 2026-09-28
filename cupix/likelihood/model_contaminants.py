@@ -10,6 +10,7 @@ class ContaminantsModel(object):
         """Create object from a dictionary"""
         self.z_lya = z
         self.lr_metal = 1206.52 # SiIII for now
+        # self.lr_metal = 1260 # SiII
         self.setup_from_config(config)
         return 
 

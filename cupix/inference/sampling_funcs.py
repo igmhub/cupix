@@ -267,13 +267,13 @@ def plot_chain_flattened(
     plt.clf()
 
 
-def plot_contours(chain, free_params, title=None, save=False, show_truth=False, show=True, outdir=None, show_priors=False,  show_bounds=False, show_best_fit=True):
-    gdnames = [par.name for par in free_params]
-    gdlabels = [par.latex_label for par in free_params]
+def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None, save=False, show_truth=False, show=True, outdir=None, show_priors=False,  show_bounds=False, show_best_fit=True):
+    gdnames = chain_data["par_names"]
+    gdlabels = chain_data["par_labels"]
+    chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
     gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
     g = plots.get_subplot_plotter()
     g.triangle_plot([gdsamples], filled=True)
-    
     for i, par in enumerate(free_params):
         # Diagonal (1D posterior)
         ax = g.subplots[i, i]
@@ -294,9 +294,9 @@ def plot_contours(chain, free_params, title=None, save=False, show_truth=False, 
                 ax.axvline(par.min_value, color="blue", ls="--", lw=1)
             if par.max_value is not None:
                 ax.axvline(par.max_value, color="blue", ls="--", lw=1)
-
+        
         if show_best_fit:
-            bestfit_dict = chain_bestfit_dict(chain, free_params)
+            bestfit_dict = chain_bestfit_dict(chain_data, free_params, nburnin=nburnin, thin=thin)
             if par.name in bestfit_dict:
                 bestfit_value = bestfit_dict[par.name]
                 ax.axvline(bestfit_value, color="red", ls="-", lw=1)
@@ -310,6 +310,7 @@ def plot_contours(chain, free_params, title=None, save=False, show_truth=False, 
                     horizontalalignment="right",
                     color="red",
                 )
+        print('here3')
         # Lower triangle (2D posteriors)
         for j in range(i):
 
@@ -428,15 +429,38 @@ def get_initial_walkers(free_params, nwalkers):
 
     return ini_walkers
 
+def load_chain_only(chain_directory, fname="chain.h5", iz=0):
+    """Load the chain"""
+    # load the chain
+    chain_fname = os.path.join(chain_directory, fname)
+    with h5.File(chain_fname, "r") as f:
+        print(f.keys())
+        chain = f["chain"][:]
+        if "log_prob" in f.keys():
+            log_prob = f["log_prob"][:]
+        else:
+            log_prob = None
+        gdnames = f.attrs["gdnames"]
+        gdlabels = f.attrs["gdlabels"]
+        true_vals_dict = {}
+        for parname in gdnames:
+            if f"{parname}_true_value" in f.attrs:
+                true_vals_dict[parname] = f.attrs[f"{parname}_true_value"]
+            else:
+                true_vals_dict[parname] = None
+    return_dict = {
+        "chain": chain,
+        "log_prob": log_prob,
+        "par_names": gdnames,
+        "par_labels": gdlabels,
+        "true_vals_dict": true_vals_dict
+    }
+    return return_dict
 
 def load_mcmc_results(chain_directory, fname="chain.h5", iz=0):
     """Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
-    # Martine note: I might change this to a class later, since there are a lot of items to be returned
-    # load the chain
-    chain_fname = os.path.join(chain_directory, fname)
-    with h5.File(chain_fname, "r") as f:
-        chain = f["chain"][:]
+    chain_dict = load_chain_only(chain_directory, fname=fname, iz=iz)
     # recreate the theory, posterior, and likelihood objects
     setup_config = Config(os.path.join(chain_directory, f"setup_config_mcmc_z{iz}.yaml"))
     inf_config = InferenceConfig(
@@ -459,6 +483,11 @@ def load_mcmc_results(chain_directory, fname="chain.h5", iz=0):
     data = DESI_DR2(setup_config.data_config)
     iz = setup_config.like_config["iz"]
     z = data.z[iz]
+    if "fixed_params" in inf_config.post_config.keys() and inf_config.post_config["fixed_params"] not in [None, {}]:
+        # update theory_config
+        for parname, parval in inf_config.post_config["fixed_params"].items():
+            setup_config.theory_config[parname] = parval
+        
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
     like = Likelihood(data=data, theory=theory, iz=iz, config=setup_config.like_config)
@@ -469,8 +498,17 @@ def load_mcmc_results(chain_directory, fname="chain.h5", iz=0):
         setup_config.theory_config,
         params_config=inf_config.params_config,
     )
-
-    return chain, free_params, data, cosmo, theory, like, setup_config, inf_config
+    return_dict = {
+        "chain_data": chain_dict,
+        "free_params": free_params,
+        "data": data,
+        "cosmo": cosmo,
+        "theory": theory,
+        "like": like,
+        "setup_config": setup_config,
+        "inf_config": inf_config,
+    }
+    return return_dict
 
 
 def plot_compare_corner(
@@ -529,11 +567,30 @@ def plot_compare_corner(
 
     return g
 
-def chain_bestfit_dict(chain, free_params, nburnin=0):
+def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1):
     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
-    bestfit = np.median(chain[nburnin:], axis=0)
-    bestfit_dict = {par.name: bestfit[i] for i, par in enumerate(free_params)}
+    # flatten, thin, remove burnin
+    chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
+    if chain_data["log_prob"] is None:
+        print("Warning: no log probabilities passed. Will use median of chain as bestfit.")
+        bestfit = np.median(chain, axis=0)
+        bestfit_dict = {par.name: bestfit[i] for i, par in enumerate(free_params)}
+        
+    else:
+        # load as an MCSamples object
+        log_prob = chain_data["log_prob"][nburnin::thin]
+        log_prob = log_prob.reshape(-1)
+        samples = MCSamples(samples=chain, loglikes=-1*log_prob, names=chain_data["par_names"])
+        likestats = samples.getLikeStats()
+        bestfit_dict = {}
+        for i in range(len(free_params)):
+            bestfit_dict[free_params[i].name] = likestats.names[i].bestfit_sample
     return bestfit_dict
+
+def prune_flatten_chain(chain, nburnin=0, thin=1):
+    chain = chain[nburnin::thin]
+    chain = chain.reshape(-1, chain.shape[-1]) #assumes chain is from get_chain
+    return chain
 
 # may want to do something like this later
 # def likestats(chain, free_params, nburnin=0):

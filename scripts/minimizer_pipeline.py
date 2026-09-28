@@ -65,10 +65,14 @@ like = Likelihood(data=data, theory=theory, iz=iz,
 free_param_names = list(inf_config.params_config.keys())
 free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
 
+fixed_params = inf_config.post_config['fixed_params'] # dictionary
+print(fixed_params)
+
+
 for par in free_params:
     print("Free parameters are: (name, ini_value, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
 
-post = Posterior(like, free_params, config=inf_config.post_config)
+post = Posterior(like, free_params, config=inf_config.post_config, fixed_params=fixed_params)
 
 minimizer_start = time.time()
 

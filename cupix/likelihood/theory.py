@@ -94,7 +94,6 @@ class Theory(object):
     def get_px_obs(self, theta_arc, k_AA, cosmo=None, params={}):
         # make sure all passed params are OK
         self.lya_model.no_conflicting_params(params)
-        all_params_dict = self.all_set_default_params()
         self.no_unrecognized_params(params)
         
         # figure out the cosmology to use 

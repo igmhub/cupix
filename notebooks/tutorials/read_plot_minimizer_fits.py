@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -68,7 +68,7 @@ for iz in [0,1,2,3]:
         true_val_label = None
     plot_ellipse(results[iz], 'bias','beta', color="green", label=f"z={zs[iz]}", true_vals=true_vals, true_val_label=true_val_label, title=f"z={zs[iz]}", latex_label_y=r'\beta', latex_label_x='b')
     print(results[iz]['prob'], results[iz]['chi2'])
-    
+
 
 # %%
 likes[0].plot_px()

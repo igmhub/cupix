@@ -194,13 +194,13 @@ class Likelihood(object):
         return log_like, info
 
 
-    def plot_px(self, params={}, multiply_by_k=True, every_other_theta=False, show=True,
+    def plot_px(self, params={}, multiply_by_k=False, every_other_theta=False, show=True,
                 theorylabel=None, datalabel=None, plot_fname=None,
                 ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False,
-                extra_params=None, extra_label=None, include_probability=True, include_chi2=False):
+                extra_params=None, extra_label=None, include_probability=True, include_chi2=False,
+                multiply_by_k2=False, connect_residuals=False):
         """Plot the Px data and theory."""
         import matplotlib.pyplot as plt
-        import matplotlib.lines as mlines
 
         # get theory prediction
         model_px = self.get_convolved_px(params=params)
@@ -217,9 +217,14 @@ class Likelihood(object):
 
         # central value of k bins
         k_M = (self.data.k_M_edges[self.iz][:-1] + self.data.k_M_edges[self.iz][1:])/2.
+        print(k_M.shape)
+
         if multiply_by_k:
             factor = k_M
             ylabel = r'$k P_\times$'
+        if multiply_by_k2:
+            factor = k_M**2
+            ylabel = r'$k^2 P_\times$'
         else:
             factor = 1.0
             ylabel = r'$P_\times$ [$\AA$]'
@@ -240,7 +245,11 @@ class Likelihood(object):
 
             ax[0].plot(k_M, theory_iA*factor, color=colors[it_A], linewidth=2)
             ax[1].set_xlabel(r'$k [\AA^{-1}]$')
-            ax[1].plot(k_M, (self.data.Px_ZAM[self.iz, it_A, :] - theory_iA)/div, color=colors[it_A], marker='o', linestyle='none')
+            if connect_residuals:
+                residual_linestyle = '-'
+            else:
+                residual_linestyle = 'none'
+            ax[1].plot(k_M, (self.data.Px_ZAM[self.iz, it_A, :] - theory_iA)/div, color=colors[it_A], marker='o', linestyle=residual_linestyle)
             if extra_params is not None:
                 extra_theory_iA = extra_model_px[it_A]
                 ax[0].plot(k_M, extra_theory_iA*factor, color=colors[it_A], ls=':', linewidth=2)
@@ -289,7 +298,7 @@ class Likelihood(object):
         if include_chi2:
             chi2 = self.get_chi2(params=params)
             ndata = self.get_ndata()
-            ax[0].text(0.35, 0.9, f'Chi2/dof = {chi2:.1f}/{ndata}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
+            ax[0].text(0.45, 0.9, rf'$\chi^2/n_\mathrm{{dof}}$ = {chi2:.1f}/{ndata}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         ax[0].legend(handles=handles, loc='upper right', fontsize=12, ncol=1)
         plt.tight_layout()
         if plot_fname is not None:
@@ -308,7 +317,6 @@ class Likelihood(object):
                     extra_params=None, extra_label=None, include_probability=False, include_chi2=False):
             """Plot the Px theory only."""
             import matplotlib.pyplot as plt
-            import matplotlib.lines as mlines
 
             # get theory prediction
             model_px = self.get_convolved_px(params=params)

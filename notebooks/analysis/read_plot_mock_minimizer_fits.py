@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: cupix
 #     language: python
@@ -57,13 +57,13 @@ theories_trucont = []
 likes_trucont = []
 
 for iz in [0,1,2,3]:
-    # # input the results from minimizer_pipeline.py here.
-    # results_directory = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/minimizer_fits/20260915_uncont_fix_cont/"
-    # results_dict, free_params, data, cosmo, theory, like, setup_config, inf_config = load_mini_results(results_directory, filename=f"iminuit_results_{iz}.npz", setup_config_fname=f"setup_config_mini_z{iz}.yaml")
-    # results_uncont.append(results_dict)
-    # freepars_uncont.append(free_params)
-    # theories_uncont.append(theory)
-    # likes_uncont.append(like)
+    # input the results from minimizer_pipeline.py here.
+    results_directory = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/minimizer_fits/20260918_unont_fix_cont/"
+    results_dict, free_params, data, cosmo, theory, like, setup_config, inf_config = load_mini_results(results_directory, filename=f"iminuit_results_{iz}.npz", setup_config_fname=f"setup_config_mini_z{iz}.yaml", inf_config_fname=f"inference_config_mini_z{iz}.yaml")
+    results_uncont.append(results_dict)
+    freepars_uncont.append(free_params)
+    theories_uncont.append(theory)
+    likes_uncont.append(like)
 
     results_directory = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/minimizer_fits/20260918_trucont_bias_beta_kp/"
     results_dict, free_params, data, cosmo, theory, like, setup_config, inf_config = load_mini_results(results_directory, filename=f"iminuit_results_{iz}.npz", setup_config_fname=f"setup_config_mini_z{iz}.yaml", inf_config_fname=f"inference_config_mini_z{iz}.yaml")
@@ -80,11 +80,17 @@ xranges = []
 for iz in [0,1,2,3]:
     true_vals = {'bias':theories_trucont[iz].get_param('bias'), 'beta':theories_trucont[iz].get_param('beta'), 'kp':theories_trucont[iz].get_param('kp_Mpc')}
     true_val_label = r"$\xi_{{3D}}$ fit"
-    ax1 = plot_ellipse(results_trucont[iz], 'bias','beta', true_vals=true_vals, true_val_label=true_val_label, color="green", label="True-continuum", title=f"z={zs[iz]}", ylabel=r'$\beta$', xlabel='$b$', xlim=[-.13,-.09], ylim=[1.5,1.9])
-    # plot_ellipse(results_uncont[iz], 'bias','beta', ax=ax1, color="orange", label="Fitted-continuum", latex_label_y=r'\beta', latex_label_x='b')
+    ax1 = plot_ellipse(results_trucont[iz], 'bias','beta', true_vals=true_vals, true_val_label=true_val_label, color="green", label="True-continuum stack", title=f"z={zs[iz]}", ylabel=r'$\beta$', xlabel='$b$', xlim=[-.13,-.09], ylim=[1.5,1.9])
+    plot_ellipse(results_uncont[iz], 'bias','beta', ax=ax1, color="orange", label="Fitted-continuum stack", ylabel=r'$\beta$', xlabel='$b$')
     # plot a contour of the single mock results
     plot_ellipse(results_single_mock[iz], 'bias','beta', ax=ax1, color="blue", ylabel=r'$\beta$', xlabel='$b$', linestyle='dashed', fill=False, nsig=1, include_point=False, label=r'DR2-like 1$\sigma$')
 
+
+# %%
+
+for iz in [0,1,2,3]:
+    likes_trucont[iz].plot_px(params={'bias':results_trucont[iz]['bias'], 'beta':results_trucont[iz]['beta'], 'kp_Mpc':results_trucont[iz]['kp_Mpc']}, theorylabel="True-continuum fit")
+    likes_uncont[iz].plot_px(params={'bias':results_uncont[iz]['bias'], 'beta':results_uncont[iz]['beta'], 'kp_Mpc':results_uncont[iz]['kp_Mpc']}, theorylabel="Fitted-continuum fit")
 
 # %%
 import matplotlib as mpl
