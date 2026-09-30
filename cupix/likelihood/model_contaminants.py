@@ -9,7 +9,11 @@ class ContaminantsModel(object):
     def __init__(self, z, config={'verbose':False}):
         """Create object from a dictionary"""
         self.z_lya = z
-        self.lr_metal = 1206.52 # SiIII for now
+        self.lr_SiIII = 1206.52 # SiIII for now
+        self.lr_SiII_1193 = 1193.3
+        self.lr_SiII_1190 = 1190.4
+        self.lr_SiII_1260 = 1260.42
+        
         self.setup_from_config(config)
         return 
 
@@ -46,7 +50,7 @@ class ContaminantsModel(object):
 
     def get_default_metal_params(self, config):
         # here we should get the default values based on the config and z
-        metal_params = {'b_X': -0.005, 'beta_X': 0.5}
+        metal_params = {'b_SiIII': -0.005, 'beta_SiIII': 0.5, 'b_SiII': -0.005, 'beta_SiII': 0.5}
 
         # update parameters if present in config
         for par in metal_params:
@@ -67,10 +71,13 @@ class ContaminantsModel(object):
 
         # update parameters based on preliminary fits of DESI DR2
         if self.z_lya == 2.2:
-            sky_params['b_noise_Mpc'] = 0.0035
-        else:
-            sky_params['b_noise_Mpc'] = 0.00125
-
+            sky_params['b_noise_Mpc'] = 0.0058
+        elif self.z_lya == 2.4:
+            sky_params['b_noise_Mpc'] = 0.0039
+        elif self.z_lya == 2.6:
+            sky_params['b_noise_Mpc'] = 0.0043
+        elif self.z_lya == 2.8:
+            sky_params['b_noise_Mpc'] = 0.0029
         # update parameters if present in config
         for par in sky_params:
             if par in config:
@@ -87,11 +94,13 @@ class ContaminantsModel(object):
         # for now, use these values obtained from preliminary fits on mocks
         if self.z_lya == 2.2:
             continuum_params['kC_Mpc'] = 0.019
-            continuum_params['pC'] = 0.63
+            continuum_params['pC'] = 0.58
+        elif self.z_lya == 2.8:
+            continuum_params['pC'] = 0.51
+            continuum_params['kC_Mpc'] = 0.011
         else:
             continuum_params['kC_Mpc'] = 0.012
-            continuum_params['pC'] = 0.45
-
+            continuum_params['pC'] = 0.5
         # update parameters if present in config
         for par in continuum_params:
             if par in config:
@@ -178,7 +187,7 @@ def allowed_hcd_params():
     return ['b_H', 'beta_H', 'L_H_Mpc']
 
 def allowed_metal_params():
-    return ['b_X', 'beta_X']
+    return ['b_SiIII', 'beta_SiIII', 'b_SiII', 'beta_SiII']
 
 def allowed_continuum_params():
     return ['kC_Mpc', 'pC']

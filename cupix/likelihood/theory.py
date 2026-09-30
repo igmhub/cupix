@@ -21,8 +21,6 @@ class Theory(object):
 
         self.verbose = config.get('verbose', False)
         self.z = z
-        # this is only needed temporarily while working with old likelihood
-        self.zs = z
 
         # this could also be specified from the config 
         if fid_cosmo is None:
@@ -62,39 +60,9 @@ class Theory(object):
 
         return cosmo
 
-
-    # # currently needed by the old likelihood class, keeping the format as is
-    # def get_px_AA(self, 
-    #     k_AA,
-    #     theta_arcmin,
-    #     zs=None,
-    #     like_params={},
-    #     return_arinyo_coeffs=False,
-    #     verbose=None
-    # ):
-    #     if verbose is None:
-    #         verbose = self.verbose
-    #     if verbose:
-    #         print('inside Theory::get_px_AA')
-
-    #     # convert list of LikelihoodParameters to dictionary
-    #     params_dict = dict_from_likeparam(like_params)
-    #     if verbose:
-    #         print('params_dict', params_dict)
-
-    #     assert zs == self.z, "Input redshift does not match one in theory"
-
-    #     if self.verbose:
-    #         print('Theta bins (arcmin)', theta_arcmin)
-
-    #     return self.get_px_obs(theta_arc=theta_arcmin, k_AA=k_AA, 
-    #                            params=params_dict)
-
-
     def get_px_obs(self, theta_arc, k_AA, cosmo=None, params={}):
         # make sure all passed params are OK
         self.lya_model.no_conflicting_params(params)
-        all_params_dict = self.all_set_default_params()
         self.no_unrecognized_params(params)
         
         # figure out the cosmology to use 
@@ -108,10 +76,16 @@ class Theory(object):
             px_obs = self.get_px_lya_obs(theta_arc, k_AA, cosmo, params)
 
         if self.include_metal:
-            # compute metals here (silicon auto, and silicon x lya)
-            px_metal_auto = self.get_px_metal_auto_obs(theta_arc, k_AA, cosmo, params)
-            px_metal_cross = self.get_px_metal_cross_obs(theta_arc, k_AA, cosmo, params)
-            px_obs += px_metal_auto + px_metal_cross
+            # compute metals here (silicon III and II (1191,1260) auto, and silicon x lya)
+            px_SiIII_auto = self.get_px_metal_auto_obs(theta_arc, k_AA, self.cont_model.lr_SiIII, cosmo, params)
+            px_SiII_1190_auto  = self.get_px_metal_auto_obs(theta_arc, k_AA, self.cont_model.lr_SiII_1190, cosmo, params)
+            px_SiII_1193_auto  = self.get_px_metal_auto_obs(theta_arc, k_AA, self.cont_model.lr_SiII_1193, cosmo, params)
+            px_SiII_1260_auto  = self.get_px_metal_auto_obs(theta_arc, k_AA, self.cont_model.lr_SiII_1260, cosmo, params)
+            px_SiIII_cross = self.get_px_metal_cross_obs(theta_arc, k_AA, self.cont_model.lr_SiIII, cosmo, params)
+            px_SiII_1190_cross = self.get_px_metal_cross_obs(theta_arc, k_AA, self.cont_model.lr_SiII_1190, cosmo, params)
+            px_SiII_1193_cross = self.get_px_metal_cross_obs(theta_arc, k_AA, self.cont_model.lr_SiII_1193, cosmo, params)
+            px_SiII_1260_cross = self.get_px_metal_cross_obs(theta_arc, k_AA, self.cont_model.lr_SiII_1260, cosmo, params)
+            px_obs += px_SiIII_auto + px_SiIII_cross + px_SiII_1190_cross + px_SiII_1190_auto  + px_SiII_1260_cross + px_SiII_1260_auto + px_SiII_1193_cross  + px_SiII_1193_auto
 
         if self.include_sky:
             # compute contamination from sky residuals
@@ -168,31 +142,29 @@ class Theory(object):
         return Px_AA
 
 
-    def get_z_metal_auto(self):
+    def get_z_metal_auto(self, lr_metal):
         """Given Lya z bin, compute redshift to evaluated Silicon auto"""
 
         # Lya redshift to use 
         z_lya = self.z
         lr_lya = self.lya_model.lr_lya
-        lr_metal = self.cont_model.lr_metal
         z_metal = (1+z_lya) * lr_lya / lr_metal - 1
-        if self.verbose and False: 
+        if self.verbose: 
             print('z_lya =',z_lya)
             print('z_metal =',z_metal)
 
         return z_metal
 
 
-    def get_z_metal_cross(self):
+    def get_z_metal_cross(self, lr_metal):
         """Given Lya z bin, compute redshift to evaluated Silicon x Lya"""
 
         # Lya redshift to use 
         z_lya = self.z
         lr_lya = self.lya_model.lr_lya
-        lr_metal = self.cont_model.lr_metal
         z_metal = (1+z_lya) * lr_lya / lr_metal - 1
         z_cross = np.sqrt((1+z_lya)*(1+z_metal)) - 1
-        if self.verbose and False: 
+        if self.verbose: 
             print('z_lya =',z_lya)
             print('z_metal =',z_metal)
             print('z_cross =',z_cross)
@@ -200,23 +172,22 @@ class Theory(object):
         return z_cross
 
 
-    def get_px_metal_auto_obs(self, theta_arc, k_AA, cosmo=None, params={}):
+    def get_px_metal_auto_obs(self, theta_arc, k_AA, lr_metal, cosmo=None, params={}):
 
         # figure out the cosmology to use 
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
 
         # redshift to use (not the same as the Lya z)
-        z_metal_auto = self.get_z_metal_auto()
+        z_metal_auto = self.get_z_metal_auto(lr_metal)
 
         # unit conversions to Mpc (where theory lives)
         darc_dMpc = cosmo.get_darc_dMpc(z_metal_auto)
-        lr_metal = self.cont_model.lr_metal
         dAA_dMpc = cosmo.get_dAA_dMpc(z_metal_auto, lambda_rest_AA=lr_metal)
         rt_Mpc = theta_arc / darc_dMpc
         kp_Mpc = k_AA * dAA_dMpc
 
         # compute Px in Mpc
-        Px_Mpc = self.get_px_metal_auto_Mpc(rt_Mpc, kp_Mpc, cosmo, params)
+        Px_Mpc = self.get_px_metal_auto_Mpc(rt_Mpc, kp_Mpc, lr_metal, cosmo, params)
 
         # back to inverse Angstroms
         Px_AA = Px_Mpc * dAA_dMpc
@@ -224,17 +195,16 @@ class Theory(object):
         return Px_AA
 
 
-    def get_px_metal_cross_obs(self, theta_arc, k_AA, cosmo=None, params={}):
+    def get_px_metal_cross_obs(self, theta_arc, k_AA, lr_metal, cosmo=None, params={}):
 
         # figure out the cosmology to use 
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
 
         # redshift to use (not the same as the Lya z)
-        z_metal_cross = self.get_z_metal_cross()
+        z_metal_cross = self.get_z_metal_cross(lr_metal)
 
         # unit conversions to Mpc (where theory lives)
         darc_dMpc = cosmo.get_darc_dMpc(z_metal_cross)
-        lr_metal = self.cont_model.lr_metal
         lr_lya = self.lya_model.lr_lya
         lr_cross = np.sqrt(lr_metal*lr_lya)
         dAA_dMpc = cosmo.get_dAA_dMpc(z_metal_cross, lambda_rest_AA=lr_cross)
@@ -242,7 +212,7 @@ class Theory(object):
         kp_Mpc = k_AA * dAA_dMpc
 
         # compute Px in Mpc
-        Px_Mpc = self.get_px_metal_cross_Mpc(rt_Mpc, kp_Mpc, cosmo, params)
+        Px_Mpc = self.get_px_metal_cross_Mpc(rt_Mpc, kp_Mpc, lr_metal, cosmo, params)
 
         # back to inverse Angstroms
         Px_AA = Px_Mpc * dAA_dMpc
@@ -355,9 +325,9 @@ class Theory(object):
         return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kmax_linP_Mpc)
 
 
-    def get_p3d_metal_auto_Mpc(self, k, mu, cosmo=None, params={}):
+    def get_p3d_metal_auto_Mpc(self, k, mu, lr_metal, cosmo=None, params={}):
         # evaluate linP at different z than Lya
-        z_metal_auto = self.get_z_metal_auto()
+        z_metal_auto = self.get_z_metal_auto(lr_metal)
 
         # figure out cosmology to use from input
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
@@ -365,8 +335,12 @@ class Theory(object):
 
         # get the complete list of metal parameters (b_X, beta_X)
         metal_params = self.cont_model.get_metal_params(params)
-        bias = metal_params['b_X']
-        beta = metal_params['beta_X']
+        if lr_metal == self.cont_model.lr_SiIII:
+            bias = metal_params['b_SiIII']
+            beta = metal_params['beta_SiIII']
+        elif lr_metal in [self.cont_model.lr_SiII_1190, self.cont_model.lr_SiII_1193, self.cont_model.lr_SiII_1260]:
+            bias = metal_params['b_SiII']
+            beta = metal_params['beta_SiII']
 
         # large-scales power
         p3d = bias**2 * (1 + beta * mu**2)**2 * linP
@@ -378,12 +352,12 @@ class Theory(object):
         return p3d * smooth
 
 
-    def get_px_metal_auto_Mpc(self, rt_Mpc, kp_Mpc, cosmo=None, params={}):
+    def get_px_metal_auto_Mpc(self, rt_Mpc, kp_Mpc, lr_metal, cosmo=None, params={}):
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
 
         # function to be passed to compute Px
         def p3d_func(k, mu):
-            return self.get_p3d_metal_auto_Mpc(k, mu, cosmo, params)
+            return self.get_p3d_metal_auto_Mpc(k, mu, lr_metal, cosmo, params)
 
         # will use P=0 past this kmax
         kmax_linP_Mpc = cosmo.get_kmax_linP_Mpc()
@@ -391,9 +365,9 @@ class Theory(object):
         return self._compute_px_from_p3d(rt_Mpc, kp_Mpc, p3d_func, kmax_linP_Mpc)
 
 
-    def get_p3d_metal_cross_Mpc(self, k, mu, cosmo=None, params={}):
+    def get_p3d_metal_cross_Mpc(self, k, mu, lr_metal, cosmo=None, params={}):
         # evaluate linP at different z than Lya
-        z_cross = self.get_z_metal_cross()
+        z_cross = self.get_z_metal_cross(lr_metal)
 
         # figure out cosmology to use from input
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
@@ -407,9 +381,13 @@ class Theory(object):
 
         # get the complete list of metal parameters (b_X, beta_X)
         metal_params = self.cont_model.get_metal_params(params)
-        b_X = metal_params['b_X']
-        beta_X = metal_params['beta_X']
-
+        if lr_metal == self.cont_model.lr_SiIII:
+            b_X = metal_params['b_SiIII']
+            beta_X = metal_params['beta_SiIII']
+        elif lr_metal in [self.cont_model.lr_SiII_1190, self.cont_model.lr_SiII_1193, self.cont_model.lr_SiII_1260]:
+            b_X = metal_params['b_SiII']
+            beta_X = metal_params['beta_SiII']
+        
         # large-scales power
         p3d = b_a * b_X * (1 + beta_a * mu**2) * (1 + beta_X * mu**2) * linP
 
@@ -419,7 +397,6 @@ class Theory(object):
 
         # scale of silicon oscillations (in log lambda)
         lr_lya = self.lya_model.lr_lya
-        lr_metal = self.cont_model.lr_metal
         dX_loglam = np.log(lr_lya / lr_metal)
         # scale in observed Angstroms
         lr_cross = np.sqrt(lr_lya * lr_metal)
@@ -434,12 +411,12 @@ class Theory(object):
         return p3d * smooth * wiggles
 
 
-    def get_px_metal_cross_Mpc(self, rt_Mpc, kp_Mpc, cosmo=None, params={}):
+    def get_px_metal_cross_Mpc(self, rt_Mpc, kp_Mpc, lr_metal, cosmo=None, params={}):
         cosmo = self.get_cosmology(cosmo=cosmo, params=params)
 
         # function to be passed to compute Px
         def p3d_func(k, mu):
-            return self.get_p3d_metal_cross_Mpc(k, mu, cosmo, params)
+            return self.get_p3d_metal_cross_Mpc(k, mu, lr_metal, cosmo, params)
 
         # will use P=0 past this kmax
         kmax_linP_Mpc = cosmo.get_kmax_linP_Mpc()
@@ -496,8 +473,11 @@ class Theory(object):
         mask = x>0
         smooth[mask] = (np.sin(x[mask])/x[mask])**2
 
-        Px_sky = b_noise_Mpc * np.outer(xi_noise, smooth)
-
+        # Px_sky = b_noise_Mpc * np.outer(xi_noise, smooth)
+        # Martine change: I think we don't need to damp the sky noise because we are correcting the 
+        # measurement for the pixel smoothing and beam.
+        Px_sky = b_noise_Mpc * np.outer(xi_noise, np.ones_like(smooth))
+        
         return Px_sky
 
 

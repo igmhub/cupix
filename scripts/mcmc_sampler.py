@@ -15,19 +15,20 @@ from cupix.px_data.data_DESI_DR2 import DESI_DR2
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
 
-from cupix.utils.utils import get_path_repo
 from cupix.inference.sampling_funcs import prepare_free_parameters, get_initial_walkers
 from cupix.likelihood.config import Config
 from cupix.inference.inference_config import InferenceConfig
-from cupix.inference.sampling_funcs import plot_tau_estimates, plot_chains, plot_contours, record_mcmc_settings, create_output_directory, save_chain
+from cupix.inference.sampling_funcs import plot_tau_estimates, plot_chains, record_mcmc_settings, create_output_directory, save_chain
 
 _POST = None
 
 def init_worker(post):
     global _POST
     _POST = post
+    if 'igm' in _POST.like.theory.lya_model.default_lya_model and _POST.like.theory.lya_model.delayload_emulator:
+        # load the emulator now. This is necessary to avoid pickling problems earlier (frEIA package contains a lambda function)
+        _POST.like.theory.lya_model.emulator = _POST.like.theory.lya_model.get_emulator(_POST.like.theory.lya_model.emulator_label, _POST.like.theory.lya_model.Nrealizations)
     _POST.like.get_chi2() # will run camb and store the results in post.like.theory, which will be shared across workers
-    
 
 def log_prob_wrapper(values):
     return _POST.get_log_posterior_from_values(values)
@@ -35,6 +36,9 @@ def log_prob_wrapper(values):
 
 
 def main():
+    print("cpu_count =", os.cpu_count())
+    print("SLURM_CPUS_PER_TASK =", os.environ.get("SLURM_CPUS_PER_TASK"))
+    print("start method =", mp.get_start_method())
     # set the directory name
     # YYYYMMDD_HHMM_shorttag/
     if len(sys.argv) < 4:
@@ -56,11 +60,11 @@ def main():
     outdir = create_output_directory(inf_config, runname)
     print("Outputs will be saved to", outdir)
     # copy the run config into the outdir
-    shutil.copy(setup_config_path, os.path.join(outdir, 'setup_config_mcmc.yaml'))
-    shutil.copy(inf_config_path, os.path.join(outdir, 'inference_config_mcmc.yaml'))
+    shutil.copy(setup_config_path, outdir)
+    shutil.copy(inf_config_path, outdir)
 
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.theory_config['iz']
+    iz = setup_config.like_config['iz']
     z = data.z[iz]
     
     # update config class with a use_truth option that could replace the cosmo and theory params with forecast values if it is a forecast and use_truth is True
@@ -71,15 +75,15 @@ def main():
 
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     
+    setup_config.theory_config["delay_load_emu"] = True # delay loading the emulator to avoid pickling issues
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
     like = Likelihood(data=data, theory=theory, iz=iz, 
                   config=setup_config.like_config)
     
     free_param_names = list(inf_config.params_config.keys())
     free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
-    
     for par in free_params:
-        print("Free parameters are: (name, ini_value, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
+        print("Free parameters are: (name, ini_value, min, max, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.min_value, par.max_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
     
     post = Posterior(like, free_params, config=inf_config.post_config)
 
@@ -90,7 +94,7 @@ def main():
     if nthreads_available > 64:
         print("Warning: using more than 64 cores might cause very long setup time due to initialization of CAMB many times. Consider reducing the request, unless very long chains are expected.")
     Np = len(free_params)
-    nwalkers = 2*nthreads_available
+    nwalkers = nthreads_available # number of logicl cores, twice number of true cores
     if nwalkers < 2 * Np:
         print("Warning: number of walkers should be at least 2 times the number of parameters. Setting nwalkers to %d. Code may be less efficient." % (2*Np))
         nwalkers = 2*Np
@@ -102,13 +106,12 @@ def main():
     max_nsteps = inf_config.samp_config.get('max_nsteps', max_nsteps)
     nburnin = inf_config.samp_config.get('nburnin', nburnin)
     verbose = inf_config.samp_config.get('verbose', False)
-    tau_stability = inf_config.samp_config.get('tau_stability',.05) # the fractional standard deviation of tau estimates required to consider them stable
     assert nburnin < max_nsteps, 'nburnin >= max_nsteps'
     # record to file all the settings that might have been changed due to ncores available
     record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin)
-
+    nprocess = int(nthreads_available/2)
     init_start = time.time()
-    with mp.Pool(processes=nthreads_available, initializer=init_worker, initargs=(post,)) as pool:
+    with mp.Pool(processes=nprocess, initializer=init_worker, initargs=(post,)) as pool:
         init_end = time.time()
         print("Time to initialize pool and run CAMB in each worker: %.2f seconds" % (init_end - init_start))    
         if verbose:
@@ -127,8 +130,13 @@ def main():
         # total number of steps
         ntotal = nburnin + max_nsteps
         tau_estimates = []
-        F = inf_config.samp_config.get('F_tau', 30) # the number of autocorrelation times required to consider the chain converged
+        F = inf_config.samp_config.get('F_tau', 50) # the number of autocorrelation times required to consider the chain converged
         sampling_start = time.time()
+
+        # how often to save partial chains
+        save_every = 50
+        
+        old_tau = np.inf
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
             it = emcee_sampler.iteration
             if it%10 == 0:
@@ -138,19 +146,33 @@ def main():
                 except Exception:
                     continue
                 mean_tau = np.mean(tau)
-                tau_estimates.append(mean_tau)
+                tau_estimates.append([it,mean_tau])
+                
                 if verbose:
                     print("Step %d out of %d " % (it, ntotal))
                     print("mean tau", mean_tau)
                 
                 # check if tau estimates are stable
                 if it>100: # require at least 100 steps to have some estimate of tau
-                    if (np.std( tau_estimates[-10:] ) / mean_tau) < tau_stability:
+                    if np.all(np.abs(old_tau - tau) / tau < 0.05):
                         print("Tau estimates are stable")
                         # if we have over F * tau samples, end the chain
                         if it > (mean_tau * F):
                             print("Chain has converged after %d steps" % it)
                             break
+                old_tau = tau
+            if it%save_every == 0:
+                # save chain at intermediate steps so as not to lose all progress
+                chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
+                logprob = emcee_sampler.get_log_prob(discard=0, thin=1, flat=False)
+                # delete the last partial chain
+                save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_partial_it{it}.h5")
+                os.remove(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) if os.path.exists(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) else None
+                # write tau to a file
+                tau_save = np.asarray(tau_estimates)
+                tau_file = os.path.join(outdir, "tau_estimates.txt")
+                np.savetxt(tau_file, tau_save)
+
         sampling_end = time.time()
         print("Time to run sampler: %.2f seconds" % (sampling_end - sampling_start))
         if emcee_sampler.iteration == ntotal:
@@ -161,10 +183,10 @@ def main():
             nburnin = emcee_sampler.iteration // 2
 
         plot_tau_estimates(tau_estimates, os.path.join(outdir, "tau.png"))
-        chain = emcee_sampler.get_chain(discard=nburnin, thin=2, flat=True)
+        chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
         save_chain(outdir, chain, free_params)
         plot_chains(chain, free_params, 0, save=True, show=False, outdir=outdir)
-        plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)
+        # plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)
         
 
 

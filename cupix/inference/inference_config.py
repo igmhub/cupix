@@ -5,14 +5,20 @@ class InferenceConfig(object):
     " Config class, reads yaml files and creates dictionaries "
     def __init__(
         self,
-        yaml_file
+        yaml_file=None,
+        dictionary=None
     ):
-        with open(yaml_file) as stream:
-            try:
-                self.data = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
-
+        assert not (yaml_file is None and dictionary is None), "Must provide either a yaml file or dictionary."
+        
+        if yaml_file is not None:
+            assert dictionary is None, "Cannot provide both a dictionary and yaml file."
+            with open(yaml_file) as stream:
+                try:
+                    self.data = yaml.safe_load(stream)
+                except yaml.YAMLError as exc:
+                    print(exc)
+        elif dictionary is not None:
+            self.data = dictionary
 
         self.verbose_all = self.data.get('verbose_all', None)
         self.post_config = self.data.get('posterior_config', {})
@@ -40,7 +46,9 @@ class InferenceConfig(object):
             if self.params_config[par] is not None:
                 new_par_config = {k: v for k, v in self.params_config[par].items() if v is not None}
                 self.params_config[par] = new_par_config
-        new_params_config = {par: self.params_config[par] for par in self.params_config if self.params_config[par] is not None}
+            else:
+                self.params_config[par] = None
+        new_params_config = {par: self.params_config[par] for par in self.params_config}
         
 
         self.post_config = new_post_config

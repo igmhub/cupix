@@ -6,11 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.19.5
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: cupix
 #     language: python
-#     name: python3
+#     name: cupix
 # ---
 
 # %%

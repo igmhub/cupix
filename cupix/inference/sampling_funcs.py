@@ -49,15 +49,14 @@ def get_latex_label(parname):
         return r"\Delta^2_p"
     if parname == "n_p":
         return r"n_p"
-    if parname == "mF":
-        return r"m_F"
     if parname == "gamma":
         return r"\gamma"
     if parname == "sigT_Mpc":
         return r"\sigma_T [Mpc]"
     if parname == "kF_Mpc":
         return r"k_F [Mpc^{-1}]"
-
+    if parname == 'mF':
+        return r"\overline{F}"
     if parname == "L_H_Mpc":
         return r"L_H [Mpc]"
     if parname == "b_noise_Mpc":
@@ -74,6 +73,7 @@ def get_latex_label(parname):
         return r"k_C [Mpc^{-1}]"
     if parname == "pC":
         return r"p_C"
+    
     else:
         return parname
 
@@ -107,7 +107,7 @@ def prepare_free_parameters(
         or par in allowed_metal_params()
         or par in allowed_sky_params()
     ]
-
+    # input default values. # uniform priors only for the moment, don't add in Gaussian ones in case the user intent is not to include Gaussian priors.
     if "p1d" in default_lya_model.lower():
         if "igm" in default_lya_model.lower():
             prior_info = priors.get_IGM_priors(z=z, tag="DESI_DR1_P1D")
@@ -116,21 +116,17 @@ def prepare_free_parameters(
         for parname in free_param_names_lyaigm:
             this_param = FreeParameter(
                 name=parname,
-                min_value=prior_info["percen_5"][
-                    parname
-                ],  # note that this is only used in minimizer
-                max_value=prior_info["percen_95"][
-                    parname
-                ],  # note that this is only used in minimizer
+                min_value=prior_info["mean"][parname] - 5 * prior_info["std"][parname],  # note that this is only used in minimizer
+                max_value=prior_info["mean"][parname] + 5 * prior_info["std"][parname],  # note that this is only used in minimizer
                 ini_value=prior_info["mean"][parname]
                 + shift_ini * prior_info["mean"][parname] * np.random.choice([-1, 1]),
                 true_value=prior_info["mean"][parname],
-                gauss_prior_mean=prior_info["mean"][
-                    parname
-                ],  # note that this is only used in sampler
-                gauss_prior_width=prior_info["std"][
-                    parname
-                ],  # note that this is only used in sampler
+                # gauss_prior_mean=prior_info["mean"][
+                #     parname
+                # ],  # note that this is only used in sampler
+                # gauss_prior_width=prior_info["std"][
+                    # parname
+                # ],  # note that this is only used in sampler
                 delta=0.1 * prior_info["std"][parname],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
@@ -152,12 +148,12 @@ def prepare_free_parameters(
                 ini_value=prior_info[parname]["mean"]
                 + shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
                 true_value=prior_info[parname]["mean"],
-                gauss_prior_mean=prior_info[parname][
-                    "mean"
-                ],  # note that this is only used in sampler
-                gauss_prior_width=prior_info[parname][
-                    "std"
-                ],  # note that this is only used in sampler
+                # gauss_prior_mean=prior_info[parname][
+                #     "mean"
+                # ],  # note that this is only used in sampler
+                # gauss_prior_width=prior_info[parname][
+                #     "std"
+                # ],  # note that this is only used in sampler
                 delta=0.1 * prior_info[parname]["std"],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
@@ -173,19 +169,19 @@ def prepare_free_parameters(
                 ini_value=prior_info[parname]["mean"]
                 + shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
                 true_value=prior_info[parname]["mean"],
-                gauss_prior_mean=prior_info[parname][
-                    "mean"
-                ],  # note that this is only used in sampler
-                gauss_prior_width=prior_info[parname][
-                    "std"
-                ],  # note that this is only used in sampler
+                # gauss_prior_mean=prior_info[parname][
+                #     "mean"
+                # ],  # note that this is only used in sampler
+                # gauss_prior_width=prior_info[parname][
+                #     "std"
+                # ],  # note that this is only used in sampler
                 delta=0.1 * prior_info[parname]["std"],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
             free_params_list.append(this_param)
     # if params_config is not empty, replace with whatever is in params_config
     for par in free_params_list:
-        if par.name in params_config:
+        if par.name in params_config and params_config[par.name] is not None:
             par.min_value = params_config[par.name].get("min_value", par.min_value)
             par.max_value = params_config[par.name].get("max_value", par.max_value)
             par.ini_value = params_config[par.name].get("ini_value", par.ini_value)
@@ -198,6 +194,7 @@ def prepare_free_parameters(
             )
             par.delta = params_config[par.name].get("delta", par.delta)
     for parname in params_config:  # create the FreeParam object for any missing ones. This is the case when default_lya_model is None and for any contaminant params.
+        
         if (parname not in [par.name for par in free_params_list]) and (
             parname in free_param_names
         ):
@@ -219,6 +216,7 @@ def prepare_free_parameters(
                 latex_label=get_latex_label(parname),
             )
             free_params_list.append(this_param)
+        
     # if free params list is empty, throw a warning that there are no defaults for this parameter, and the user should pass params_config
     if len(free_params_list) == 0:
         print(
@@ -236,7 +234,7 @@ def plot_tau_estimates(tau_estimates, fname):
 
 
 def plot_chains(chain_full, free_params, param_idx, save=False, show=True, outdir=None):
-    # first get the full chain and plot one, to understand burnin
+    # first get the full chain and plot one param, all walkers, to understand burnin
     param_name = free_params[param_idx].name
     plt.plot(chain_full[:, :, param_idx], alpha=0.5)
     plt.ylabel(free_params[param_idx].latex_label)
@@ -269,16 +267,88 @@ def plot_chain_flattened(
     plt.clf()
 
 
-def plot_contours(chain, free_params, title=None, save=False, show=True, outdir=None):
-    gdnames = [par.name for par in free_params]
-    gdlabels = [par.latex_label for par in free_params]
+def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None, save=False, show_truth=False, show=True, outdir=None, show_priors=False,  show_bounds=False, show_best_fit=True):
+    gdnames = chain_data["par_names"]
+    gdlabels = chain_data["par_labels"]
+    chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
     gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
     g = plots.get_subplot_plotter()
     g.triangle_plot([gdsamples], filled=True)
-    # add truth values
     for i, par in enumerate(free_params):
-        if par.true_value is not None:
-            g.add_param_markers({par.name: par.true_value})
+        # Diagonal (1D posterior)
+        ax = g.subplots[i, i]
+        # add truth values
+        if show_truth:
+            if par.true_value is not None:
+                g.add_param_markers({par.name: par.true_value})
+        # add priors
+        if show_priors:    
+            if par.gauss_prior_mean is not None and par.gauss_prior_width is not None:
+                mu = par.gauss_prior_mean
+                sigma = par.gauss_prior_width
+                ax.axvspan(mu - sigma, mu + sigma,
+                        color="C1", alpha=0.3, zorder=0)
+
+        if show_bounds:
+            if par.min_value is not None:
+                ax.axvline(par.min_value, color="blue", ls="--", lw=1)
+            if par.max_value is not None:
+                ax.axvline(par.max_value, color="blue", ls="--", lw=1)
+        
+        if show_best_fit:
+            bestfit_dict = chain_bestfit_dict(chain_data, free_params, nburnin=nburnin, thin=thin)
+            if par.name in bestfit_dict:
+                bestfit_value = bestfit_dict[par.name]
+                ax.axvline(bestfit_value, color="red", ls="-", lw=1)
+                ax.text(
+                    0.95,
+                    0.95,
+                    f"Best fit: {bestfit_value:.3f}",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    verticalalignment="top",
+                    horizontalalignment="right",
+                    color="red",
+                )
+        print('here3')
+        # Lower triangle (2D posteriors)
+        for j in range(i):
+
+            ax = g.subplots[i, j]
+            par_x = free_params[j]
+            par_y = free_params[i]
+            if show_priors:
+                # x prior
+                if par_x.gauss_prior_mean is not None:
+                    ax.axvspan(
+                        par_x.gauss_prior_mean - par_x.gauss_prior_width,
+                        par_x.gauss_prior_mean + par_x.gauss_prior_width,
+                        color="C1",
+                        alpha=0.15,
+                        zorder=0,
+                    )
+
+                # y prior
+                
+                if par_y.gauss_prior_mean is not None:
+                    ax.axhspan(
+                        par_y.gauss_prior_mean - par_y.gauss_prior_width,
+                        par_y.gauss_prior_mean + par_y.gauss_prior_width,
+                        color="C1",
+                        alpha=0.15,
+                        zorder=0,
+                    )
+            if show_bounds:
+                if par_x.min_value is not None:
+                    ax.axvline(par_x.min_value, color="blue", ls="--", lw=1)
+                if par_x.max_value is not None:
+                    ax.axvline(par_x.max_value, color="blue", ls="--", lw=1)
+
+                if par_y.min_value is not None:
+                    ax.axhline(par_y.min_value, color="blue", ls="--", lw=1)
+                if par_y.max_value is not None:
+                    ax.axhline(par_y.max_value, color="blue", ls="--", lw=1)
+                
     if title is not None:
         g.fig.suptitle(title)
     g.finish_plot()
@@ -291,19 +361,25 @@ def plot_contours(chain, free_params, title=None, save=False, show=True, outdir=
     plt.clf()
 
 
-def save_chain(outdir, chain, free_params):
+def save_chain(outdir, chain, free_params, log_prob=None, fname=None):
     # save the chain
-    chain_fname = os.path.join(outdir, "chain.h5")
+    if fname is None:
+        chain_fname = os.path.join(outdir, "chain.h5")
+    else:
+        chain_fname = os.path.join(outdir, fname)
     gdnames = [par.name for par in free_params]
     gdlabels = [par.latex_label for par in free_params]
     with h5.File(chain_fname, "w") as f:
         f.create_dataset("chain", data=chain)
         f.attrs["gdnames"] = gdnames
         f.attrs["gdlabels"] = gdlabels
+        if log_prob is not None:
+            f.create_dataset("log_prob", data=log_prob)
         for par in free_params:
             if par.true_value is not None:
                 f.attrs[f"{par.name}_true_value"] = par.true_value
             f.attrs[f"{par.name}_ini_value"] = par.ini_value
+    
 
 
 def record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin):
@@ -333,8 +409,12 @@ def get_initial_walkers(free_params, nwalkers):
     shifts = -0.5 + np.random.rand(ndim * nwalkers).reshape((nwalkers, ndim))
     ini_walkers = np.empty_like(shifts)
     for ip, par in enumerate(free_params):
-        ini_value = par.gauss_prior_mean
-        rms = par.gauss_prior_width
+        if par.gauss_prior_mean is not None and par.gauss_prior_width is not None:
+            ini_value = par.gauss_prior_mean
+            rms = par.gauss_prior_width
+        else:
+            ini_value = par.ini_value
+            rms = 0.1 * (par.max_value - par.min_value)
         val = ini_value + shifts[:, ip] * rms
         # check that you don't end up outside the bounds
         min_val = par.min_value
@@ -349,20 +429,49 @@ def get_initial_walkers(free_params, nwalkers):
 
     return ini_walkers
 
+def load_chain_only(chain_directory, fname="chain.h5", iz=0):
+    """Load the chain"""
+    # load the chain
+    chain_fname = os.path.join(chain_directory, fname)
+    with h5.File(chain_fname, "r") as f:
+        print(f.keys())
+        chain = f["chain"][:]
+        if "log_prob" in f.keys():
+            log_prob = f["log_prob"][:]
+        else:
+            log_prob = None
+        gdnames = f.attrs["gdnames"]
+        gdlabels = f.attrs["gdlabels"]
+        true_vals_dict = {}
+        for parname in gdnames:
+            if f"{parname}_true_value" in f.attrs:
+                true_vals_dict[parname] = f.attrs[f"{parname}_true_value"]
+            else:
+                true_vals_dict[parname] = None
+    return_dict = {
+        "chain": chain,
+        "log_prob": log_prob,
+        "par_names": gdnames,
+        "par_labels": gdlabels,
+        "true_vals_dict": true_vals_dict
+    }
+    return return_dict
 
-def load_mcmc_results(chain_directory):
+def load_mcmc_results(chain_directory, fname="chain.h5", iz=0, inf_fname=None, setup_fname=None,):
     """Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
-    # Martine note: I might change this to a class later, since there are a lot of items to be returned
-    # load the chain
-    chain_fname = os.path.join(chain_directory, "chain.h5")
-    with h5.File(chain_fname, "r") as f:
-        chain = f["chain"][:]
+    chain_dict = load_chain_only(chain_directory, fname=fname, iz=iz)
     # recreate the theory, posterior, and likelihood objects
-    setup_config = Config(os.path.join(chain_directory, "setup_config_mcmc.yaml"))
-    inf_config = InferenceConfig(
-        os.path.join(chain_directory, "inference_config_mcmc.yaml")
+    if setup_fname is None:
+        setup_config = Config(os.path.join(chain_directory, f"setup_config_mcmc_z{iz}.yaml"))
+    else:
+        setup_config = Config(os.path.join(chain_directory,setup_fname))
+    if inf_fname is None:
+        inf_config = InferenceConfig(
+            os.path.join(chain_directory, f"inference_config_mcmc_z{iz}.yaml")
     )
+    else:
+        inf_config = InferenceConfig(os.path.join(chain_directory, inf_fname))
     mcmc_extra = os.path.join(chain_directory, "mcmc_settings.yaml")
     mcmc_settings = {}
     if os.path.exists(mcmc_extra):
@@ -378,8 +487,13 @@ def load_mcmc_results(chain_directory):
             inf_config.params_config[key] = mcmc_settings[key]
 
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.theory_config["iz"]
+    iz = setup_config.like_config["iz"]
     z = data.z[iz]
+    if "fixed_params" in inf_config.post_config.keys() and inf_config.post_config["fixed_params"] not in [None, {}]:
+        # update theory_config
+        for parname, parval in inf_config.post_config["fixed_params"].items():
+            setup_config.theory_config[parname] = parval
+        
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
     like = Likelihood(data=data, theory=theory, iz=iz, config=setup_config.like_config)
@@ -390,8 +504,17 @@ def load_mcmc_results(chain_directory):
         setup_config.theory_config,
         params_config=inf_config.params_config,
     )
-
-    return chain, free_params, data, cosmo, theory, like, setup_config, inf_config
+    return_dict = {
+        "chain_data": chain_dict,
+        "free_params": free_params,
+        "data": data,
+        "cosmo": cosmo,
+        "theory": theory,
+        "like": like,
+        "setup_config": setup_config,
+        "inf_config": inf_config,
+    }
+    return return_dict
 
 
 def plot_compare_corner(
@@ -449,3 +572,35 @@ def plot_compare_corner(
         g.fig.suptitle(title)
 
     return g
+
+def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1):
+    """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
+    # flatten, thin, remove burnin
+    chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
+    if chain_data["log_prob"] is None:
+        print("Warning: no log probabilities passed. Will use median of chain as bestfit.")
+        bestfit = np.median(chain, axis=0)
+        bestfit_dict = {par.name: bestfit[i] for i, par in enumerate(free_params)}
+        
+    else:
+        # load as an MCSamples object
+        log_prob = chain_data["log_prob"][nburnin::thin]
+        log_prob = log_prob.reshape(-1)
+        samples = MCSamples(samples=chain, loglikes=-1*log_prob, names=chain_data["par_names"])
+        likestats = samples.getLikeStats()
+        bestfit_dict = {}
+        for i in range(len(free_params)):
+            bestfit_dict[free_params[i].name] = likestats.names[i].bestfit_sample
+    return bestfit_dict
+
+def prune_flatten_chain(chain, nburnin=0, thin=1):
+    chain = chain[nburnin::thin]
+    chain = chain.reshape(-1, chain.shape[-1]) #assumes chain is from get_chain
+    return chain
+
+# may want to do something like this later
+# def likestats(chain, free_params, nburnin=0):
+#     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
+#     samples = MCSamples(samples=chain, names=[p.name for p in free_params])
+    
+#     return samples.getLikeStats()

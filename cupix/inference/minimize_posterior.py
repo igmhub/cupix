@@ -174,21 +174,36 @@ class Minimizer(object):
         nsig=2,
         plot_truth=False,
         true_val_label="true value",
-        xrange=None,
-        yrange=None,
+        true_vals = None,
+        xlim=None,
+        ylim=None,
         ax=None,
         color="blue",
         label=None,
+        title=None,
+        outdir=None,
+        outfile=None
     ):
         """Plot Gaussian contours for parameters (pname_x,pname_y)
         - nsig: number of sigma contours to plot."""
         if plot_truth:
-            true_vals = {}
-            for par in self.post.free_params:
-                if par.name in [pname_x, pname_y]:
-                    true_vals[par.name] = par.true_value
+            if true_vals is None:
+                true_vals = {}
+                for par in self.post.free_params:
+                    if par.name in [pname_x, pname_y]:
+                        assert par.true_value is not None, f"{par.name} does not have a true value. Try setting plot_truth to False or pass true_vals explicitly."
+                        true_vals[par.name] = par.true_value
         else:
             true_vals = None
+        
+        idx_x = [i for i in range(len(self.post.free_params)) if self.post.free_params[i].name == pname_x]
+        idx_y = [i for i in range(len(self.post.free_params)) if self.post.free_params[i].name == pname_y]
+        
+        latex_label_x = self.post.free_params[idx_x[0]].latex_label
+        xlabel = [rf"${latex_label_x}$" if latex_label_x is not None else pname_x][0]
+        latex_label_y = self.post.free_params[idx_y[0]].latex_label
+        ylabel = [rf"${latex_label_y}$" if latex_label_y is not None else pname_y][0]
+    
         ax = plot_ellipse_func(
             self.get_results_dict(),
             pname_x,
@@ -199,8 +214,13 @@ class Minimizer(object):
             label=label,
             true_vals=true_vals,
             true_val_label=true_val_label,
-            xrange=xrange,
-            yrange=yrange,
+            xlim=xlim,
+            ylim=ylim,
+            title=title,
+            outdir=outdir,
+            outfile=outfile,
+            xlabel=xlabel,
+            ylabel=ylabel
         )
 
         return ax
@@ -215,6 +235,9 @@ class Minimizer(object):
         figsize=None,
         color="C0",
         label="",
+        title=None,
+        outdir=None,
+        outfile=None
     ):
         """
         Gaussian corner plot from best-fit values and covariance.
@@ -237,6 +260,9 @@ class Minimizer(object):
             figsize=figsize,
             color=color,
             label=label,
+            title=title,
+            outdir=outdir,
+            outfile=outfile
         )
 
         return fig, axes
@@ -259,7 +285,7 @@ class Minimizer(object):
         include_chi2=False,
         include_probability=False,
         outdir=None,
-        out_fname=None,
+        outfile=None,
     ):
         """Plot best-fit PX vs data."""
 
@@ -289,10 +315,10 @@ class Minimizer(object):
             include_chi2=include_chi2,
         )
         if outdir is not None:
-            if out_fname is None:
+            if outfile is None:
                 plt.savefig(os.path.join(outdir, "best_fit_plot.png"))
             else:
-                plt.savefig(os.path.join(outdir, out_fname))
+                plt.savefig(os.path.join(outdir, outfile))
         return
 
     def print_results(self):
@@ -355,7 +381,7 @@ class Minimizer(object):
             repo = os.path.dirname(cupix.__path__[0])
             outdir = os.path.join(repo, "data", "fitter_results")
         if outfile is None:
-            outfile = f"iminuit_results.npz"
+            outfile = "iminuit_results.npz"
         savepath = os.path.join(outdir, outfile)
         print("Saving results to", savepath)
         save_analysis_npz(self.get_results_dict(), filename=savepath)
