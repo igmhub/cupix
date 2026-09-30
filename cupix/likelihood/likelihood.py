@@ -198,7 +198,7 @@ class Likelihood(object):
                 theorylabel=None, datalabel=None, plot_fname=None,
                 ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False,
                 extra_params=None, extra_label=None, include_probability=True, include_chi2=False,
-                multiply_by_k2=False, connect_residuals=False):
+                multiply_by_k2=False, connect_residuals=False, n_free_p=0):
         """Plot the Px data and theory."""
         import matplotlib.pyplot as plt
 
@@ -293,7 +293,7 @@ class Likelihood(object):
                 extra_label = 'Extra theory prediction'
             handles.append(plt.Line2D([], [], color='black', linestyle=':', label=extra_label))
         if include_probability:
-            prob = self.get_probability(params=params)
+            prob = self.get_probability(params=params, n_free_p=n_free_p)
             ax[0].text(0.35, 0.95, f'Fit prob = {prob:.2f}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         if include_chi2:
             chi2 = self.get_chi2(params=params)

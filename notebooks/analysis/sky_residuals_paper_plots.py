@@ -64,7 +64,7 @@ for iz, z in enumerate(data.z):
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
     like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True})
     likes_nosky.append(like)
-    
+
 
 # %%
 for iz, z in enumerate(data.z): 

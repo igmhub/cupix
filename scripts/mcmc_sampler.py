@@ -106,7 +106,6 @@ def main():
     max_nsteps = inf_config.samp_config.get('max_nsteps', max_nsteps)
     nburnin = inf_config.samp_config.get('nburnin', nburnin)
     verbose = inf_config.samp_config.get('verbose', False)
-    tau_stability = inf_config.samp_config.get('tau_stability',.05) # the fractional standard deviation of tau estimates required to consider them stable
     assert nburnin < max_nsteps, 'nburnin >= max_nsteps'
     # record to file all the settings that might have been changed due to ncores available
     record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin)
@@ -136,6 +135,8 @@ def main():
 
         # how often to save partial chains
         save_every = 50
+        
+        old_tau = np.inf
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
             it = emcee_sampler.iteration
             if it%10 == 0:
@@ -145,19 +146,21 @@ def main():
                 except Exception:
                     continue
                 mean_tau = np.mean(tau)
-                tau_estimates.append(mean_tau)
+                tau_estimates.append([it,mean_tau])
+                
                 if verbose:
                     print("Step %d out of %d " % (it, ntotal))
                     print("mean tau", mean_tau)
                 
                 # check if tau estimates are stable
                 if it>100: # require at least 100 steps to have some estimate of tau
-                    if (np.std( tau_estimates[-4:] ) / mean_tau) < tau_stability:
+                    if np.all(np.abs(old_tau - tau) / tau < 0.05):
                         print("Tau estimates are stable")
                         # if we have over F * tau samples, end the chain
                         if it > (mean_tau * F):
                             print("Chain has converged after %d steps" % it)
                             break
+                old_tau = tau
             if it%save_every == 0:
                 # save chain at intermediate steps so as not to lose all progress
                 chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
@@ -166,8 +169,9 @@ def main():
                 save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_partial_it{it}.h5")
                 os.remove(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) if os.path.exists(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) else None
                 # write tau to a file
+                tau_save = np.asarray(tau_estimates)
                 tau_file = os.path.join(outdir, "tau_estimates.txt")
-                np.savetxt(tau_file, tau_estimates)
+                np.savetxt(tau_file, tau_save)
 
         sampling_end = time.time()
         print("Time to run sampler: %.2f seconds" % (sampling_end - sampling_start))
