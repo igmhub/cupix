@@ -9,8 +9,11 @@ class ContaminantsModel(object):
     def __init__(self, z, config={'verbose':False}):
         """Create object from a dictionary"""
         self.z_lya = z
-        self.lr_metal = 1206.52 # SiIII for now
-        # self.lr_metal = 1260 # SiII
+        self.lr_SiIII = 1206.52 # SiIII for now
+        self.lr_SiII_1193 = 1193.3
+        self.lr_SiII_1190 = 1190.4
+        self.lr_SiII_1260 = 1260.42
+        
         self.setup_from_config(config)
         return 
 
@@ -47,7 +50,7 @@ class ContaminantsModel(object):
 
     def get_default_metal_params(self, config):
         # here we should get the default values based on the config and z
-        metal_params = {'b_X': -0.005, 'beta_X': 0.5}
+        metal_params = {'b_SiIII': -0.005, 'beta_SiIII': 0.5, 'b_SiII': -0.005, 'beta_SiII': 0.5}
 
         # update parameters if present in config
         for par in metal_params:
@@ -184,7 +187,7 @@ def allowed_hcd_params():
     return ['b_H', 'beta_H', 'L_H_Mpc']
 
 def allowed_metal_params():
-    return ['b_X', 'beta_X']
+    return ['b_SiIII', 'beta_SiIII', 'b_SiII', 'beta_SiII']
 
 def allowed_continuum_params():
     return ['kC_Mpc', 'pC']

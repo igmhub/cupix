@@ -457,15 +457,21 @@ def load_chain_only(chain_directory, fname="chain.h5", iz=0):
     }
     return return_dict
 
-def load_mcmc_results(chain_directory, fname="chain.h5", iz=0):
+def load_mcmc_results(chain_directory, fname="chain.h5", iz=0, inf_fname=None, setup_fname=None,):
     """Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
     chain_dict = load_chain_only(chain_directory, fname=fname, iz=iz)
     # recreate the theory, posterior, and likelihood objects
-    setup_config = Config(os.path.join(chain_directory, f"setup_config_mcmc_z{iz}.yaml"))
-    inf_config = InferenceConfig(
-        os.path.join(chain_directory, f"inference_config_mcmc_z{iz}.yaml")
+    if setup_fname is None:
+        setup_config = Config(os.path.join(chain_directory, f"setup_config_mcmc_z{iz}.yaml"))
+    else:
+        setup_config = Config(os.path.join(chain_directory,setup_fname))
+    if inf_fname is None:
+        inf_config = InferenceConfig(
+            os.path.join(chain_directory, f"inference_config_mcmc_z{iz}.yaml")
     )
+    else:
+        inf_config = InferenceConfig(os.path.join(chain_directory, inf_fname))
     mcmc_extra = os.path.join(chain_directory, "mcmc_settings.yaml")
     mcmc_settings = {}
     if os.path.exists(mcmc_extra):

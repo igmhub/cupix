@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.5
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %%
@@ -28,7 +28,51 @@ from cupix.likelihood.likelihood import Likelihood
 from cupix.inference.free_parameter import FreeParameter
 from cupix.inference.posterior import Posterior
 from cupix.inference.minimize_posterior import Minimizer
-from cupix.inference.sampling_funcs import prepare_free_parameters
+from cupix.inference.minimizer_funcs import plot_ellipse, plot_corner, load_mini_results
+
+# %%
+# get the contaminated mock measurements including small thetas
+fname = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/analysis-1/contaminated/baseline/unbinned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+
+data = DESI_DR2(config = {'data_file':fname, 'kM_min_cut_AA': 0.00, 'kM_max_cut_AA':0.7, 'km_max_cut_AA':0.77, 'theta_min_cut_arcmin':2.5, 'theta_max_cut_arcmin':10})
+zs = data.z
+
+# %%
+cosmo = cosmology.Cosmology()
+config={'verbose': True, 'include_hcd': True, 'include_metal': True,
+        'include_sky': False, 'include_continuum': True, 'default_lya_model': 'best_fit_arinyo_from_colore'}
+theories = []
+likes = []
+for iz,z in enumerate(zs):
+    theory = Theory(z=z, fid_cosmo=cosmo, config=config)
+    
+    theories.append(theory)
+    likes.append(Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True}))
+
+
+# %%
+# define parameter sets to tests
+no_metals = {'b_H':-0.02, 'beta_H':0.5, 'b_SiIII':0, 'beta_SiIII':0, 'b_SiII':0, 'beta_SiII':0}
+only_SiIII = {'b_H':-0.02, 'beta_H':0.5, 'b_SiIII':-.01, 'beta_SiIII':1., 'b_SiII':0, 'beta_SiII':0}
+only_SiII = {'b_H':-0.02, 'beta_H':0.5, 'b_SiIII':0, 'beta_SiIII':0, 'b_SiII':-0.02, 'beta_SiII':1.}
+all_Si = {'b_H':-0.02, 'beta_H':0.5, 'b_SiIII':-0.01, 'beta_SiIII':1., 'b_SiII':-0.01, 'beta_SiII':1.}
+
+# %%
+ylim = [-0.0005, 0.005]
+xlim = [0, 0.7]
+for iz in [2]:
+    likes[iz].plot_px(params=only_SiIII, include_chi2=False, every_other_theta=True, multiply_by_k2=True, xlim=xlim, theorylabel="Incl. HCD model + SiIII", title=f"z={theories[iz].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15], connect_residuals=True, ylim=ylim, extra_params=no_metals, extra_label='no metals')
+    likes[iz].plot_px(params=only_SiII, include_chi2=False, every_other_theta=True, multiply_by_k2=True, xlim=xlim, theorylabel="Incl. HCD model + SiII", title=f"z={theories[iz].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15], connect_residuals=True, ylim=ylim, extra_params=no_metals, extra_label='no metals')
+    likes[iz].plot_px(params=all_Si, include_chi2=False, every_other_theta=True, multiply_by_k2=True, xlim=xlim, theorylabel="Incl. HCD model + metals", title=f"z={theories[iz].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15], connect_residuals=True, ylim=ylim, extra_params=no_metals, extra_label='no metals')
+
+# %%
+ylim = [-0.0005, 0.25]
+
+for iz in [2]:
+    
+    # likes[iz].plot_px(params=only_SiIII, include_chi2=False, every_other_theta=False, multiply_by_k=True, xlim=[0,.3], theorylabel="Incl. HCD model + SiIII", title=f"z={theories[iz].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15], connect_residuals=True, ylim=ylim, extra_params=no_metals, extra_label='no metals')
+    # likes[iz].plot_px(params=only_SiII, include_chi2=False, every_other_theta=False, multiply_by_k=True, xlim=[0,.3], theorylabel="Incl. HCD model + SiII", title=f"z={theories[iz].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15], connect_residuals=True, ylim=ylim, extra_params=no_metals, extra_label='no metals')
+    likes[iz].plot_px(params=all_Si, include_chi2=False, every_other_theta=False, multiply_by_k=True, xlim=[0,.3], theorylabel="Incl. HCD model + metals", title=f"z={theories[iz].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15], connect_residuals=True, ylim=ylim, extra_params=no_metals, extra_label='no metals')
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
