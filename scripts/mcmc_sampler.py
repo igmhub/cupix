@@ -95,21 +95,27 @@ def main():
         print("Warning: using more than 64 cores might cause very long setup time due to initialization of CAMB many times. Consider reducing the request, unless very long chains are expected.")
     Np = len(free_params)
     nwalkers = nthreads_available # number of logicl cores, twice number of true cores
+    nwalkers = inf_config.samp_config.get('nwalkers', nwalkers) # replace with input value if it exists
     if nwalkers < 2 * Np:
         print("Warning: number of walkers should be at least 2 times the number of parameters. Setting nwalkers to %d. Code may be less efficient." % (2*Np))
         nwalkers = 2*Np
+    if nwalkers%2!=0:
+        nwalkers += 1 # must be an even number
     max_nsteps = 100 + 10 * Np**3 # want this to be significantly longer than F*tau
     nburnin = 50 + 3 * Np**3
+    moves = [
+    (emcee.moves.DEMove(), 0.8),
+    (emcee.moves.DESnookerMove(), 0.2),
+    ]
     # read emcee configuration to update if needed
-    nwalkers = inf_config.samp_config.get('nwalkers', nwalkers)
     print("Will use %d walkers" % nwalkers)
     max_nsteps = inf_config.samp_config.get('max_nsteps', max_nsteps)
     nburnin = inf_config.samp_config.get('nburnin', nburnin)
     verbose = inf_config.samp_config.get('verbose', False)
     assert nburnin < max_nsteps, 'nburnin >= max_nsteps'
     # record to file all the settings that might have been changed due to ncores available
-    record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin)
-    nprocess = int(nthreads_available/2)
+    record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin, iz)
+    nprocess = max(1, nthreads_available // 2)
     init_start = time.time()
     with mp.Pool(processes=nprocess, initializer=init_worker, initargs=(post,)) as pool:
         init_end = time.time()
@@ -121,7 +127,8 @@ def main():
             nwalkers,
             Np,
             log_prob_wrapper,
-            pool=pool
+            pool=pool,
+            moves=moves
         )
         if verbose:
             print("emcee sampler set up")
@@ -130,16 +137,16 @@ def main():
         # total number of steps
         ntotal = nburnin + max_nsteps
         tau_estimates = []
-        F = inf_config.samp_config.get('F_tau', 50) # the number of autocorrelation times required to consider the chain converged
+        F = inf_config.samp_config.get('F_tau', 30) # the number of autocorrelation times required to consider the chain converged
         sampling_start = time.time()
 
         # how often to save partial chains
-        save_every = 50
+        save_every = 100
         
         old_tau = np.inf
         for sample in emcee_sampler.sample(p0, iterations=ntotal):
             it = emcee_sampler.iteration
-            if it%10 == 0:
+            if it%100 == 0:
                 try:
                     # estimate the autocorrelation time and check convergence. This might be inaccurate for short chains
                     tau = emcee_sampler.get_autocorr_time(tol=0, quiet=True) # tol = 0 means not requiring a certain number of autocorr times to trust the estimate.
@@ -157,20 +164,22 @@ def main():
                     if np.all(np.abs(old_tau - tau) / tau < 0.05):
                         print("Tau estimates are stable")
                         # if we have over F * tau samples, end the chain
-                        if it > (mean_tau * F):
+                        if it > (np.max(tau) * F):
                             print("Chain has converged after %d steps" % it)
                             break
+                        else:
+                            print("One of the tau estimates is less than F * tau. Continuing sampling.")
                 old_tau = tau
             if it%save_every == 0:
                 # save chain at intermediate steps so as not to lose all progress
                 chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
                 logprob = emcee_sampler.get_log_prob(discard=0, thin=1, flat=False)
                 # delete the last partial chain
-                save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_partial_it{it}.h5")
-                os.remove(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) if os.path.exists(os.path.join(outdir, f"chain_partial_it{it-save_every}.h5")) else None
+                save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_z{iz}_partial_it{it}.h5")
+                os.remove(os.path.join(outdir, f"chain_z{iz}_partial_it{it-save_every}.h5")) if os.path.exists(os.path.join(outdir, f"chain_z{iz}_partial_it{it-save_every}.h5")) else None
                 # write tau to a file
                 tau_save = np.asarray(tau_estimates)
-                tau_file = os.path.join(outdir, "tau_estimates.txt")
+                tau_file = os.path.join(outdir, f"tau_estimates_z{iz}.txt")
                 np.savetxt(tau_file, tau_save)
 
         sampling_end = time.time()
@@ -178,13 +187,13 @@ def main():
         if emcee_sampler.iteration == ntotal:
             print("Warning: chain did not converge after %d steps" % ntotal)
         if nburnin >= emcee_sampler.iteration:
-            # reset nburnin to be shorter than the chain
-            print(f"Warning: nburnin longer than chain. Resetting nburnin to Niterations//2 = {emcee_sampler.iteration//2}")
-            nburnin = emcee_sampler.iteration // 2
+            print("Warning: chain didn't make it to nburnin steps.")
+            
 
         plot_tau_estimates(tau_estimates, os.path.join(outdir, "tau.png"))
         chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
-        save_chain(outdir, chain, free_params)
+        logprob = emcee_sampler.get_log_prob(discard=0, thin=1, flat=False)
+        save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_z{iz}.h5")
         plot_chains(chain, free_params, 0, save=True, show=False, outdir=outdir)
         # plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)
         

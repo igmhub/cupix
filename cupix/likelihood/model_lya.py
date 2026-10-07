@@ -9,6 +9,7 @@ from forestflow.P3D_cINN import P3DEmulator
 from cupix.utils.utils import get_path_repo
 from lace.cosmo import cosmology
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
+from scipy.interpolate import CubicSpline
 
 def lya_params_from_forestflow_params(ff_params):
     lya_params = ff_params.copy()
@@ -186,6 +187,8 @@ class LyaModel(object):
         emu_params['gamma'] = igm_params['gamma']
         emu_params['sigT_Mpc'] = igm_params['sigT_Mpc']
         emu_params['kF_Mpc'] = igm_params['kF_Mpc']
+        # emu_params['Delta2_p'] = igm_params['Delta2_p']
+        # emu_params['n_p'] = igm_params['n_p']
         ### MARTINE: these lines are no longer needed if our defualts are sigT_Mpc already. commenting them in case we want in the future again. ###
         # these igm params are not in the correct units for the emulator
         # dkms_dMpc = cosmo.get_dkms_dMpc(self.z)
@@ -265,7 +268,9 @@ class LyaModel(object):
         return
 
 
-def get_priors_gadget(z, model, verbose=False):
+def get_priors_gadget(z, model, verbose=False, extra_params=[]):
+    ''' Get the min/max values for the gadget simulations. If you pass named_param,
+    you will only get the min/max for that param.'''
     igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
     ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
     if 'igm' in model:
@@ -278,19 +283,24 @@ def get_priors_gadget(z, model, verbose=False):
     gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
     train_test_info = pd.read_csv(gadget_short_info_file)
     # set up a smooth function of z for the mean, min, and max values of desired params
-    z_all = train_test_info['z']
+    z_all = train_test_info['z'].to_numpy()    
+    sortidx = np.argsort(z_all)
+    z_all = z_all[sortidx]
     priors_dict = {}
-    for par in parnames:
+    for par in parnames+extra_params:
         if par+"_central" in train_test_info.columns:
-            par_central_interp = np.interp(z, z_all, train_test_info[par+"_central"])
-            par_min_interp = np.interp(z, z_all, train_test_info[par+"_min"])
-            par_max_interp = np.interp(z, z_all, train_test_info[par+"_max"])
+            cs_central = CubicSpline(z_all, train_test_info[par+"_central"][sortidx])
+            cs_min = CubicSpline(z_all, train_test_info[par+"_min"][sortidx])
+            cs_max = CubicSpline(z_all, train_test_info[par+"_max"][sortidx])
+            par_central_interp = cs_central(z)
+            par_min_interp = cs_min(z)
+            par_max_interp = cs_max(z)
             if verbose: print(f"for parameter {par}, interpolated central value is {par_central_interp}, min is {par_min_interp}, max is {par_max_interp}")
             priors_dict[par] = {
                 "mean": par_central_interp,
                 "std": 0.5*(par_max_interp - par_min_interp), # approximation
-                "max": par_min_interp,
-                "min": par_max_interp
+                "max": par_max_interp,
+                "min": par_min_interp
             }
         else:
             print("Parameter", par, "not found in training info file for redshift", z)
@@ -302,6 +312,7 @@ def get_priors_gadget(z, model, verbose=False):
         priors_dict['bv']['min'] = max(0, priors_dict['bv']['min']) # bv should be positive or zero
         priors_dict['beta']['min'] = max(0, priors_dict['beta']['min']) # beta should be positive
         priors_dict['bias']['max'] = min(0, priors_dict['bias']['max']) # bias should be negative
+    
     return priors_dict
 
 def get_priors_gaikal(z):

@@ -73,6 +73,14 @@ def get_latex_label(parname):
         return r"k_C [Mpc^{-1}]"
     if parname == "pC":
         return r"p_C"
+    if parname == "b_SiIII":
+        return r"b_\mathrm{SiIII}"
+    if parname == "b_SiII":
+        return r"b_\mathrm{SiII}"
+    if parname == "beta_SiIII":
+        return r"\beta_\mathrm{SiIII}"
+    if parname == "beta_SiII":
+        return r"\beta_\mathrm{SiII}"
     
     else:
         return parname
@@ -267,13 +275,27 @@ def plot_chain_flattened(
     plt.clf()
 
 
-def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None, save=False, show_truth=False, show=True, outdir=None, show_priors=False,  show_bounds=False, show_best_fit=True):
+def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
+                   save=False, show_truth=False, show=True, outdir=None,
+                     show_priors=False,  show_bounds=False, show_best_fit=True,
+                     include_eff=False):
     gdnames = chain_data["par_names"]
     gdlabels = chain_data["par_labels"]
     chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
     gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
+    if include_eff:
+        # add the derived parameters:
+        # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
+        # we assume beta_H is 0.5
+        p = gdsamples.getParams()
+        b_eff = p.bias + p.b_H
+        beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
+        gdsamples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
+        gdsamples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
+
     g = plots.get_subplot_plotter()
     g.triangle_plot([gdsamples], filled=True)
+    
     for i, par in enumerate(free_params):
         # Diagonal (1D posterior)
         ax = g.subplots[i, i]
@@ -295,21 +317,7 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None, save=F
             if par.max_value is not None:
                 ax.axvline(par.max_value, color="blue", ls="--", lw=1)
         
-        if show_best_fit:
-            bestfit_dict = chain_bestfit_dict(chain_data, free_params, nburnin=nburnin, thin=thin)
-            if par.name in bestfit_dict:
-                bestfit_value = bestfit_dict[par.name]
-                ax.axvline(bestfit_value, color="red", ls="-", lw=1)
-                ax.text(
-                    0.95,
-                    0.95,
-                    f"Best fit: {bestfit_value:.3f}",
-                    transform=ax.transAxes,
-                    fontsize=8,
-                    verticalalignment="top",
-                    horizontalalignment="right",
-                    color="red",
-                )
+        
         print('here3')
         # Lower triangle (2D posteriors)
         for j in range(i):
@@ -348,7 +356,23 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None, save=F
                     ax.axhline(par_y.min_value, color="blue", ls="--", lw=1)
                 if par_y.max_value is not None:
                     ax.axhline(par_y.max_value, color="blue", ls="--", lw=1)
-                
+    for i, par in enumerate(gdsamples.getParamNames().list()):
+        ax = g.subplots[i, i]
+        if show_best_fit:
+            bestfit_dict = chain_bestfit_dict(chain_data, free_params, nburnin=nburnin, thin=thin, include_eff=include_eff)
+            if par in bestfit_dict:
+                bestfit_value = bestfit_dict[par]
+                ax.axvline(bestfit_value, color="red", ls="-", lw=1)
+                ax.text(
+                    0.95,
+                    0.95,
+                    f"Best fit: {bestfit_value:.3f}",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                    verticalalignment="top",
+                    horizontalalignment="right",
+                    color="red",
+                )
     if title is not None:
         g.fig.suptitle(title)
     g.finish_plot()
@@ -382,11 +406,11 @@ def save_chain(outdir, chain, free_params, log_prob=None, fname=None):
     
 
 
-def record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin):
+def record_mcmc_settings(outdir, nwalkers, max_nsteps, nburnin, iz):
     # these settings might be changed from the inference config based on how many cores were available to the script
     # we record the final settings used for the sampler in a yaml file in the output directory for reproducability
     settings = {"nwalkers": nwalkers, "max_nsteps": max_nsteps, "nburnin": nburnin}
-    with open(os.path.join(outdir, "mcmc_settings.yaml"), "w") as f:
+    with open(os.path.join(outdir, f"mcmc_settings_z{iz}.yaml"), "w") as f:
         yaml.dump(settings, f)
 
 
@@ -573,7 +597,7 @@ def plot_compare_corner(
 
     return g
 
-def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1):
+def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1, include_eff=False):
     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
     # flatten, thin, remove burnin
     chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
@@ -587,20 +611,31 @@ def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1):
         log_prob = chain_data["log_prob"][nburnin::thin]
         log_prob = log_prob.reshape(-1)
         samples = MCSamples(samples=chain, loglikes=-1*log_prob, names=chain_data["par_names"])
-        likestats = samples.getLikeStats()
+        if include_eff:
+            # add the derived parameters:
+            # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
+            # we assume beta_H is 0.5
+            p = samples.getParams()
+            b_eff = p.bias + p.b_H
+            beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
+            samples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
+            samples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
+
         bestfit_dict = {}
-        for i in range(len(free_params)):
-            bestfit_dict[free_params[i].name] = likestats.names[i].bestfit_sample
+        names = samples.getParamNames().list()
+        best_fit_dict = samples.getParamBestFitDict(best_sample=True, want_derived=True)
+        margestats = samples.getMargeStats()
+        for n in names:
+            par = margestats.parWithName(n)
+            bestfit_dict[n + "_mean"] = par.mean
+            bestfit_dict[n + "_err"] = par.err
+            bestfit_dict[n + "_err_low"] = par.limits[0].lower   # 68% limits
+            bestfit_dict[n + "_err_up"] = par.limits[0].upper
+            bestfit_dict[n] = best_fit_dict[n]
+
     return bestfit_dict
 
 def prune_flatten_chain(chain, nburnin=0, thin=1):
     chain = chain[nburnin::thin]
     chain = chain.reshape(-1, chain.shape[-1]) #assumes chain is from get_chain
     return chain
-
-# may want to do something like this later
-# def likestats(chain, free_params, nburnin=0):
-#     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
-#     samples = MCSamples(samples=chain, names=[p.name for p in free_params])
-    
-#     return samples.getLikeStats()

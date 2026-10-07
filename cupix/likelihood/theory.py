@@ -227,7 +227,9 @@ class Theory(object):
                 kp_Mpc=kp_Mpc, 
                 rt_Mpc=rt_Mpc,
                 p3d_func_kmu_Mpc=p3d_func_kmu,
-                p3d_k_Mpc_max=kmax_linP_Mpc
+                p3d_k_Mpc_max=kmax_linP_Mpc,
+                hankl_kt_Mpc_min=8e-6,
+                interp_rt_Mpc_min=0.005
         )
 
         return px
@@ -517,6 +519,7 @@ class Theory(object):
             **(self.cont_model.default_metal_params or {}),
             **(self.cont_model.default_sky_params or {}),
             **(self.cont_model.default_continuum_params or {}),
+            **(self.fid_cosmo.get_background_params() or {}),
         }
         return all_params
     
@@ -530,7 +533,13 @@ class Theory(object):
         
     def no_unrecognized_params(self, params):
         """ checks if any params are passed that aren't in the defaults somewhere."""
-        all_params_dict = self.all_set_default_params()
+        all_allowed_params_dict = self.all_set_default_params().copy()
+        if "Delta2_p" in all_allowed_params_dict.keys():
+            all_allowed_params_dict.pop("Delta2_p")
+        if "n_p" in all_allowed_params_dict.keys():
+            all_allowed_params_dict.pop("n_p")
+        
+        allowed_cosmo_params = ["As","ns","h","omch2","ombh2","mnu","w0","wa","omk"]
         for key in params.keys():
-            if key not in all_params_dict.keys():
+            if key not in all_allowed_params_dict.keys() and key not in allowed_cosmo_params:
                 raise ValueError(f"Parameter {key} not recognized in theory model parameters.")
