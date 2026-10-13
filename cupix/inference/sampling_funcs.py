@@ -107,14 +107,7 @@ def prepare_free_parameters(
         for par in free_param_names
         if par in allowed_lya_params() or par in allowed_igm_params()
     ]
-    free_param_names_cont = [
-        par
-        for par in free_param_names
-        if par in allowed_continuum_params()
-        or par in allowed_hcd_params()
-        or par in allowed_metal_params()
-        or par in allowed_sky_params()
-    ]
+    
     # input default values. # uniform priors only for the moment, don't add in Gaussian ones in case the user intent is not to include Gaussian priors.
     if "p1d" in default_lya_model.lower():
         if "igm" in default_lya_model.lower():
@@ -129,12 +122,12 @@ def prepare_free_parameters(
                 ini_value=prior_info["mean"][parname]
                 + shift_ini * prior_info["mean"][parname] * np.random.choice([-1, 1]),
                 true_value=prior_info["mean"][parname],
-                # gauss_prior_mean=prior_info["mean"][
-                #     parname
-                # ],  # note that this is only used in sampler
-                # gauss_prior_width=prior_info["std"][
-                    # parname
-                # ],  # note that this is only used in sampler
+                gauss_prior_mean=prior_info["mean"][
+                    parname
+                ],  # note that this is only used in sampler
+                gauss_prior_width=prior_info["std"][
+                    parname
+                ],  # note that this is only used in sampler
                 delta=0.1 * prior_info["std"][parname],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
@@ -156,12 +149,12 @@ def prepare_free_parameters(
                 ini_value=prior_info[parname]["mean"]
                 + shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
                 true_value=prior_info[parname]["mean"],
-                # gauss_prior_mean=prior_info[parname][
-                #     "mean"
-                # ],  # note that this is only used in sampler
-                # gauss_prior_width=prior_info[parname][
-                #     "std"
-                # ],  # note that this is only used in sampler
+                gauss_prior_mean=prior_info[parname][
+                    "mean"
+                ],  # note that this is only used in sampler
+                gauss_prior_width=prior_info[parname][
+                    "std"
+                ],  # note that this is only used in sampler
                 delta=0.1 * prior_info[parname]["std"],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
@@ -177,12 +170,12 @@ def prepare_free_parameters(
                 ini_value=prior_info[parname]["mean"]
                 + shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
                 true_value=prior_info[parname]["mean"],
-                # gauss_prior_mean=prior_info[parname][
-                #     "mean"
-                # ],  # note that this is only used in sampler
-                # gauss_prior_width=prior_info[parname][
-                #     "std"
-                # ],  # note that this is only used in sampler
+                gauss_prior_mean=prior_info[parname][
+                    "mean"
+                ],  # note that this is only used in sampler
+                gauss_prior_width=prior_info[parname][
+                    "std"
+                ],  # note that this is only used in sampler
                 delta=0.1 * prior_info[parname]["std"],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
@@ -194,13 +187,19 @@ def prepare_free_parameters(
             par.max_value = params_config[par.name].get("max_value", par.max_value)
             par.ini_value = params_config[par.name].get("ini_value", par.ini_value)
             par.true_value = params_config[par.name].get("true_value", par.true_value)
-            par.gauss_prior_mean = params_config[par.name].get(
-                "gauss_prior_mean", par.gauss_prior_mean
-            )
-            par.gauss_prior_width = params_config[par.name].get(
-                "gauss_prior_width", par.gauss_prior_width
-            )
+            if params_config[par.name].get("par.add_gauss") in [False, None]:
+                # remove the gauss_prior_mean and gauss_prior_width
+                par.gauss_prior_mean = None
+                par.gauss_prior_width = None
+            elif params_config[par.name].get("par.add_gauss"):
+                par.gauss_prior_mean = params_config[par.name].get(
+                    "gauss_prior_mean", par.gauss_prior_mean
+                )
+                par.gauss_prior_width = params_config[par.name].get(
+                    "gauss_prior_width", par.gauss_prior_width
+                )
             par.delta = params_config[par.name].get("delta", par.delta)
+
     for parname in params_config:  # create the FreeParam object for any missing ones. This is the case when default_lya_model is None and for any contaminant params.
         
         if (parname not in [par.name for par in free_params_list]) and (
@@ -634,6 +633,30 @@ def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1, include_eff
             bestfit_dict[n] = best_fit_dict[n]
 
     return bestfit_dict
+
+def latex_table(chain_data, free_params, nburnin=500, thin=1, include_eff=False):
+    """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
+    # flatten, thin, remove burnin
+    chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
+    # load as an MCSamples object
+    log_prob = chain_data["log_prob"][nburnin::thin]
+    log_prob = log_prob.reshape(-1)
+    samples = MCSamples(samples=chain, loglikes=-1*log_prob, names=chain_data["par_names"])
+    if include_eff:
+        # add the derived parameters:
+        # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
+        # we assume beta_H is 0.5
+        p = samples.getParams()
+        b_eff = p.bias + p.b_H
+        beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
+        samples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
+        samples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
+
+    # table = samples.getTable(include_bestfit=True)
+    for param in samples.getParamNames().list():
+        print(samples.getInlineLatex(param))
+        
+    return #table
 
 def prune_flatten_chain(chain, nburnin=0, thin=1):
     chain = chain[nburnin::thin]

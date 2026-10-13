@@ -209,7 +209,7 @@ class Likelihood(object):
             extra_model_px = self.get_convolved_px(params=extra_params)
         # plot all theta on one, easily distinguishable colors
         plt.rcParams.update({'font.size': 20})
-        colors = plt.cm.tab10(np.linspace(0, 1, Nt_A))
+        colors = plt.cm.tab20(np.linspace(0, 1, Nt_A))
         fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
         skip = 1
         if every_other_theta:
@@ -234,7 +234,7 @@ class Likelihood(object):
             label = r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[it_A])
             errors = np.diag(np.squeeze(self.data.cov_ZAM[self.iz, it_A, :, :]))**0.5
             div = errors
-            divname = 'errors'
+            divname = r'$\sigma$'
             ax[0].errorbar(k_M, self.data.Px_ZAM[self.iz, it_A, :]*factor,
                            errors*factor, label=label, color=colors[it_A],
                            linestyle='none', marker='^', markersize=5)
@@ -286,7 +286,7 @@ class Likelihood(object):
         if title is not None:
             plt.suptitle(title)
 
-        handles.append(plt.Line2D([], [], color='black', marker='o', linestyle='none', label=datalabel))
+        handles.append(plt.Line2D([], [], color='black', marker='^', linestyle='none', label=datalabel))
         handles.append(plt.Line2D([], [], color='black', linestyle='solid', label=theorylabel))
         if extra_params is not None:
             if extra_label is None:
@@ -297,7 +297,7 @@ class Likelihood(object):
             ax[0].text(0.35, 0.95, f'Fit prob = {prob:.2f}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         if include_chi2:
             chi2 = self.get_chi2(params=params)
-            ndata = self.get_ndata()
+            ndata = self.get_ndata(n_free_p=n_free_p)
             ax[0].text(0.45, 0.9, rf'$\chi^2/n_\mathrm{{dof}}$ = {chi2:.1f}/{ndata}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         ax[0].legend(handles=handles, loc='upper right', fontsize=12, ncol=1)
         plt.tight_layout()

@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.5
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %%
@@ -31,8 +31,8 @@ from cupix.inference.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-fname = basedir + "/wp1d/BALs_weighted_to_zero/bf3_binned_out_px-zbins_4-thetabins_10_w_res_wp1d.hdf5"
-data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.5, 'kM_max_cut_AA':1.5, 'km_max_cut_AA':1.7, 'theta_min_cut_arcmin':8.0})
+fname = basedir + "/wp1d/BALs_weighted_to_zero/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
+data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.5, 'kM_max_cut_AA':1.5, 'km_max_cut_AA':1.7, 'theta_min_cut_arcmin':13.0})
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -44,7 +44,9 @@ theta_A_min = data.theta_min_A_arcmin
 theta_A_max = data.theta_max_A_arcmin
 
 # %%
-print(theta_A_min)
+print(theta_A_max)
+
+# %%
 
 # %%
 cosmo = cosmology.Cosmology()
@@ -67,8 +69,12 @@ for iz, z in enumerate(data.z):
 
 
 # %%
+likes_withsky[0].get_convolved_px()
+
+# %%
 for iz, z in enumerate(data.z): 
-    likes_withsky[iz].plot_px(multiply_by_k=False, theorylabel="model with sky residuals", datalabel='DESI DR2 (z={})'.format(z), include_probability=False, include_chi2=True, title=)
+    
+    likes_withsky[iz].plot_px(multiply_by_k=False, theorylabel="model with sky residuals", datalabel='DESI DR2 (z={})'.format(z), include_probability=False, include_chi2=True)
     likes_nosky[iz].plot_px(multiply_by_k=False, theorylabel="model without sky residuals", datalabel='DESI DR2 (z={})'.format(z), include_probability=False, include_chi2=True)
 
 # %%
