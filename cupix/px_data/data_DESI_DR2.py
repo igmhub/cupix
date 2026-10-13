@@ -20,12 +20,15 @@ class DESI_DR2(BaseDataPx):
         km_min_cut_AA=config.get('km_min_cut_AA', None)
         km_max_cut_AA=config.get('km_min_cut_AA', None)
         self.filepath = config.get('data_file', None)
+        
         if self.filepath is None:
             raise ValueError("Please provide a filepath to the DESI DR2 data file in the config.")
         # read redshifts, wavenumbers, power spectra and covariance matrices
         k_m, k_M_edges, theta_min_a, theta_max_a, theta_min_A, theta_max_A, zbin_centers, N_fft, L_fft, B_A_a = self.read_from_file()
         Nz = len(zbin_centers)
         Nk_M = len(k_M_edges)-1 # assume all same k_M_edges for different z, although we will expand this to a 2D array for flexibility in kmin / kmax cut with z
+        if "unbin" in self.filepath:
+            Nk_M = len(k_M_edges) # if unbinned, for some reason, the edges has one more bin
         Ntheta_A = len(theta_min_A)
         Ntheta_a = len(theta_min_a)
         # store the data as a 3D array of (Nz, Ntheta, Nk)
@@ -35,7 +38,6 @@ class DESI_DR2(BaseDataPx):
             for A in range(Ntheta_A):
                 Px_ZAM[iz, A, :] = self.get_Px_z_T(iz, A)
                 cov_ZAM[iz, A, :, :] = self.get_cov_matrix_z_T(iz, A)
-        
         # store the window matrices
         Nk_m = len(k_m)
         U_ZaMn = np.zeros((Nz, Ntheta_a, Nk_M, Nk_m))

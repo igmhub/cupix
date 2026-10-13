@@ -7,13 +7,17 @@ import forestflow
 from forestflow import priors
 from forestflow.P3D_cINN import P3DEmulator
 from cupix.utils.utils import get_path_repo
-
+from lace.cosmo import cosmology
+from lace.cosmo.thermal_broadening import thermal_broadening_kms
+from scipy.interpolate import CubicSpline
 
 def lya_params_from_forestflow_params(ff_params):
     lya_params = ff_params.copy()
     lya_params['kp_Mpc'] = lya_params.pop('kp')
     kvav = lya_params.pop('kvav')
     lya_params['kv_Mpc'] = np.exp( np.log(kvav) / lya_params['av'] )
+    if lya_params['bias'] > 0: # some versions of Forestflow might output a positive bias
+        lya_params['bias'] = -1.0 * lya_params['bias'] # change sign to match cupix convention
     return lya_params
 
 
@@ -44,9 +48,17 @@ class LyaModel(object):
             self.default_igm_params = self.get_default_igm_params(config)
             self.default_lya_params = None
             # setup emulator
-            emulator_label = config.get('emulator_label', 'forest_mpg')
-            Nrealizations = config.get('Nrealizations', 3000)
-            self.emulator = self.get_emulator(emulator_label, Nrealizations)
+            self.emulator_label = config.get('emulator_label', 'forest_mpg')
+            self.Nrealizations = config.get('Nrealizations', 3000)
+            self.delayload_emulator = config.get('delay_load_emu', False)
+            if not self.delayload_emulator:
+                self.emulator = self.get_emulator(self.emulator_label, self.Nrealizations)
+                # self.hull = self.get_convex_hull()
+            else:
+                self.emulator = None
+                # self.hull = None
+                
+
         elif 'arinyo' in self.default_lya_model:
             # default values of Lya params (bias, beta, arinyo)
             self.default_lya_params = self.get_default_lya_params(config)
@@ -69,6 +81,13 @@ class LyaModel(object):
             igm_params = {par: prior_info[par]['mean'] for par in prior_info}
         else:
             raise ValueError("unknown default_lya_model", self.default_lya_model)
+        
+        if 'gaikal' in self.default_lya_model.lower(): # fix particular params
+            prior_info_gaikal = get_priors_gaikal(z=self.z)
+            for par in prior_info_gaikal:
+                # replace with Gaikal+ 2021 values for T0 and gamma
+                igm_params[par] = prior_info_gaikal[par]['mean']
+        
         # update parameters if present in config
         for par in igm_params:
             if par in config:
@@ -156,7 +175,7 @@ class LyaModel(object):
             for key in lya_params:
                 if key in params:
                     lya_params[key] = params[key]
-
+        assert lya_params['bias'] < 0, "Lya bias must be negative."
         return lya_params
     
     def emulate_lya_params(self, cosmo, igm_params):
@@ -168,6 +187,8 @@ class LyaModel(object):
         emu_params['gamma'] = igm_params['gamma']
         emu_params['sigT_Mpc'] = igm_params['sigT_Mpc']
         emu_params['kF_Mpc'] = igm_params['kF_Mpc']
+        # emu_params['Delta2_p'] = igm_params['Delta2_p']
+        # emu_params['n_p'] = igm_params['n_p']
         ### MARTINE: these lines are no longer needed if our defualts are sigT_Mpc already. commenting them in case we want in the future again. ###
         # these igm params are not in the correct units for the emulator
         # dkms_dMpc = cosmo.get_dkms_dMpc(self.z)
@@ -206,9 +227,50 @@ class LyaModel(object):
             elif 'arinyo' in self.default_lya_model:
                 for par in allowed_igm_params():
                     assert par not in params, f"you cannot provide igm parameter {par} if default_lya_model is an arinyo model"
-            
-            
-def get_priors_gadget(z, model, verbose=False):
+
+    def get_convex_hull(self):
+        """ sets up the convex hull from training simulations for the case of igm parameters """
+        from scipy.spatial import ConvexHull        
+        from forestflow.archive import GadgetArchive3D
+        igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc', 'T0']
+        if self.emulator_label == 'forest_mpg':
+            # Figure out the ForestFlow training central simulation
+            path_program = get_path_repo("forestflow")
+            Archive3D = GadgetArchive3D(
+                path_program
+            )
+            sim_dict_central =  Archive3D.get_testing_data("mpg_central")
+            training_data = Archive3D.training_data
+            gadget_zs = []
+            for sim_z in sim_dict_central:
+                gadget_zs.append(sim_z['z']) # save the redshifts
+            gadget_zs = np.asarray(gadget_zs)
+            sim_select_i = np.argmin(np.abs(gadget_zs - self.z)) # get the closest sim
+            points = []
+
+            nsims = int(len(training_data) / len(gadget_zs))
+            nz = len(gadget_zs)
+            for i in range(nsims):
+                nsim = int(i * nz + sim_select_i)
+                points_thissim = []
+                for par in igm_pars:
+                    points_thissim.append(training_data[nsim][par])
+                points.append(points_thissim)
+            points = np.asarray(points)
+            self.hull = ConvexHull(points)
+        else:
+            raise NotImplementedError("implement emulator_label", self.emulator_label)
+
+
+    def in_hull(self, params):
+        """ Ensures that the parameters are within the convex hull the emulator was trained with. """
+
+        return
+
+
+def get_priors_gadget(z, model, verbose=False, extra_params=[]):
+    ''' Get the min/max values for the gadget simulations. If you pass named_param,
+    you will only get the min/max for that param.'''
     igm_parnames = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc']
     ff_parnames = ['bias', 'beta', 'q1', 'kvav', 'av', 'bv', 'kp', 'q2']
     if 'igm' in model:
@@ -221,19 +283,24 @@ def get_priors_gadget(z, model, verbose=False):
     gadget_short_info_file = get_path_repo('cupix') + '/data/emulator/ff_training_info.csv'
     train_test_info = pd.read_csv(gadget_short_info_file)
     # set up a smooth function of z for the mean, min, and max values of desired params
-    z_all = train_test_info['z']
+    z_all = train_test_info['z'].to_numpy()    
+    sortidx = np.argsort(z_all)
+    z_all = z_all[sortidx]
     priors_dict = {}
-    for par in parnames:
+    for par in parnames+extra_params:
         if par+"_central" in train_test_info.columns:
-            par_central_interp = np.interp(z, z_all, train_test_info[par+"_central"])
-            par_min_interp = np.interp(z, z_all, train_test_info[par+"_min"])
-            par_max_interp = np.interp(z, z_all, train_test_info[par+"_max"])
+            cs_central = CubicSpline(z_all, train_test_info[par+"_central"][sortidx])
+            cs_min = CubicSpline(z_all, train_test_info[par+"_min"][sortidx])
+            cs_max = CubicSpline(z_all, train_test_info[par+"_max"][sortidx])
+            par_central_interp = cs_central(z)
+            par_min_interp = cs_min(z)
+            par_max_interp = cs_max(z)
             if verbose: print(f"for parameter {par}, interpolated central value is {par_central_interp}, min is {par_min_interp}, max is {par_max_interp}")
             priors_dict[par] = {
                 "mean": par_central_interp,
                 "std": 0.5*(par_max_interp - par_min_interp), # approximation
-                "max": par_min_interp,
-                "min": par_max_interp
+                "max": par_max_interp,
+                "min": par_min_interp
             }
         else:
             print("Parameter", par, "not found in training info file for redshift", z)
@@ -245,6 +312,41 @@ def get_priors_gadget(z, model, verbose=False):
         priors_dict['bv']['min'] = max(0, priors_dict['bv']['min']) # bv should be positive or zero
         priors_dict['beta']['min'] = max(0, priors_dict['beta']['min']) # beta should be positive
         priors_dict['bias']['max'] = min(0, priors_dict['bias']['max']) # bias should be negative
+    
+    return priors_dict
+
+def get_priors_gaikal(z):
+    """ Gaikal+ 2021 IGM parameters """
+    # From Table 2 in https://arxiv.org/pdf/2009.00016:
+    zs = np.array([2.2, 2.4, 2.6, 2.8])
+    T0 = np.array([11000, 12750, 13500, 14750])
+    T0_errs = np.array([1028, 1132, 1390, 1341])
+    gamma = np.array([1.425, 1.325, 1.275, 1.250])
+    gamma_errs = np.array([0.133, 0.122, 0.122, 0.109])
+    # set up a smooth function of z for the mean, min, and max values of desired params
+    T0_interp = np.interp(z, zs, T0)
+    T0_err_interp = np.interp(z, zs, T0_errs)
+    
+    # convert T0 to sigmaT
+    # just use a Planck 18 cosmo
+    cosmo = cosmology.Cosmology()
+    dkms_dMpc = cosmo.get_dkms_dMpc(z)
+    sigT_kms = thermal_broadening_kms(T0_interp)
+    sigT_Mpc = sigT_kms / dkms_dMpc
+    sigT_kms_err = thermal_broadening_kms(T0_interp + T0_err_interp) - sigT_kms
+    sigT_Mpc_err = sigT_kms_err / dkms_dMpc
+    gamma_interp = np.interp(z, zs, gamma)
+    gamma_err_interp = np.interp(z, zs, gamma_errs)
+    priors_dict = {'sigT_Mpc':{}, 'gamma':{}}
+    priors_dict['sigT_Mpc']['mean'] = sigT_Mpc
+    priors_dict['sigT_Mpc']['std'] = T0_err_interp
+    priors_dict['sigT_Mpc']['min'] = T0_interp - 5*sigT_Mpc_err
+    priors_dict['sigT_Mpc']['max'] = T0_interp + 5*sigT_Mpc_err
+    priors_dict['gamma']['mean'] = gamma_interp
+    priors_dict['gamma']['std'] = gamma_err_interp
+    priors_dict['gamma']['min'] = gamma_interp - 5*gamma_err_interp
+    priors_dict['gamma']['max'] = gamma_interp + 5*gamma_err_interp
+
     return priors_dict
 
 def get_priors_colore(z, as_lyaparams=False):
@@ -324,7 +426,7 @@ def no_conflicting_params(config):
     
     
     if 'default_lya_model' in config:
-        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"
         # make sure the default lya model does not conflict with input parameters
         if 'igm' in config['default_lya_model']:
             for par in allowed_lya_params():
@@ -340,4 +442,4 @@ def no_conflicting_params(config):
 
 def no_unrecognized_default_models(config):
     if 'default_lya_model' in config:
-        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'pressure_only_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central'"   
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'pressure_only_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"   

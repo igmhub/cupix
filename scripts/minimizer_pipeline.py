@@ -42,11 +42,12 @@ inf_config.print_all()
 outdir = create_output_directory(inf_config, runname)
 print("Outputs will be saved to", outdir)
 # copy the run config into the outdir
-shutil.copy(setup_config_path, os.path.join(outdir, 'setup_config_mini.yaml'))
-shutil.copy(inf_config_path, os.path.join(outdir, 'inference_config_mini.yaml'))
+shutil.copy(setup_config_path, outdir)
+shutil.copy(inf_config_path, outdir)
 
 data = DESI_DR2(setup_config.data_config)
-iz = setup_config.theory_config['iz']
+iz = setup_config.like_config['iz']
+print("Chose redshift bin ", iz)
 z = data.z[iz]
 
 # update config class with a use_truth option that could replace the cosmo and theory params with forecast values if it is a forecast and use_truth is True
@@ -64,10 +65,14 @@ like = Likelihood(data=data, theory=theory, iz=iz,
 free_param_names = list(inf_config.params_config.keys())
 free_params = prepare_free_parameters(free_param_names, theory, setup_config.theory_config, params_config=inf_config.params_config)
 
+fixed_params = inf_config.post_config['fixed_params'] # dictionary
+print(fixed_params)
+
+
 for par in free_params:
     print("Free parameters are: (name, ini_value, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
 
-post = Posterior(like, free_params, config=inf_config.post_config)
+post = Posterior(like, free_params, config=inf_config.post_config, fixed_params=fixed_params)
 
 minimizer_start = time.time()
 
@@ -76,7 +81,7 @@ mini.silence()
 mini.minimize()
 minimizer_end = time.time()
 print("Time to run sampler: %.2f seconds" % (minimizer_end - minimizer_start))
-mini.save_results(outdir=outdir) # will save to file called iminuit_results.npz
-mini.plot_ellipses('bias', 'kp_Mpc')
+mini.save_results(outdir=outdir, outfile=f'iminuit_results_{iz}') # will save to file called iminuit_results.npz
+mini.plot_ellipse('bias', 'beta', outdir = outdir, outfile=f'bias_beta_z{iz}.png', title=f'z={iz}')
 mini.print_results()
-mini.plot_best_fit(outdir=outdir)
+mini.plot_best_fit(outdir=outdir, outfile=f'bias_beta_z{iz}.png', multiply_by_k=False, title=f'z={iz}', include_chi2=True)

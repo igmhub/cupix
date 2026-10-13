@@ -13,7 +13,7 @@ This repository currently uses the ForestFlow emulator (https://github.com/igmhu
 
 - Download and install Conda. You can find the instructions here https://docs.anaconda.com/miniconda/miniconda-install/
 
-- Create a new conda environment. In July 2025, we recommend to use Python 3.10 or 3.11.
+- Create a new conda environment. In July 2026, we recommend to use Python 3.12.
 
 ```
 conda create -n cupix -c conda-forge python=3.11 camb mpi4py

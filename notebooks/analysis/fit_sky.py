@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -37,7 +37,7 @@ from cupix.inference.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
+fname = basedir + "/wp1d/BALs_weighted_to_zero/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.5, 'kM_max_cut_AA':1.0, 'km_max_cut_AA':1.2, 'theta_min_cut_arcmin':10.0})
 
 # %%
@@ -118,12 +118,22 @@ for par in free_params:
 config={'verbose': True, 'include_hcd': False, 'include_metal': False,
         'include_sky': True, 'include_continuum': True}
 minis = []
+likes = []
 for iz, z in enumerate(data.z): 
     theory = Theory(z=z, fid_cosmo=cosmo, config=config)
     like = Likelihood(data=data, theory=theory, iz=iz, config={'verbose':True})
+    likes.append(like)
     post = Posterior(like, free_params, config={'verbose': True})
     mini = Minimizer(post, config={'verbose':True}) 
     minis.append(mini)
+
+# %%
+rT = np.linspace(0, 30, 30)
+kp = np.linspace(0.5, 1.0, 10)
+Px_sky = likes[0].theory.get_px_sky_Mpc(rT, kp)
+print(Px_sky.shape)
+for t, theta in enumerate(rT):
+    plt.plot(kp, Px_sky[t,:], label=f'theta={theta:.1f} Mpc')
 
 # %%
 for mini in minis:
@@ -139,6 +149,37 @@ for mini in minis:
     best_fit = mini.get_best_fit_params()
     print('best fit chi2 and params')
     print(z, Ndp, chi2, best_fit)
+
+
+# %%
+for mini in minis:
+    mini.print_results()
+
+# %%
+# and if we were to just use the defaults?
+for like in likes:
+    print(like.get_chi2(), like.get_probability())
+
+# %%
+config_nosky={'verbose': True, 'include_hcd': False, 'include_metal': False,
+        'include_sky': True, 'include_continuum': True}
+config_sky={'verbose': True, 'include_hcd': False, 'include_metal': False,
+        'include_sky': False, 'include_continuum': True}
+
+likes_nosky = []
+likes_sky = []
+
+for iz, z in enumerate(data.z): 
+    theory_nosky = Theory(z=z, fid_cosmo=cosmo, config=config_nosky)
+    theory_sky = Theory(z=z, fid_cosmo=cosmo, config=config_sky)
+    like_nosky = Likelihood(data=data, theory=theory_nosky, iz=iz, config={'verbose':True})
+    like_sky = Likelihood(data=data, theory=theory_sky, iz=iz, config={'verbose':True})
+    likes_nosky.append(like_nosky)
+    likes_sky.append(like_sky)
+
+# %%
+like_sky.plot_px(multiply_by_k=False, theorylabel="fit with sky", datalabel='DESI DR2 (z={})'.format(z))
+like_nosky.plot_px(multiply_by_k=False, theorylabel="fit without sky", datalabel='DESI DR2 (z={})'.format(z))
 
 # %%
 for mini in minis:
@@ -170,7 +211,7 @@ plt.errorbar(z, val, err, label='DESI DR2 Px')
 plt.xlabel('z')
 plt.ylabel('b_noise [Mpc]')
 plt.legend()
-plt.ylim([0.0,0.004])
+plt.ylim([0.0,0.008])
 #plt.axhline(y=0.00125)
 plt.tight_layout()
 plt.savefig('b_noise_z.png')

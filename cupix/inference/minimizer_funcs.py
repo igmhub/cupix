@@ -15,12 +15,12 @@ from cupix.inference.sampling_funcs import prepare_free_parameters
 from lace.cosmo import cosmology
 
 
-def load_mini_results(results_directory):
+def load_mini_results(results_directory, filename='iminuit_results.npz', setup_config_fname=None, inf_config_fname=None):
     """ Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
     # Martine note: I might change this to a class later, since there are a lot of items to be returned
     # load the chain
-    minires_fname = os.path.join(results_directory, "iminuit_results.npz")
+    minires_fname = os.path.join(results_directory, filename)
     
     # Load results file
     outfile = np.load(minires_fname)
@@ -28,10 +28,16 @@ def load_mini_results(results_directory):
     results_dict = {key: outfile[key] for key in outfile.files}
 
     # recreate the theory, posterior, and likelihood objects
-    setup_config = Config(os.path.join(results_directory, 'setup_config_mini.yaml'))
-    inf_config = InferenceConfig(os.path.join(results_directory, 'inference_config_mini.yaml'))
+    if setup_config_fname is None:
+        setup_config = Config(os.path.join(results_directory, 'setup_config_mini.yaml'))
+    else:
+        setup_config = Config(os.path.join(results_directory, setup_config_fname))
+    if inf_config_fname is None:
+        inf_config = InferenceConfig(os.path.join(results_directory, 'inference_config_mini.yaml'))
+    else:
+        inf_config = InferenceConfig(os.path.join(results_directory, inf_config_fname))
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.theory_config['iz']
+    iz = setup_config.like_config['iz']
     z = data.z[iz]
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
@@ -52,7 +58,10 @@ def plot_corner(results_dict,
             true_val_label="true value",
             figsize=None,
             color="C0",
-            label=""):
+            label="",
+            title=None,
+            outdir=None,
+            outfile=None):
     """
     Gaussian corner plot from best-fit values and covariance.
 
@@ -199,6 +208,12 @@ def plot_corner(results_dict,
 
     fig.tight_layout()
 
+    if outdir is not None:
+        if outfile is None:
+            plt.savefig(os.path.join(outdir, "corner.png"))
+        else:
+            plt.savefig(os.path.join(outdir, outfile))
+        
     return fig, axes
 
 def plot_ellipse(
@@ -211,8 +226,16 @@ def plot_ellipse(
     label=None,
     true_vals=None,
     true_val_label="true value",
-    xrange=None,
-    yrange=None
+    xlim=None,
+    ylim=None,
+    outdir=None,
+    outfile=None,
+    title=None,
+    xlabel=None,
+    ylabel=None,
+    fill=True,
+    linestyle='solid',
+    include_point = True
 ):
     """
     Plot covariance ellipse using a flat results_dict.
@@ -272,6 +295,10 @@ def plot_ellipse(
     # draw ellipses
     # -------------------------
     for isig in range(1, nsig + 1):
+        if isig==1:
+            inputlabel=label
+        else:
+            inputlabel=""
         ell = Ellipse(
             (val_x, val_y),
             width=2 * isig * a,
@@ -279,10 +306,14 @@ def plot_ellipse(
             angle=angle_deg,
             color=color,
             alpha=0.6 / isig,
+            fill=fill,
+            linestyle=linestyle,
+            label=inputlabel
         )
         ax.add_patch(ell)
 
-    ax.plot(val_x, val_y, "o", color=color, label=label)
+    if include_point:
+        ax.plot(val_x, val_y, "o", color=color)
 
     # truth values
     if true_vals is not None:
@@ -292,21 +323,34 @@ def plot_ellipse(
     # -------------------------
     # axis limits
     # -------------------------
-    if xrange is None:
+    if xlim is None:
         ax.set_xlim(val_x - (nsig + 1) * sig_x, val_x + (nsig + 1) * sig_x)
     else:
-        ax.set_xlim(xrange)
-    if yrange is None:
+        ax.set_xlim(xlim)
+    if ylim is None:
         ax.set_ylim(val_y - (nsig + 1) * sig_y, val_y + (nsig + 1) * sig_y)
     else:
-        ax.set_ylim(yrange)
+        ax.set_ylim(ylim)
 
-    ax.set_xlabel(pname_x)
-    ax.set_ylabel(pname_y)
+    if xlabel is not None:
+        ax.set_xlabel(xlabel) #rf"${latex_label_x}$"
+    else:
+        ax.set_xlabel(pname_x)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)# rf"${ylabel}$"
+    else:
+        ax.set_ylabel(pname_y)
     # if there are any labels, set legend
     if label is not None or (true_vals is not None and true_val_label is not None):
         ax.legend()
-
+    if title is not None:
+        ax.set_title(title)
+    if outdir is not None:
+        if outfile is None:
+            plt.savefig(os.path.join(outdir, f"{pname_x}_{pname_y}.png"))
+        else:
+            plt.savefig(os.path.join(outdir, outfile))
+        
     return ax
 
 def save_analysis_npz(results, filename="analysis_results.npz"):
@@ -326,3 +370,62 @@ def save_analysis_npz(results, filename="analysis_results.npz"):
     np.savez(filename, **out, allow_pickle=True)
 
 
+
+def plot_best_fit(
+        results_dict,
+        free_params,
+        like,
+        multiply_by_k=True,
+        every_other_theta=False,
+        show=True,
+        theorylabel=None,
+        datalabel=None,
+        plot_fname=None,
+        ylim=None,
+        xlim=None,
+        ylim2=None,
+        title=None,
+        residual_to_theory=False,
+        extra_params=None,
+        extra_label=None,
+        include_chi2=False,
+        include_probability=False,
+        outdir=None,
+        out_fname=None,
+    ):
+        """Plot best-fit PX vs data."""
+
+        # obtain dictionary of best-fit parameters (will minimize if needed)
+        params = {}
+        
+        for par in free_params:
+            params[par.name] = results_dict[par.name]
+        
+        # add fixed parameters in the posterior
+        # params.update(self.post.fixed_params)
+
+        # use plotting tool in likelihood object to plot data and theory
+        like.plot_px(
+            params=params,
+            every_other_theta=every_other_theta,
+            multiply_by_k=multiply_by_k,
+            xlim=xlim,
+            ylim=ylim,
+            show=show,
+            theorylabel=theorylabel,
+            datalabel=datalabel,
+            plot_fname=plot_fname,
+            ylim2=ylim2,
+            title=title,
+            residual_to_theory=residual_to_theory,
+            extra_params=extra_params,
+            extra_label=extra_label,
+            include_probability=include_probability,
+            include_chi2=include_chi2,
+        )
+        if outdir is not None:
+            if out_fname is None:
+                plt.savefig(os.path.join(outdir, "best_fit_plot.png"))
+            else:
+                plt.savefig(os.path.join(outdir, out_fname))
+        return

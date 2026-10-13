@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -36,10 +36,17 @@ from cupix.inference.minimize_posterior import Minimizer
 # ## Step 1: Read the data from DESI DR2 and plot it
 
 # %%
-basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
+basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/"
 #fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_10_w_res.hdf5"
-fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
-data = DESI_DR2(config={'data_file':fname, 'kM_max_cut_AA':1.0, 'km_max_cut_AA':1.2, 'theta_min_cut_arcmin':1.5})
+# fname = basedir + "bf3_binned_out_px-zbins_4-thetabins_20_w_res.hdf5"
+fname = basedir + "/baseline/wp1d/BALs_weighted_to_zero/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
+fname_dropdla = basedir + "/baseline/wp1d/drop_DLAs/GP_plus_snrcut/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
+fname_nomaskdla = basedir + "no_DLA_masking/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
+kM_max_cut_AA = .7
+km_max_cut_AA = 1.1 * kM_max_cut_AA
+data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.03, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
+data_nodla = DESI_DR2(config={'data_file':fname_dropdla, 'kM_min_cut_AA':0.03, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
+data_nomaskdla = DESI_DR2(config={'data_file':fname_nomaskdla, 'kM_min_cut_AA':0.03, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':5})
 
 # %%
 # get the central value of each redshift bin, of length Nz
@@ -60,30 +67,39 @@ print(f"rebinned values: Nz={Nz}, Nt_A={Nt_A}, Nk_M={Nk_M}")
 
 
 # %%
-def plot_theta_bin(iz, it_M):
+def plot_theta_bin(data, iz, it_M, ls = 'solid'):
+    colors = plt.get_cmap('tab20')
     label = r"${:.2f}' < \theta < {:.2f}'$".format(theta_A_min[it_M], theta_A_max[it_M])
     # 1D array with measured Px, length Nk_M
     Px = data.Px_ZAM[iz][it_M]
     # get also errorbars
     sig_Px = np.sqrt(np.diagonal(data.cov_ZAM[iz][it_M]))
 #    print(len(k_M), len(Px), len(sig_Px))
-    plt.errorbar(k_M, Px, sig_Px, label=label)
+    plt.errorbar(k_M, Px, sig_Px, label=label, ls=ls, color=colors(it_M))
 
 
 # %%
-def plot_z_bin(iz, its_M):
-    for it_M in its_M:
-        plot_theta_bin(iz=iz, it_M=it_M)
+
+def plot_z_bin(data, iz, its_M, ls= 'solid', show_legend=True):
+    
+    for it_M in its_M[10:]:
+        plot_theta_bin(data=data, iz=iz, it_M=it_M, ls=ls)
     plt.title('DESI DR2 at z={:.1f}'.format(zs[iz]))
-    plt.legend()
+    if show_legend:
+        plt.legend(fontsize=10)
     plt.xlabel(r'$k_\parallel$ [1/A]')
     plt.ylabel(r'$P_\times(\theta, k_\parallel)$ [A]')
+    plt.xlim([0,0.2])
+    plt.ylim([0,0.02])
 
 
 # %%
 for iz in range(4):
     plt.figure(figsize=[8,3])
-    plot_z_bin(iz=iz, its_M=range(Nt_A))
+    plot_z_bin(data, iz=iz, its_M=range(Nt_A))
+    plot_z_bin(data_nodla, iz=iz, its_M = range(Nt_A), ls='dashed', show_legend=False)
+    plot_z_bin(data_nomaskdla, iz=iz, its_M = range(Nt_A), ls='dotted', show_legend=False)
+
 
 # %% [markdown]
 # ## Step 2: setup theory objects, with and without contaminants (one per z)
@@ -95,11 +111,13 @@ cosmo = cosmology.Cosmology()
 # %%
 theories_lya = []
 theories_cont = []
+iz = 0
 for z in zs:
-    theories_lya.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False}))
+    theories_lya.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 'default_lya_model':'best_fit_arinyo_from_p1d'}))
     theories_cont.append(Theory(z=z, fid_cosmo=cosmo, config={'verbose': False, 
                                                             'include_hcd': True, 'include_metal': True,
-                                                            'include_sky': True, 'include_continuum': True} ))
+                                                            'include_sky': True, 'include_continuum': True, 'default_lya_model':'best_fit_arinyo_from_p1d'} ))
+    iz += 1
 
 # %% [markdown]
 # ## Step 3: create Likelihoods and compare data vs theory (no fits)
@@ -155,7 +173,7 @@ for iz, z in enumerate(zs):
 # set the likelihood parameters as the Arinyo params with some fiducial values
 bias = FreeParameter(
     name='bias',
-    min_value=-0.5,
+    min_value=-0.3,
     max_value=-0.01,
     ini_value=-0.15,
     delta=0.01,   
@@ -167,32 +185,72 @@ beta = FreeParameter(
     ini_value=1.5,
     delta=0.1,
 )
-free_params = [bias, beta]
+# q1 = FreeParameter(
+#     name='q1',
+#     min_value=0.1,
+#     max_value=2.0,
+#     ini_value=0.5,
+#     delta=0.1,
+# )
+bH = FreeParameter(
+    name='b_H',
+    min_value=-0.15,
+    max_value=0.0,
+    ini_value=-0.014,
+    delta=0.002,
+)
+bX = FreeParameter(
+    name='b_X',
+    min_value=-0.015,
+    max_value=-0.001,
+    ini_value=-0.007,
+    delta=0.001,
+)
+
+free_params = [bias, beta, bH, bX]
 for par in free_params:
     print(par.name, par.ini_value)
 
 # %%
 # do this only for one z bin
-fit_iz=1
-post_lya = Posterior(likes_lya[fit_iz], free_params, config={'verbose': True})
+fit_iz=0
+# post_lya = Posterior(likes_lya[fit_iz], free_params, config={'verbose': True})
 post_cont = Posterior(likes_cont[fit_iz], free_params, config={'verbose': True})
-mini_lya = Minimizer(post_lya, config={'verbose':True})
+# mini_lya = Minimizer(post_lya, config={'verbose':True})
 mini_cont = Minimizer(post_cont, config={'verbose':True})
 
 # %%
-mini_lya.silence()
-mini_lya.minimize()
+# mini_lya.silence()
+# mini_lya.minimize()
 
 # %%
 mini_cont.silence()
 mini_cont.minimize()
 
 # %%
-# number of data points (per z bin)
-Ndp = Nt_A * Nk_M
-chi2_lya = mini_lya.get_best_fit_chi2()
-chi2_cont = mini_cont.get_best_fit_chi2()
-print(Ndp, chi2_lya, chi2_cont)
+mini_cont.print_results()
+
+# %%
+theories_cont[0].get_param('b_X')
+
+# %%
+likes_cont[0].plot_px(include_chi2=True, multiply_by_k=False, params={'bias':-0.0958, 'beta':1.6929, 'b_H':-0.04, 'b_X':-0.015})
+
+# %%
+mini_cont.plot_best_fit(include_chi2=True, multiply_by_k=False)
+
+# %%
+mini_cont.plot_ellipse('bias','beta')
+
+# %%
+mini_cont.plot_corner(show_truth=False)
+
+# %%
+mini_cont.save_results(outdir="/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/july_baseline/", outfile=f"mini_biasbetabHbX_defaultcont_propersky_z{fit_iz}")
+
+# %%
+# read all results from directory
+
 
 # %% [markdown]
 # ## Step 5: fit for contaminants

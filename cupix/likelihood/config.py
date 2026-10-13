@@ -3,16 +3,23 @@ from cupix.likelihood import model_lya, model_contaminants
 
 # Read yaml config files and create dictionaries
 class Config(object):
-    " Config class, reads yaml files and creates dictionaries "
+    " Config class, reads yaml files or dictionaries and creates Config object "
     def __init__(
         self,
-        yaml_file
+        yaml_file=None,
+        dictionary=None
     ):
-        with open(yaml_file) as stream:
-            try:
-                self.data = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
+        assert not (yaml_file is None and dictionary is None), "Must provide either a yaml file or dictionary."
+        
+        if yaml_file is not None:
+            assert dictionary is None, "Cannot provide both yaml file and dictionary."
+            with open(yaml_file) as stream:
+                try:
+                    self.data = yaml.safe_load(stream)
+                except yaml.YAMLError as exc:
+                    print(exc)
+        elif dictionary is not None:
+            self.data = dictionary
 
 
         self.verbose_all = self.data.get('verbose_all', None)

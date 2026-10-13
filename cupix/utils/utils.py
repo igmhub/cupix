@@ -91,14 +91,14 @@ def get_path_repo(name_repo):
     Returns the file path to the root directory of a specified repository.
 
     This function checks the name of the repository and imports the corresponding module
-    (`cupix` or `lace`) to obtain the directory path. If the repository name matches a part
+    (`cupix`, `lace`, or 'forestflow') to obtain the directory path. If the repository name matches a part
     of the path, it returns the path directly; otherwise, it appends the repository name to the
     path and returns the resulting full path.
 
     Parameters:
     ----------
     name_repo : str
-        The name of the repository. Expected values are "cupix" or "lace".
+        The name of the repository. Expected values are "cupix", "lace", "forestflow".
 
     Returns:
     -------
@@ -123,10 +123,14 @@ def get_path_repo(name_repo):
         import lace
 
         path = os.path.dirname(lace.__path__[0])
+    elif name_repo == "forestflow":
+        import forestflow
+
+        path = os.path.dirname(forestflow.__path__[0])
     else:
         raise ImportError(
             name_repo
-            + " is not a valid repository name. Expected values are 'cupix' or 'lace'."
+            + " is not a valid repository name. Expected values are 'cupix', 'forestflow' or 'lace'."
         )
 
     # if name_repo in path:
