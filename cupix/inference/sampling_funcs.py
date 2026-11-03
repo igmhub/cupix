@@ -8,18 +8,15 @@ from getdist import MCSamples, plots
 # ours
 from forestflow import priors
 from cupix.inference.free_parameter import FreeParameter
+from lace.cosmo.thermal_broadening import T0_from_broadening_kms
+
 from cupix.likelihood.model_lya import (
     get_priors_gadget,
     get_priors_colore,
     allowed_igm_params,
     allowed_lya_params,
 )
-from cupix.likelihood.model_contaminants import (
-    allowed_continuum_params,
-    allowed_hcd_params,
-    allowed_metal_params,
-    allowed_sky_params,
-)
+
 from cupix.likelihood.config import Config
 from cupix.inference.inference_config import InferenceConfig
 from cupix.likelihood.theory import Theory
@@ -138,6 +135,7 @@ def prepare_free_parameters(
         elif "arinyo" in default_lya_model.lower():
             prior_info = get_priors_gadget(z=z, model="arinyo")
         for parname in free_param_names_lyaigm:
+            # default to uniform priors
             this_param = FreeParameter(
                 name=parname,
                 min_value=prior_info[parname][
@@ -146,15 +144,8 @@ def prepare_free_parameters(
                 max_value=prior_info[parname][
                     "max"
                 ],  # note that this is only used in minimizer
-                ini_value=prior_info[parname]["mean"]
-                + shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
+                ini_value=prior_info[parname]["mean"], #+ shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
                 true_value=prior_info[parname]["mean"],
-                gauss_prior_mean=prior_info[parname][
-                    "mean"
-                ],  # note that this is only used in sampler
-                gauss_prior_width=prior_info[parname][
-                    "std"
-                ],  # note that this is only used in sampler
                 delta=0.1 * prior_info[parname]["std"],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
@@ -163,19 +154,13 @@ def prepare_free_parameters(
     elif "colore" in default_lya_model.lower():
         prior_info = get_priors_colore(z, as_lyaparams=True)
         for parname in free_param_names_lyaigm:
+            # default to uniform priors
             this_param = FreeParameter(
                 name=parname,
                 min_value=prior_info[parname]["min"],
                 max_value=prior_info[parname]["max"],
-                ini_value=prior_info[parname]["mean"]
-                + shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
+                ini_value=prior_info[parname]["mean"], #+ shift_ini * prior_info[parname]["mean"] * np.random.choice([-1, 1]),
                 true_value=prior_info[parname]["mean"],
-                gauss_prior_mean=prior_info[parname][
-                    "mean"
-                ],  # note that this is only used in sampler
-                gauss_prior_width=prior_info[parname][
-                    "std"
-                ],  # note that this is only used in sampler
                 delta=0.1 * prior_info[parname]["std"],  # Will set steps of minimizer
                 latex_label=get_latex_label(parname),
             )
@@ -273,29 +258,63 @@ def plot_chain_flattened(
         plt.show()
     plt.clf()
 
+def add_derived(gdsamples, free_params, derived_pars, theory):
+    p = gdsamples.getParams()
+    if "b_eff" in derived_pars or "beta_eff" in derived_pars:
+        # add the derived parameters:
+        # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
+        # we assume beta_H is 0.5
+        if "b_eff" in derived_pars:
+            b_eff = p.bias + p.b_H
+            gdsamples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
+        if "beta_eff" in derived_pars:
+            beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
+            gdsamples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
+    if "T0" in derived_pars:
+        # add the derived parameter T0 = sigT_Mpc * kF_Mpc
+        dkms_dMpc = theory.fid_cosmo.get_dkms_dMpc(theory.z)
+        sigT_kms = p.sigT_Mpc * dkms_dMpc
+        T0 = T0_from_broadening_kms(sigT_kms) / 1e4
+        gdsamples.addDerived(T0, name="T0", label=r"T_0 [10^4\mathrm{K}]")
+
+    if "Delta2_p" in derived_pars or "n_p" in derived_pars:
+        if "Delta2_p" in derived_pars or "n_p" in derived_pars:
+            
+            assert theory is not None, "theory must be passed to get Delta2_p and n_p"
+            # get the Delta2_p and n_p for every sample in the chain
+            X = gdsamples.samples
+            Delta2_arr = np.empty((X.shape[0],))
+            np_arr = np.empty((X.shape[0],))
+            for i, row in enumerate(X):
+                params_i = {param.name: row[j] for j, param in enumerate(free_params)}
+                cosmo_i = theory.get_cosmology(params=params_i)
+                linP_i = cosmo_i.get_linP_Mpc_params(theory.z, kp_Mpc=0.7)
+                Delta2_arr[i] = linP_i["Delta2_p"]
+                np_arr[i] = linP_i["n_p"]
+
+            if "Delta2_p" in derived_pars:
+                gdsamples.addDerived(Delta2_arr, name="Delta2_p", label=r"\Delta^2_p")
+            if "n_p" in derived_pars:
+                gdsamples.addDerived(np_arr, name="n_p", label=r"n_p")
+    return gdsamples
+
 
 def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
                    save=False, show_truth=False, show=True, outdir=None,
                      show_priors=False,  show_bounds=False, show_best_fit=True,
-                     include_eff=False):
+                     derived_pars=[], theory=None, params_to_plot=None):
     gdnames = chain_data["par_names"]
     gdlabels = chain_data["par_labels"]
     chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
     gdsamples = MCSamples(samples=chain, names=gdnames, labels=gdlabels)
-    if include_eff:
-        # add the derived parameters:
-        # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
-        # we assume beta_H is 0.5
-        p = gdsamples.getParams()
-        b_eff = p.bias + p.b_H
-        beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
-        gdsamples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
-        gdsamples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
-
+    if params_to_plot is None:
+        params_to_plot = [par.name for par in free_params]
+    freepars_to_plot = [par for par in free_params if par.name in params_to_plot]
+    gdsamples = add_derived(gdsamples, freepars_to_plot, derived_pars, theory)
     g = plots.get_subplot_plotter()
-    g.triangle_plot([gdsamples], filled=True)
+    g.triangle_plot([gdsamples], filled=True, params=params_to_plot)
     
-    for i, par in enumerate(free_params):
+    for i, par in enumerate(freepars_to_plot):
         # Diagonal (1D posterior)
         ax = g.subplots[i, i]
         # add truth values
@@ -317,13 +336,12 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
                 ax.axvline(par.max_value, color="blue", ls="--", lw=1)
         
         
-        print('here3')
         # Lower triangle (2D posteriors)
         for j in range(i):
 
             ax = g.subplots[i, j]
-            par_x = free_params[j]
-            par_y = free_params[i]
+            par_x = freepars_to_plot[j]
+            par_y = freepars_to_plot[i]
             if show_priors:
                 # x prior
                 if par_x.gauss_prior_mean is not None:
@@ -355,10 +373,10 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
                     ax.axhline(par_y.min_value, color="blue", ls="--", lw=1)
                 if par_y.max_value is not None:
                     ax.axhline(par_y.max_value, color="blue", ls="--", lw=1)
-    for i, par in enumerate(gdsamples.getParamNames().list()):
+    for i, par in enumerate(params_to_plot):
         ax = g.subplots[i, i]
         if show_best_fit:
-            bestfit_dict = chain_bestfit_dict(chain_data, free_params, nburnin=nburnin, thin=thin, include_eff=include_eff)
+            bestfit_dict = chain_bestfit_dict(chain_data, free_params, nburnin=nburnin, thin=thin, derived_pars=derived_pars, theory=theory)
             if par in bestfit_dict:
                 bestfit_value = bestfit_dict[par]
                 ax.axvline(bestfit_value, color="red", ls="-", lw=1)
@@ -383,6 +401,50 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
         plt.show()
     plt.clf()
 
+    # return the figure
+    return g.fig
+
+def plottwo(chain_data_1, chain_data_2, free_params_1, free_params_2, nburnin=0, thin=1, title=None,
+                   save=False, show=True, outdir=None,
+                     derived_pars=[], theory_1=None, theory_2=None, params_to_plot=None,
+                     legend_labels=("Chain 1", "Chain 2"), remove_mean=False):
+    """Plot two chains on the same contours plot"""
+    gdnames_1 = chain_data_1["par_names"]
+    gdlabels_1 = chain_data_1["par_labels"]
+    gdnames_2 = chain_data_2["par_names"]
+    gdlabels_2 = chain_data_2["par_labels"]
+    chain_1 = prune_flatten_chain(chain_data_1["chain"], nburnin, thin)
+    chain_2 = prune_flatten_chain(chain_data_2["chain"], nburnin, thin)
+    
+    gdsamples_1 = MCSamples(samples=chain_1, names=gdnames_1, labels=gdlabels_1)
+    gdsamples_2 = MCSamples(samples=chain_2, names=gdnames_2, labels=gdlabels_2)
+    
+    gdsamples_1 = add_derived(gdsamples_1, free_params_1, derived_pars, theory_1)
+    gdsamples_2 = add_derived(gdsamples_2, free_params_2, derived_pars, theory_2)
+    if remove_mean:
+        for gds in (gdsamples_1, gdsamples_2):
+            gds.setSamples(gds.samples - np.average(gds.samples, axis=0, weights=gds.weights))
+            
+    if params_to_plot is None:
+        params_to_plot = [par.name for par in free_params_1]
+    
+
+    g = plots.get_subplot_plotter()
+    g.triangle_plot([gdsamples_1, gdsamples_2], filled=True, params=params_to_plot, legend_labels=legend_labels)
+    
+    if title is not None:
+        g.fig.suptitle(title)
+    g.finish_plot()
+    if save:
+        if outdir is None:
+            raise ValueError("outdir must be provided if save is True")
+        plt.savefig(os.path.join(outdir, "contours_two.png"))
+    if show:
+        plt.show()
+    plt.clf()
+
+    # return the figure
+    return g.fig
 
 def save_chain(outdir, chain, free_params, log_prob=None, fname=None):
     # save the chain
@@ -421,6 +483,7 @@ def create_output_directory(inf_config, runname):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     return output_dir
+
 
 
 def get_initial_walkers(free_params, nwalkers):
@@ -596,7 +659,7 @@ def plot_compare_corner(
 
     return g
 
-def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1, include_eff=False):
+def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1, derived_pars=[], theory=None):
     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
     # flatten, thin, remove burnin
     chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
@@ -610,16 +673,33 @@ def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1, include_eff
         log_prob = chain_data["log_prob"][nburnin::thin]
         log_prob = log_prob.reshape(-1)
         samples = MCSamples(samples=chain, loglikes=-1*log_prob, names=chain_data["par_names"])
-        if include_eff:
+        p = samples.getParams()
+        if "b_eff" in derived_pars:
             # add the derived parameters:
             # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
             # we assume beta_H is 0.5
-            p = samples.getParams()
             b_eff = p.bias + p.b_H
-            beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
             samples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
+        if "beta_eff" in derived_pars:
+            beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
             samples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
-
+        if "T0" in derived_pars:
+            # add the derived parameter T0 = sigT_Mpc * kF_Mpc
+            p = samples.getParams()
+            dkms_dMpc = theory.fid_cosmo.get_dkms_dMpc(theory.z)
+            sigT_kms = p.sigT_Mpc * dkms_dMpc
+            T0 = T0_from_broadening_kms(sigT_kms) / 1e4
+            samples.addDerived(T0, name="T0", label=r"T_0")
+        if "Delta2_p" in derived_pars or "n_p" in derived_pars:
+            assert theory is not None, "theory must be passed to get Delta2_p and n_p"
+            cosmo_fit = theory.get_cosmology(params={par.name: par.ini_value for par in free_params})
+            linP = cosmo_fit.get_linP_Mpc_params(theory.z, kp_Mpc=0.7)
+            if "Delta2_p" in derived_pars:
+                Delta2_p = linP["Delta2_p"]
+                samples.addDerived(Delta2_p, name="Delta2_p", label=r"\Delta^2_p")
+            if "n_p" in derived_pars:
+                n_p = linP["n_p"]
+                samples.addDerived(n_p, name="n_p", label=r"n_p")
         bestfit_dict = {}
         names = samples.getParamNames().list()
         best_fit_dict = samples.getParamBestFitDict(best_sample=True, want_derived=True)
@@ -634,7 +714,7 @@ def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1, include_eff
 
     return bestfit_dict
 
-def latex_table(chain_data, free_params, nburnin=500, thin=1, include_eff=False):
+def latex_table(chain_data, nburnin=500, thin=1, derived_pars=[], theory=None, free_params=None):
     """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
     # flatten, thin, remove burnin
     chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
@@ -642,16 +722,44 @@ def latex_table(chain_data, free_params, nburnin=500, thin=1, include_eff=False)
     log_prob = chain_data["log_prob"][nburnin::thin]
     log_prob = log_prob.reshape(-1)
     samples = MCSamples(samples=chain, loglikes=-1*log_prob, names=chain_data["par_names"])
-    if include_eff:
-        # add the derived parameters:
-        # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
-        # we assume beta_H is 0.5
+    if len(derived_pars) > 0:
         p = samples.getParams()
-        b_eff = p.bias + p.b_H
-        beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
-        samples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
-        samples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
+        # add the derived parameters
+        if "b_eff" in derived_pars or "beta_eff" in derived_pars:
+            # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
+            # we assume beta_H is 0.5
+            
+            if "b_eff" in derived_pars:
+                b_eff = p.bias + p.b_H
+                samples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
+            if "beta_eff" in derived_pars:
+                beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
+                samples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
+        if "T0" in derived_pars:
+            # add the derived parameter T0 = sigT_Mpc * kF_Mpc
+            dkms_dMpc = theory.fid_cosmo.get_dkms_dMpc(theory.z)
+            sigT_kms = p.sigT_Mpc * dkms_dMpc
+            T0 = T0_from_broadening_kms(sigT_kms) / 1e4
+            samples.addDerived(T0, name="T0", label=r"T_0")
 
+        if "Delta2_p" in derived_pars or "n_p" in derived_pars:
+            
+            assert theory is not None, "theory must be passed to get Delta2_p and n_p"
+            # get the Delta2_p and n_p for every sample in the chain
+            X = samples.samples
+            Delta2_arr = np.empty((X.shape[0],))
+            np_arr = np.empty((X.shape[0],))
+            for i, row in enumerate(X):
+                params_i = {param.name: row[j] for j, param in enumerate(free_params)}
+                cosmo_i = theory.get_cosmology(params=params_i)
+                linP_i = cosmo_i.get_linP_Mpc_params(theory.z, kp_Mpc=0.7)
+                Delta2_arr[i] = linP_i["Delta2_p"]
+                np_arr[i] = linP_i["n_p"]
+
+            if "Delta2_p" in derived_pars:
+                samples.addDerived(Delta2_arr, name="Delta2_p", label=r"\Delta^2_p")
+            if "n_p" in derived_pars:
+                samples.addDerived(np_arr, name="n_p", label=r"n_p")
     # table = samples.getTable(include_bestfit=True)
     for param in samples.getParamNames().list():
         print(samples.getInlineLatex(param))

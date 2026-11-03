@@ -48,10 +48,10 @@ class Posterior(object):
 
         # get dictionary with free parameters
         params = self.get_params_from_values(values)
-
+        print("params before update = ", params)
         # include also fixed parameters
         params.update(self.fixed_params)
-
+        print("params after update = ", params)
         # ask for likelihood (including also fixed_params)
         log_like = self.like.get_log_like(params=params)
 
@@ -78,7 +78,7 @@ class Posterior(object):
 
         if self.verbose:
             print('values =', values)
-            print('log_like, prior, post =', log_like, log_prior, log_posterior)
+            # print('log_like, prior, post =', log_like, log_prior, log_posterior)
 
         return log_posterior
 

@@ -86,7 +86,8 @@ def main():
         print("Free parameters are: (name, ini_value, min, max, true_value, gauss_prior_mean, gauss_prior_width)", par.name, par.ini_value, par.min_value, par.max_value, par.true_value, par.gauss_prior_mean, par.gauss_prior_width)
     
     post = Posterior(like, free_params, config=inf_config.post_config)
-
+    if post.fixed_params is not None:
+        print("Fixed parameters are: ", post.fixed_params)
     # nthreads_available = len(os.sched_getaffinity(0))
     print(os.environ.get("SLURM_CPUS_PER_TASK"))
     nthreads_available = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))

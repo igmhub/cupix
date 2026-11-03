@@ -297,8 +297,8 @@ class Likelihood(object):
             ax[0].text(0.35, 0.95, f'Fit prob = {prob:.2f}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         if include_chi2:
             chi2 = self.get_chi2(params=params)
-            ndata = self.get_ndata(n_free_p=n_free_p)
-            ax[0].text(0.45, 0.9, rf'$\chi^2/n_\mathrm{{dof}}$ = {chi2:.1f}/{ndata}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
+            ndof = self.get_ndata() - n_free_p
+            ax[0].text(0.45, 0.9, rf'$\chi^2/n_\mathrm{{dof}}$ = {chi2:.1f}/{ndof}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         ax[0].legend(handles=handles, loc='upper right', fontsize=12, ncol=1)
         plt.tight_layout()
         if plot_fname is not None:

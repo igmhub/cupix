@@ -155,7 +155,6 @@ class LyaModel(object):
             assert self.emulator is not None, "need emulator for IGM params"
             # updated IGM params
             igm_params = copy.deepcopy(self.default_igm_params)
-            print(igm_params, 'new test')
             for key in igm_params:
                 if key in params:
                     igm_params[key] = params[key]
@@ -441,7 +440,7 @@ def no_conflicting_params(config):
     
     
     if 'default_lya_model' in config:
-        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal', 'best_fit_igm_from_gadget_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"
         # make sure the default lya model does not conflict with input parameters
         if 'igm' in config['default_lya_model']:
             for par in allowed_lya_params():
