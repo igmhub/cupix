@@ -149,7 +149,6 @@ class LyaModel(object):
     def get_lya_params(self, cosmo, params):
         """Get the complete list of lya parameters (bias, beta, arinyo)
         from defaults and input params, potentially using the emulator"""
-
         # check whether you are working with IGM parameters (and emulator)
         if self.default_igm_params is not None:
             assert self.emulator is not None, "need emulator for IGM params"
@@ -181,8 +180,7 @@ class LyaModel(object):
         emu_params['gamma'] = igm_params['gamma']
         emu_params['sigT_Mpc'] = igm_params['sigT_Mpc']
         emu_params['kF_Mpc'] = igm_params['kF_Mpc']
-        # emu_params['Delta2_p'] = igm_params['Delta2_p']
-        # emu_params['n_p'] = igm_params['n_p']
+        
         ### MARTINE: these lines are no longer needed if our defualts are sigT_Mpc already. commenting them in case we want in the future again. ###
         # these igm params are not in the correct units for the emulator
         # dkms_dMpc = cosmo.get_dkms_dMpc(self.z)
@@ -197,6 +195,11 @@ class LyaModel(object):
         linP_params = cosmo.get_linP_Mpc_params(z=self.z, kp_Mpc=kp_Mpc)
         emu_params['Delta2_p'] = linP_params['Delta2_p']
         emu_params['n_p'] = linP_params['n_p']
+        # hacks for spec-s5 plots
+        # emu_params['Delta2_p'] = .545
+        # emu_params['n_p'] = -2.2
+        # print("using n_p -2.2")
+        
         # use emulator to estimate Lya params
         ff_params = self.emulator.evaluate(emu_params=emu_params)
         if self.verbose:
