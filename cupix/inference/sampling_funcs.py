@@ -347,20 +347,22 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
                   save=False, show_truth=False, show=True, outdir=None,
                   show_priors=False, show_bounds=False, show_best_fit=True,
                   derived_pars=None, theory=None, params_to_plot=None,
-                  remove_mean=False):
+                  remove_mean=False, gaussian_dict = {}):
     """Triangle plot of a chain.
  
     params_to_plot may contain free and/or derived parameter names; the panel
     order follows params_to_plot. If None, all free parameters plus all
     derived_pars are plotted. Priors, bounds and truth values are only drawn
     for free parameters (derived ones have none).
+    Args:
+    gaussian_dict: dictionary of parameter names to Gaussian parameters, 
+            e.g. {"param_name": {"mean": 0.5, "std": 0.1, "corr": 0.5}}.
+            These should be filled if you want to do importance sampling using external results.
     """
     derived_pars = list(derived_pars or [])
     if save and outdir is None:
         raise ValueError("outdir must be provided if save is True")
  
-    gdnames = chain_data["par_names"]
-    gdlabels = chain_data["par_labels"]
     gdsamples = build_samples(chain_data, nburnin, thin)
  
     par_by_name = {par.name: par for par in free_params}
@@ -371,11 +373,16 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
     # only compute the derived parameters that are actually plotted
     derived_needed = [d for d in derived_pars if d in params_to_plot]
     gdsamples = add_derived(gdsamples, free_params, derived_needed, theory)
- 
+    
+    if gaussian_dict:
+        apply_gaussian_weights_2d(gdsamples, gaussian_dict)
+
+    if remove_mean:
+        gdsamples.setSamples(gdsamples.samples - np.average(gdsamples.samples, axis=0, weights=gdsamples.weights),
+                             weights=gdsamples.weights, loglikes=gdsamples.loglikes)
+
     # None for derived parameters; everything below is indexed by plotted order
     plot_pars = [par_by_name.get(n) for n in params_to_plot]
-    if remove_mean:
-        gdsamples.setSamples(gdsamples.samples - np.average(gdsamples.samples, axis=0, weights=gdsamples.weights))
     g = plots.get_subplot_plotter()
     g.triangle_plot([gdsamples], params=params_to_plot, filled=True)
  
@@ -445,75 +452,248 @@ def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
         plt.show()
     plt.close(g.fig)  # release it from pyplot; the returned figure is still intact
  
-    
 
-def plottwo(chain_data_1, chain_data_2, free_params_1, free_params_2,
-            nburnin=0, thin=1, title=None, save=False, show=True, outdir=None,
-            derived_pars=None, theory_1=None, theory_2=None, params_to_plot=None,
-            legend_labels=("Chain 1", "Chain 2"), remove_mean=False):
-    """Plot two chains on the same triangle plot.
- 
+def plottwo(chain_data_1, chain_data_2, free_params_1, free_params_2, *,
+            theory_1=None, theory_2=None, gaussian_dict_impsamp_1=None,
+            gaussian_dict_impsamp_2=None, legend_labels=("Chain 1", "Chain 2"), **kw):
+    return plotchains([chain_data_1, chain_data_2], [free_params_1, free_params_2],
+                      theory_list=[theory_1, theory_2],
+                      gaussian_dicts_impsamp=[gaussian_dict_impsamp_1, gaussian_dict_impsamp_2],
+                      legend_labels=legend_labels, **kw)
+
+def plotchains(chain_data_list, free_params_list,
+               nburnin=0, thin=1, title=None, save=False, show=True, outdir=None,
+               outname="contours.png",
+               derived_pars=None, theory_list=None, params_to_plot=None,
+               legend_labels=None, remove_mean=False,
+               gaussian_dicts_impsamp=None, extra_gaussian_contours=None,
+               contour_colors=None, chains_on_top=False):
+    """Plot one or more chains on the same triangle plot.
+
+    chain_data_list: list of chain_data dicts (or a single dict).
+    free_params_list: list of free-parameter lists, one per chain
+                      (or a single list if there is one chain).
+    theory_list, gaussian_dicts_impsamp: lists with one entry per chain
+                      (entries may be None/{}), or None for all.
+    nburnin, thin: scalar (applied to all chains) or list (one per chain).
     params_to_plot may contain free and/or derived parameter names and sets the
-    panel order. If None, the free parameters common to both chains plus all
+    panel order. If None, the free parameters common to all chains plus all
     derived_pars are plotted. With remove_mean=True each chain is shifted by
     its own weighted mean (compares shapes/widths, not locations).
     """
+    # ---- normalise inputs -------------------------------------------------
+    if isinstance(chain_data_list, dict):
+        chain_data_list = [chain_data_list]
+        free_params_list = [free_params_list]
+    n = len(chain_data_list)
+
+    def per_chain(x, default, name):
+        if x is None:
+            return [default] * n
+        if isinstance(x, (list, tuple)):
+            if len(x) != n:
+                raise ValueError(f"{name} has length {len(x)}, expected {n}")
+            return list(x)
+        return [x] * n
+
+    if len(free_params_list) != n:
+        raise ValueError("free_params_list must have one entry per chain")
+    nburnin_list = per_chain(nburnin, 0, "nburnin")
+    thin_list = per_chain(thin, 1, "thin")
+    theory_list = per_chain(theory_list, None, "theory_list")
+    imp_list = per_chain(gaussian_dicts_impsamp, None, "gaussian_dicts_impsamp")
+    legend_labels = (list(legend_labels) if legend_labels is not None
+                     else [f"Chain {i+1}" for i in range(n)])
+    if len(legend_labels) != n:
+        raise ValueError(f"legend_labels has length {len(legend_labels)}, expected {n}")
+    extra_gaussian_contours = list(extra_gaussian_contours or [])
     derived_pars = list(derived_pars or [])
     if save and outdir is None:
         raise ValueError("outdir must be provided if save is True")
- 
-    # ---- samples ---------------------------------------------------------
-    def make_samples(chain_data):
-        chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
-        return MCSamples(samples=chain, names=chain_data["par_names"],
-                         labels=chain_data["par_labels"])
- 
-    gds1 = make_samples(chain_data_1)
-    gds2 = make_samples(chain_data_2)
- 
-    # ---- which parameters to plot ---------------------------------------
+
+    # ---- samples ----------------------------------------------------------
+    gds_list = []
+    for cd, nb, th in zip(chain_data_list, nburnin_list, thin_list):
+        chain = prune_flatten_chain(cd["chain"], nb, th)
+        gds_list.append(MCSamples(samples=chain, names=cd["par_names"],
+                                  labels=cd["par_labels"]))
+
+    # ---- which parameters to plot ----------------------------------------
     if params_to_plot is None:
-        names2 = {p.name for p in free_params_2}
-        params_to_plot = [p.name for p in free_params_1 if p.name in names2] + derived_pars
+        common = set.intersection(*[{p.name for p in fp} for fp in free_params_list])
+        params_to_plot = [p.name for p in free_params_list[0] if p.name in common] + derived_pars
     params_to_plot = list(params_to_plot)
- 
+
     # only compute the derived parameters that are actually plotted
     derived_needed = [d for d in derived_pars if d in params_to_plot]
-    gds1 = add_derived(gds1, free_params_1, derived_needed, theory_1)
-    gds2 = add_derived(gds2, free_params_2, derived_needed, theory_2)
- 
-    # every plotted parameter must exist in both chains
-    for k, gds in enumerate((gds1, gds2), start=1):
+    for i in range(n):
+        gds_list[i] = add_derived(gds_list[i], free_params_list[i],
+                                  derived_needed, theory_list[i])
+
+    # ---- importance sampling ---------------------------------------------
+    for gds, gd in zip(gds_list, imp_list):
+        if gd:
+            apply_gaussian_weights_2d(gds, gd)
+
+    # every plotted parameter must exist in every chain
+    for k, gds in enumerate(gds_list, start=1):
         have = set(gds.getParamNames().list())
-        missing = [n for n in params_to_plot if n not in have]
+        missing = [p for p in params_to_plot if p not in have]
         if missing:
             raise KeyError(f"Chain {k} does not contain: {missing}")
- 
-    # ---- optional mean removal (after derived params are added) ---------
+
+    # ---- optional mean removal (after derived params and reweighting) ----
     if remove_mean:
-        for gds in (gds1, gds2):
+        for gds in gds_list:
             means = np.average(gds.samples, axis=0, weights=gds.weights)
-            gds.changeSamples(gds.samples - means)   # keeps weights/loglikes
+            gds.setSamples(gds.samples - means,
+                           weights=gds.weights, loglikes=gds.loglikes)
             for par in gds.getParamNames().names:
                 if par.name in params_to_plot and not par.label.startswith(r"\delta"):
                     par.label = r"\delta " + par.label
- 
-    # ---- plot -----------------------------------------------------------
+
+    # ---- extra Gaussian contours (plot only, no reweighting) -------------
+    samples_list = list(gds_list)
+    ref = gds_list[0]
+    p_ref = ref.getParams()
+    legend_labels = list(legend_labels)
+    for eg in extra_gaussian_contours:
+        names = eg["params"]
+        s = eg["std"]
+        rho = eg.get("corr", 0.0)
+        # None means -> first chain's weighted mean
+        mean = [m if m is not None else np.average(getattr(p_ref, nm), weights=ref.weights)
+                for m, nm in zip(eg["mean"], names)]
+        cov = [[s[0]**2, rho*s[0]*s[1]], [rho*s[0]*s[1], s[1]**2]]
+        draws = np.random.default_rng(0).multivariate_normal(mean, cov, size=200_000)
+        labels = [ref.getParamNames().parWithName(nm).label for nm in names]
+        samples_list.append(MCSamples(samples=draws, names=names, labels=labels))
+        legend_labels.append(eg.get("label", "External"))
+
+    # ---- colors and draw order -------------------------------------------
+    m = len(samples_list)
+    colors = list(contour_colors) if contour_colors is not None else [f"C{i}" for i in range(m)]
+    if len(colors) != m:
+        raise ValueError(f"contour_colors has length {len(colors)}, expected {m}")
+    filled = [True] * m
+
+    order = list(range(m))
+    if chains_on_top:
+        # extras first (drawn underneath), then the chains
+        order = list(range(n, m)) + list(range(n))
+    samples_list = [samples_list[i] for i in order]
+    legend_labels = [legend_labels[i] for i in order]
+    colors = [colors[i] for i in order]
+    filled = [filled[i] for i in order]
+
+    # ---- plot -------------------------------------------------------------
     g = plots.get_subplot_plotter()
-    g.triangle_plot([gds1, gds2], params=params_to_plot, filled=True,
-                    legend_labels=list(legend_labels))
- 
+    g.triangle_plot(samples_list, params=params_to_plot, filled=filled,
+                    legend_labels=legend_labels, contour_colors=colors)
     g.finish_plot()  # applies tight_layout, so add the title afterwards
     if title is not None:
         g.fig.suptitle(title, y=1.02)
- 
     if save:
-        g.fig.savefig(os.path.join(outdir, "contours_two.png"), bbox_inches="tight")
+        g.fig.savefig(os.path.join(outdir, outname), bbox_inches="tight")
     if show:
         plt.show()
     plt.close(g.fig)  # release from pyplot; the returned figure is still intact
- 
     return g.fig
+
+# def plottwo(chain_data_1, chain_data_2, free_params_1, free_params_2,
+#             nburnin=0, thin=1, title=None, save=False, show=True, outdir=None,
+#             derived_pars=None, theory_1=None, theory_2=None, params_to_plot=None,
+#             legend_labels=("Chain 1", "Chain 2"), remove_mean=False, gaussian_dict_impsamp_1 = {},
+#             gaussian_dict_impsamp_2 = {}, extra_gaussian_contours = []):
+#     """Plot two chains on the same triangle plot.
+ 
+#     params_to_plot may contain free and/or derived parameter names and sets the
+#     panel order. If None, the free parameters common to both chains plus all
+#     derived_pars are plotted. With remove_mean=True each chain is shifted by
+#     its own weighted mean (compares shapes/widths, not locations).
+#     """
+#     derived_pars = list(derived_pars or [])
+#     if save and outdir is None:
+#         raise ValueError("outdir must be provided if save is True")
+ 
+#     # ---- samples ---------------------------------------------------------
+#     def make_samples(chain_data):
+#         chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
+#         return MCSamples(samples=chain, names=chain_data["par_names"],
+#                          labels=chain_data["par_labels"])
+ 
+#     gds1 = make_samples(chain_data_1)
+#     gds2 = make_samples(chain_data_2)
+ 
+#     # ---- which parameters to plot ---------------------------------------
+#     if params_to_plot is None:
+#         names2 = {p.name for p in free_params_2}
+#         params_to_plot = [p.name for p in free_params_1 if p.name in names2] + derived_pars
+#     params_to_plot = list(params_to_plot)
+ 
+#     # only compute the derived parameters that are actually plotted
+#     derived_needed = [d for d in derived_pars if d in params_to_plot]
+#     gds1 = add_derived(gds1, free_params_1, derived_needed, theory_1)
+#     gds2 = add_derived(gds2, free_params_2, derived_needed, theory_2)
+ 
+#     if gaussian_dict_impsamp_1:
+#         apply_gaussian_weights_2d(gds1, gaussian_dict_impsamp_1)
+#     if gaussian_dict_impsamp_2:
+#         apply_gaussian_weights_2d(gds2, gaussian_dict_impsamp_2)
+
+#     # every plotted parameter must exist in both chains
+#     for k, gds in enumerate((gds1, gds2), start=1):
+#         have = set(gds.getParamNames().list())
+#         missing = [n for n in params_to_plot if n not in have]
+#         if missing:
+#             raise KeyError(f"Chain {k} does not contain: {missing}")
+ 
+    
+#     # ---- optional mean removal (after derived params are added) ---------
+#     if remove_mean:
+#         for gds in (gds1, gds2):
+#             means = np.average(gds.samples, axis=0, weights=gds.weights)
+#             gds.setSamples(gds.samples - means,
+#                weights=gds.weights, loglikes=gds.loglikes)
+#             for par in gds.getParamNames().names:
+#                 if par.name in params_to_plot and not par.label.startswith(r"\delta"):
+#                     par.label = r"\delta " + par.label
+ 
+#     # ---- plot -----------------------------------------------------------
+#     g = plots.get_subplot_plotter()
+#     samples_list = [gds1, gds2]
+#     # add a contour from an external Gaussian if requested
+#     if len(extra_gaussian_contours) > 0:
+#         for extra_gaussian_contour in extra_gaussian_contours:
+#             names = extra_gaussian_contour["params"]
+#             s = extra_gaussian_contour["std"]
+#             rho = extra_gaussian_contour.get("corr", 0.0)
+#             p1 = gds1.getParams()
+#             # None means -> chain 1's weighted mean
+#             mean = [m if m is not None else np.average(getattr(p1, n), weights=gds1.weights)
+#                     for m, n in zip(extra_gaussian_contour["mean"], names)]
+#             cov = [[s[0]**2, rho*s[0]*s[1]], [rho*s[0]*s[1], s[1]**2]]
+#             draws = np.random.default_rng(0).multivariate_normal(mean, cov, size=200_000)
+#             labels = [gds1.getParamNames().parWithName(n).label for n in names]
+#             samples_list.append(MCSamples(samples=draws, names=names, labels=labels))
+#             legend_labels.append(extra_gaussian_contour.get("label", "External"))
+
+#     g.triangle_plot(samples_list, params=params_to_plot, filled=True,
+#                     legend_labels=list(legend_labels))
+ 
+    
+        
+#     g.finish_plot()  # applies tight_layout, so add the title afterwards
+#     if title is not None:
+#         g.fig.suptitle(title, y=1.02)
+    
+#     if save:
+#         g.fig.savefig(os.path.join(outdir, "contours_two.png"), bbox_inches="tight")
+#     if show:
+#         plt.show()
+#     plt.close(g.fig)  # release from pyplot; the returned figure is still intact
+ 
+    
 
 
 def save_chain(outdir, chain, free_params, log_prob=None, fname=None):
@@ -834,3 +1014,43 @@ def prune_flatten_chain(chain, nburnin=0, thin=1):
     chain = chain[nburnin::thin]
     chain = chain.reshape(-1, chain.shape[-1]) #assumes chain is from get_chain
     return chain
+
+
+def apply_gaussian_weights_2d(gds, gaussian_dict, ref_means=None, skip_missing=False):
+    """Importance-sample with a correlated 2D Gaussian on two of the chain's parameters.
+
+    gaussian_dict = {"params": [name1, name2],
+                     "mean": [m1 or None, m2 or None],
+                     "std": [s1, s2],
+                     "corr": rho}
+
+    A None mean is replaced by ref_means[i] if given, otherwise by the
+    chain's own weighted mean (computed before reweighting).
+    """
+    pnames = gaussian_dict["params"]
+    if len(pnames) != 2:
+        raise ValueError("gaussian_dict['params'] must have exactly two names")
+    rho = gaussian_dict.get("corr", 0.0)
+    if not -1 < rho < 1:
+        raise ValueError("corr must be strictly between -1 and 1")
+
+    available = gds.getParamNames().list()
+    missing = [n for n in pnames if n not in available]
+    if missing:
+        if skip_missing:
+            return gds
+        raise ValueError(f"{missing} not in chain parameters: {available}")
+
+    p = gds.getParams()
+    means = gaussian_dict.get("mean", [None, None])
+    d = []
+    for i, n in enumerate(pnames):
+        x = getattr(p, n)
+        m = means[i]
+        if m is None:
+            m = ref_means[i] if ref_means is not None else np.average(x, weights=gds.weights)
+        d.append((x - m) / gaussian_dict["std"][i])
+
+    chi2 = (d[0]**2 + d[1]**2 - 2 * rho * d[0] * d[1]) / (1 - rho**2)
+    gds.reweightAddingLogLikes(0.5 * chi2)
+    return gds

@@ -173,7 +173,7 @@ class LyaModel(object):
     
     def emulate_lya_params(self, cosmo, igm_params):
         """Use emulator to translate IGM params and cosmo to Lya params"""
-
+        print("using emulator")
         # emu params include igm and cosmo params
         emu_params = {}
         emu_params['mF'] = igm_params['mF']
@@ -195,10 +195,6 @@ class LyaModel(object):
         linP_params = cosmo.get_linP_Mpc_params(z=self.z, kp_Mpc=kp_Mpc)
         emu_params['Delta2_p'] = linP_params['Delta2_p']
         emu_params['n_p'] = linP_params['n_p']
-        # hacks for spec-s5 plots
-        # emu_params['Delta2_p'] = .545
-        # emu_params['n_p'] = -2.2
-        # print("using n_p -2.2")
         
         # use emulator to estimate Lya params
         ff_params = self.emulator.evaluate(emu_params=emu_params)
