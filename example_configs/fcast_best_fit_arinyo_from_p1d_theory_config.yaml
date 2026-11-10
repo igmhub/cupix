@@ -19,7 +19,7 @@ cosmo_config:
 
 theory_config:
   verbose:
-  iz: 0
+  
   default_lya_model: best_fit_arinyo_from_p1d
   include_sky:
   include_hcd:
@@ -52,8 +52,10 @@ theory_config:
     beta_H:
     L_H_Mpc:
     # metal params:
-    b_X:
-    beta_X:
+    b_SiII:
+    b_SiIII:
+    beta_SiII:
+    beta_SiIII:
     # sky params:
     b_noise_Mpc:
     # continuum params:
@@ -63,3 +65,4 @@ theory_config:
 likelihood_config:
   verbose:
   N_theta_average: 1
+  iz: 0

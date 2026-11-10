@@ -216,48 +216,6 @@ def prepare_free_parameters(
             "Warning: no free parameters were prepared. This could be because the free_param_names are not yet setup with defaults, and no params_config was passed. Please try passing a params_config with the necessary information for the free parameters."
         )
     return free_params_list
-
-
-def plot_tau_estimates(tau_estimates, fname):
-    plt.plot(np.arange(len(tau_estimates)) * 100, tau_estimates)
-    plt.xlabel("step")
-    plt.ylabel("estimated autocorrelation time")
-    plt.savefig(fname)
-    plt.clf()
-
-
-def plot_chains(chain_full, free_params, param_idx, save=False, show=True, outdir=None):
-    # first get the full chain and plot one param, all walkers, to understand burnin
-    param_name = free_params[param_idx].name
-    plt.plot(chain_full[:, :, param_idx], alpha=0.5)
-    plt.ylabel(free_params[param_idx].latex_label)
-    plt.xlabel("step")
-    plt.title("Full chain for parameter %s" % free_params[0].name)
-    if save:
-        if outdir is None:
-            raise ValueError("outdir must be provided if save is True")
-        plt.savefig(os.path.join(outdir, f"chain_full_{param_name}.png"))
-    if show:
-        plt.show()
-    plt.clf()
-
-
-def plot_chain_flattened(
-    chain_flattened, free_params, param_idx, save=False, show=True, outdir=None
-):
-    # get the flattened chain across walkers, and plot one parameter
-    param_name = free_params[param_idx].name
-    plt.plot(chain_flattened[:, param_idx], alpha=0.5)
-    plt.ylabel(rf"${free_params[param_idx].latex_label}$")
-    plt.xlabel("step")
-    plt.title("Full chain for parameter %s" % free_params[0].name)
-    if save:
-        if outdir is None:
-            raise ValueError("outdir must be provided if save is True")
-        plt.savefig(os.path.join(outdir, f"chain_full_{param_name}.png"))
-    if show:
-        plt.show()
-    plt.clf()
  
  
 def add_derived(gdsamples, free_params, derived_pars, theory):
@@ -329,8 +287,9 @@ def add_derived(gdsamples, free_params, derived_pars, theory):
             gdsamples.addDerived(Delta2_arr, name="Delta2_p", label=r"\Delta^2_p")
         if "n_p" in todo:
             gdsamples.addDerived(np_arr, name="n_p", label=r"n_p")
- 
+    gdsamples.updateBaseStatistics()
     return gdsamples
+ 
  
  
 def _prior_band(par):
@@ -342,115 +301,6 @@ def _prior_band(par):
     return (par.gauss_prior_mean - par.gauss_prior_width,
             par.gauss_prior_mean + par.gauss_prior_width)
  
- 
-def plot_contours(chain_data, free_params, nburnin=0, thin=1, title=None,
-                  save=False, show_truth=False, show=True, outdir=None,
-                  show_priors=False, show_bounds=False, show_best_fit=True,
-                  derived_pars=None, theory=None, params_to_plot=None,
-                  remove_mean=False, gaussian_dict = {}):
-    """Triangle plot of a chain.
- 
-    params_to_plot may contain free and/or derived parameter names; the panel
-    order follows params_to_plot. If None, all free parameters plus all
-    derived_pars are plotted. Priors, bounds and truth values are only drawn
-    for free parameters (derived ones have none).
-    Args:
-    gaussian_dict: dictionary of parameter names to Gaussian parameters, 
-            e.g. {"param_name": {"mean": 0.5, "std": 0.1, "corr": 0.5}}.
-            These should be filled if you want to do importance sampling using external results.
-    """
-    derived_pars = list(derived_pars or [])
-    if save and outdir is None:
-        raise ValueError("outdir must be provided if save is True")
- 
-    gdsamples = build_samples(chain_data, nburnin, thin)
- 
-    par_by_name = {par.name: par for par in free_params}
-    if params_to_plot is None:
-        params_to_plot = [par.name for par in free_params] + derived_pars
-    params_to_plot = list(params_to_plot)
- 
-    # only compute the derived parameters that are actually plotted
-    derived_needed = [d for d in derived_pars if d in params_to_plot]
-    gdsamples = add_derived(gdsamples, free_params, derived_needed, theory)
-    
-    if gaussian_dict:
-        apply_gaussian_weights_2d(gdsamples, gaussian_dict)
-
-    if remove_mean:
-        gdsamples.setSamples(gdsamples.samples - np.average(gdsamples.samples, axis=0, weights=gdsamples.weights),
-                             weights=gdsamples.weights, loglikes=gdsamples.loglikes)
-
-    # None for derived parameters; everything below is indexed by plotted order
-    plot_pars = [par_by_name.get(n) for n in params_to_plot]
-    g = plots.get_subplot_plotter()
-    g.triangle_plot([gdsamples], params=params_to_plot, filled=True)
- 
-    # ---- truth values -----------------------------------------------------
-    if show_truth:
-        truths = {p.name: p.true_value for p in plot_pars
-                  if p is not None and p.true_value is not None}
-        if truths:
-            g.add_param_markers(truths)
- 
-    # ---- priors and bounds ------------------------------------------------
-    for i, par_y in enumerate(plot_pars):
-        # diagonal (1D posterior)
-        ax = g.subplots[i, i]
-        if show_priors:
-            band = _prior_band(par_y)
-            if band is not None:
-                ax.axvspan(*band, color="C1", alpha=0.3, zorder=0)
-        if show_bounds and par_y is not None:
-            for val in (par_y.min_value, par_y.max_value):
-                if val is not None:
-                    ax.axvline(val, color="blue", ls="--", lw=1)
- 
-        # lower triangle (2D posteriors): x = params[j], y = params[i]
-        for j in range(i):
-            par_x = plot_pars[j]
-            ax = g.subplots[i, j]
-            if show_priors:
-                bx = _prior_band(par_x)
-                if bx is not None:
-                    ax.axvspan(*bx, color="C1", alpha=0.15, zorder=0)
-                by = _prior_band(par_y)
-                if by is not None:
-                    ax.axhspan(*by, color="C1", alpha=0.15, zorder=0)
-            if show_bounds:
-                if par_x is not None:
-                    for val in (par_x.min_value, par_x.max_value):
-                        if val is not None:
-                            ax.axvline(val, color="blue", ls="--", lw=1)
-                if par_y is not None:
-                    for val in (par_y.min_value, par_y.max_value):
-                        if val is not None:
-                            ax.axhline(val, color="blue", ls="--", lw=1)
- 
-    # ---- best fit (computed once) ----------------------------------------
-    if show_best_fit:
-        bestfit_dict = chain_bestfit_dict(chain_data, free_params, nburnin=nburnin,
-            thin=thin, derived_pars=derived_needed,
-            theory=theory, samples=gdsamples)
-        for i, name in enumerate(params_to_plot):
-            if name in bestfit_dict:
-                ax = g.subplots[i, i]
-                val = bestfit_dict[name]
-                ax.axvline(val, color="red", ls="-", lw=1)
-                ax.text(0.95, 0.95, f"Best fit: {val:.3f}",
-                        transform=ax.transAxes, fontsize=8,
-                        verticalalignment="top", horizontalalignment="right",
-                        color="red")
- 
-    g.finish_plot()  # applies tight_layout, so add the title afterwards
-    if title is not None:
-        g.fig.suptitle(title, y=1.02)
- 
-    if save:
-        g.fig.savefig(os.path.join(outdir, "contours.png"), bbox_inches="tight")
-    if show:
-        plt.show()
-    plt.close(g.fig)  # release it from pyplot; the returned figure is still intact
  
 
 def plottwo(chain_data_1, chain_data_2, free_params_1, free_params_2, *,
@@ -600,100 +450,7 @@ def plotchains(chain_data_list, free_params_list,
     plt.close(g.fig)  # release from pyplot; the returned figure is still intact
     return g.fig
 
-# def plottwo(chain_data_1, chain_data_2, free_params_1, free_params_2,
-#             nburnin=0, thin=1, title=None, save=False, show=True, outdir=None,
-#             derived_pars=None, theory_1=None, theory_2=None, params_to_plot=None,
-#             legend_labels=("Chain 1", "Chain 2"), remove_mean=False, gaussian_dict_impsamp_1 = {},
-#             gaussian_dict_impsamp_2 = {}, extra_gaussian_contours = []):
-#     """Plot two chains on the same triangle plot.
- 
-#     params_to_plot may contain free and/or derived parameter names and sets the
-#     panel order. If None, the free parameters common to both chains plus all
-#     derived_pars are plotted. With remove_mean=True each chain is shifted by
-#     its own weighted mean (compares shapes/widths, not locations).
-#     """
-#     derived_pars = list(derived_pars or [])
-#     if save and outdir is None:
-#         raise ValueError("outdir must be provided if save is True")
- 
-#     # ---- samples ---------------------------------------------------------
-#     def make_samples(chain_data):
-#         chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
-#         return MCSamples(samples=chain, names=chain_data["par_names"],
-#                          labels=chain_data["par_labels"])
- 
-#     gds1 = make_samples(chain_data_1)
-#     gds2 = make_samples(chain_data_2)
- 
-#     # ---- which parameters to plot ---------------------------------------
-#     if params_to_plot is None:
-#         names2 = {p.name for p in free_params_2}
-#         params_to_plot = [p.name for p in free_params_1 if p.name in names2] + derived_pars
-#     params_to_plot = list(params_to_plot)
- 
-#     # only compute the derived parameters that are actually plotted
-#     derived_needed = [d for d in derived_pars if d in params_to_plot]
-#     gds1 = add_derived(gds1, free_params_1, derived_needed, theory_1)
-#     gds2 = add_derived(gds2, free_params_2, derived_needed, theory_2)
- 
-#     if gaussian_dict_impsamp_1:
-#         apply_gaussian_weights_2d(gds1, gaussian_dict_impsamp_1)
-#     if gaussian_dict_impsamp_2:
-#         apply_gaussian_weights_2d(gds2, gaussian_dict_impsamp_2)
 
-#     # every plotted parameter must exist in both chains
-#     for k, gds in enumerate((gds1, gds2), start=1):
-#         have = set(gds.getParamNames().list())
-#         missing = [n for n in params_to_plot if n not in have]
-#         if missing:
-#             raise KeyError(f"Chain {k} does not contain: {missing}")
- 
-    
-#     # ---- optional mean removal (after derived params are added) ---------
-#     if remove_mean:
-#         for gds in (gds1, gds2):
-#             means = np.average(gds.samples, axis=0, weights=gds.weights)
-#             gds.setSamples(gds.samples - means,
-#                weights=gds.weights, loglikes=gds.loglikes)
-#             for par in gds.getParamNames().names:
-#                 if par.name in params_to_plot and not par.label.startswith(r"\delta"):
-#                     par.label = r"\delta " + par.label
- 
-#     # ---- plot -----------------------------------------------------------
-#     g = plots.get_subplot_plotter()
-#     samples_list = [gds1, gds2]
-#     # add a contour from an external Gaussian if requested
-#     if len(extra_gaussian_contours) > 0:
-#         for extra_gaussian_contour in extra_gaussian_contours:
-#             names = extra_gaussian_contour["params"]
-#             s = extra_gaussian_contour["std"]
-#             rho = extra_gaussian_contour.get("corr", 0.0)
-#             p1 = gds1.getParams()
-#             # None means -> chain 1's weighted mean
-#             mean = [m if m is not None else np.average(getattr(p1, n), weights=gds1.weights)
-#                     for m, n in zip(extra_gaussian_contour["mean"], names)]
-#             cov = [[s[0]**2, rho*s[0]*s[1]], [rho*s[0]*s[1], s[1]**2]]
-#             draws = np.random.default_rng(0).multivariate_normal(mean, cov, size=200_000)
-#             labels = [gds1.getParamNames().parWithName(n).label for n in names]
-#             samples_list.append(MCSamples(samples=draws, names=names, labels=labels))
-#             legend_labels.append(extra_gaussian_contour.get("label", "External"))
-
-#     g.triangle_plot(samples_list, params=params_to_plot, filled=True,
-#                     legend_labels=list(legend_labels))
- 
-    
-        
-#     g.finish_plot()  # applies tight_layout, so add the title afterwards
-#     if title is not None:
-#         g.fig.suptitle(title, y=1.02)
-    
-#     if save:
-#         g.fig.savefig(os.path.join(outdir, "contours_two.png"), bbox_inches="tight")
-#     if show:
-#         plt.show()
-#     plt.close(g.fig)  # release from pyplot; the returned figure is still intact
- 
-    
 
 
 def save_chain(outdir, chain, free_params, log_prob=None, fname=None):
@@ -765,7 +522,7 @@ def get_initial_walkers(free_params, nwalkers):
 
     return ini_walkers
 
-def load_chain_only(chain_directory, fname="chain.h5", iz=0):
+def load_chain_only(chain_directory, fname="chain.h5"):
     """Load the chain"""
     # load the chain
     chain_fname = os.path.join(chain_directory, fname)
@@ -793,18 +550,19 @@ def load_chain_only(chain_directory, fname="chain.h5", iz=0):
     }
     return return_dict
 
-def load_mcmc_results(chain_directory, fname="chain.h5", iz=0, inf_fname=None, setup_fname=None,):
+def load_mcmc_results(chain_directory, fname="chain.h5", inf_fname=None, setup_fname=None,):
     """Load the chain, and all setup configs, from directory to be able to re-create or continue working
     with analysis."""
-    chain_dict = load_chain_only(chain_directory, fname=fname, iz=iz)
+    chain_dict = load_chain_only(chain_directory, fname=fname)
     # recreate the theory, posterior, and likelihood objects
     if setup_fname is None:
-        setup_config = Config(os.path.join(chain_directory, f"setup_config_mcmc_z{iz}.yaml"))
+        setup_config = Config(os.path.join(chain_directory, "setup_config_mcmc.yaml"))
     else:
         setup_config = Config(os.path.join(chain_directory,setup_fname))
+    iz = setup_config.like_config["iz"]
     if inf_fname is None:
         inf_config = InferenceConfig(
-            os.path.join(chain_directory, f"inference_config_mcmc_z{iz}.yaml")
+            os.path.join(chain_directory, "inference_config_mcmc.yaml")
     )
     else:
         inf_config = InferenceConfig(os.path.join(chain_directory, inf_fname))
@@ -823,7 +581,7 @@ def load_mcmc_results(chain_directory, fname="chain.h5", iz=0, inf_fname=None, s
             inf_config.params_config[key] = mcmc_settings[key]
 
     data = DESI_DR2(setup_config.data_config)
-    iz = setup_config.like_config["iz"]
+    
     z = data.z[iz]
     if "fixed_params" in inf_config.post_config.keys() and inf_config.post_config["fixed_params"] not in [None, {}]:
         # update theory_config
@@ -923,92 +681,6 @@ def build_samples(chain_data, nburnin=0, thin=1):
         kwargs["loglikes"] = -log_prob   # getdist expects -ln(posterior)
     return MCSamples(samples=chain, **kwargs)
 
-
-def chain_bestfit_dict(chain_data, free_params, nburnin=500, thin=1,
-                       derived_pars=None, theory=None, samples=None):
-    """Best-fit values (and marginalised stats) keyed by parameter name.
-
-    If `samples` is given it must be an MCSamples built with build_samples
-    (so it has loglikes) that already contains the derived parameters and has
-    NOT been shifted (e.g. by remove_mean). Otherwise it is built here.
-    """
-    derived_pars = list(derived_pars or [])
-    if samples is None:
-        samples = build_samples(chain_data, nburnin, thin)
-        samples = add_derived(samples, free_params, derived_pars, theory)
-
-    names = samples.getParamNames().list()
-    bestfit_dict = {}
-
-    if samples.loglikes is None:
-        print("Warning: no log probabilities passed. Will use median of chain as bestfit.")
-        median = np.median(samples.samples, axis=0)
-        for n, v in zip(names, median):
-            bestfit_dict[n] = v
-    else:
-        best = samples.getParamBestFitDict(best_sample=True, want_derived=True)
-        margestats = samples.getMargeStats()
-        for n in names:
-            par = margestats.parWithName(n)
-            bestfit_dict[n + "_mean"] = par.mean
-            bestfit_dict[n + "_err"] = par.err
-            bestfit_dict[n + "_err_low"] = par.limits[0].lower   # 68% limits
-            bestfit_dict[n + "_err_up"] = par.limits[0].upper
-            bestfit_dict[n] = best[n]
-
-    return bestfit_dict
-
-def latex_table(chain_data, nburnin=500, thin=1, derived_pars=[], theory=None, free_params=None):
-    """Get the bestfit values from the chain, and return a dictionary with parameter names as keys and bestfit values as values."""
-    # flatten, thin, remove burnin
-    chain = prune_flatten_chain(chain_data["chain"], nburnin, thin)
-    # load as an MCSamples object
-    log_prob = chain_data["log_prob"][nburnin::thin]
-    log_prob = log_prob.reshape(-1)
-    samples = MCSamples(samples=chain, loglikes=-1*log_prob, names=chain_data["par_names"])
-    if len(derived_pars) > 0:
-        p = samples.getParams()
-        # add the derived parameters
-        if "b_eff" in derived_pars or "beta_eff" in derived_pars:
-            # b_eff = bias + b_H, and beta_eff = (bias*beta + b_H*beta_H) / b_eff
-            # we assume beta_H is 0.5
-            
-            if "b_eff" in derived_pars:
-                b_eff = p.bias + p.b_H
-                samples.addDerived(b_eff, name="b_eff", label=r"b_\mathrm{eff}")
-            if "beta_eff" in derived_pars:
-                beta_eff = (p.bias * p.beta + p.b_H * 0.5) / b_eff
-                samples.addDerived(beta_eff, name="beta_eff", label=r"\beta_\mathrm{eff}")
-        if "T0" in derived_pars:
-            # add the derived parameter T0 = sigT_Mpc * kF_Mpc
-            dkms_dMpc = theory.fid_cosmo.get_dkms_dMpc(theory.z)
-            sigT_kms = p.sigT_Mpc * dkms_dMpc
-            T0 = T0_from_broadening_kms(sigT_kms) / 1e4
-            samples.addDerived(T0, name="T0", label=r"T_0")
-
-        if "Delta2_p" in derived_pars or "n_p" in derived_pars:
-            
-            assert theory is not None, "theory must be passed to get Delta2_p and n_p"
-            # get the Delta2_p and n_p for every sample in the chain
-            X = samples.samples
-            Delta2_arr = np.empty((X.shape[0],))
-            np_arr = np.empty((X.shape[0],))
-            for i, row in enumerate(X):
-                params_i = {param.name: row[j] for j, param in enumerate(free_params)}
-                cosmo_i = theory.get_cosmology(params=params_i)
-                linP_i = cosmo_i.get_linP_Mpc_params(theory.z, kp_Mpc=0.7)
-                Delta2_arr[i] = linP_i["Delta2_p"]
-                np_arr[i] = linP_i["n_p"]
-
-            if "Delta2_p" in derived_pars:
-                samples.addDerived(Delta2_arr, name="Delta2_p", label=r"\Delta^2_p")
-            if "n_p" in derived_pars:
-                samples.addDerived(np_arr, name="n_p", label=r"n_p")
-    # table = samples.getTable(include_bestfit=True)
-    for param in samples.getParamNames().list():
-        print(samples.getInlineLatex(param))
-        
-    return #table
 
 def prune_flatten_chain(chain, nburnin=0, thin=1):
     chain = chain[nburnin::thin]

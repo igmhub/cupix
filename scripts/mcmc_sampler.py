@@ -27,7 +27,7 @@ def init_worker(post):
     _POST = post
     if 'igm' in _POST.like.theory.lya_model.default_lya_model and _POST.like.theory.lya_model.delayload_emulator:
         # load the emulator now. This is necessary to avoid pickling problems earlier (frEIA package contains a lambda function)
-        _POST.like.theory.lya_model.emulator = _POST.like.theory.lya_model.get_emulator(_POST.like.theory.lya_model.emulator_label, _POST.like.theory.lya_model.Nrealizations)
+        _POST.like.theory.lya_model.emulator = _POST.like.theory.lya_model.get_emulator(_POST.like.theory.lya_model.emulator_label, _POST.like.theory.lya_model.Nrealizations, _POST.like.theory.lya_model.compile_emu_model_early)
     _POST.like.get_chi2() # will run camb and store the results in post.like.theory, which will be shared across workers
 
 def log_prob_wrapper(values):
@@ -76,6 +76,7 @@ def main():
     cosmo = cosmology.Cosmology(cosmo_params_dict=setup_config.cosmo_config)
     
     setup_config.theory_config["delay_load_emu"] = True # delay loading the emulator to avoid pickling issues
+    setup_config.theory_config["compile_emu_model_early"] = True # compile emulator at the beginning for every worker
     theory = Theory(z=z, fid_cosmo=cosmo, config=setup_config.theory_config)
     like = Likelihood(data=data, theory=theory, iz=iz, 
                   config=setup_config.like_config)
@@ -191,12 +192,9 @@ def main():
             print("Warning: chain didn't make it to nburnin steps.")
             
 
-        plot_tau_estimates(tau_estimates, os.path.join(outdir, "tau.png"))
         chain = emcee_sampler.get_chain(discard=0, thin=1, flat=False)
         logprob = emcee_sampler.get_log_prob(discard=0, thin=1, flat=False)
         save_chain(outdir, chain, free_params, log_prob=logprob, fname=f"chain_z{iz}.h5")
-        plot_chains(chain, free_params, 0, save=True, show=False, outdir=outdir)
-        # plot_contours(chain, free_params, title=runname, save=True, show=False, outdir=outdir)
         
 
 

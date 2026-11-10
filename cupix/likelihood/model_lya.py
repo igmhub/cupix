@@ -5,12 +5,12 @@ import pandas as pd
 # our modules below
 import forestflow
 from forestflow import priors
-from forestflow.emulator.p3d_cinn import P3DEmulator
+# from forestflow.emulator.p3d_cinn import P3DEmulator
 from cupix.utils.utils import get_path_repo
 from lace.cosmo import cosmology
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 from scipy.interpolate import CubicSpline
-
+from forestflow.emulator import load_emulator
 
 
 
@@ -41,9 +41,12 @@ class LyaModel(object):
             self.default_igm_params = self.get_default_igm_params(config)
             self.default_lya_params = None
             # setup emulator
-            self.emulator_label = config.get('emulator_label', 'forest_mpg')
-            self.Nrealizations = config.get('Nrealizations', 3000)
+            self.emulator_label = config.get('emulator_label', 'forest_mpg_cinn')
+            if self.emulator_label not in ['forest_mpg_cinn', 'forest_mpg_gp']:
+                raise ValueError("unknown emulator_label", self.emulator_label)
+            self.Nrealizations = config.get('Nrealizations', 2048)
             self.delayload_emulator = config.get('delay_load_emu', False)
+            self.compile_emu_model_early = config.get('compile_emu_model_early', False) #set to False unless evaluating many times
             if not self.delayload_emulator:
                 self.emulator = self.get_emulator(self.emulator_label, self.Nrealizations)
                 # self.hull = self.get_convex_hull()
@@ -134,11 +137,17 @@ class LyaModel(object):
     def get_emulator(self, emulator_label, Nrealizations):
         """Setup the ForestFlow emulator"""
 
-        if emulator_label == "forest_mpg":
-            #path_program = forestflow.__path__[0][:-10]
-            emulator = P3DEmulator(
-                key="forest_mpg_fix",
-                Nrealizations=Nrealizations
+        
+        if emulator_label == "forest_mpg_cinn":
+            emulator = load_emulator(
+                emulator_label=self.emulator_label,
+                Nrealizations=Nrealizations,
+                compile_model=self.compile_emu_model_early # compile the model for speed, but this takes a few minutes the first time
+            )
+        elif emulator_label == "forest_mpg_gp":
+            # no Nrealizations needed; cannot pass None
+            emulator = load_emulator(
+                emulator_label=self.emulator_label
             )
         else:
             raise ValueError("implement emulator_label", emulator_label)
@@ -226,7 +235,7 @@ class LyaModel(object):
         from scipy.spatial import ConvexHull        
         from forestflow.archive import GadgetArchive3D
         igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc', 'T0']
-        if self.emulator_label == 'forest_mpg':
+        if self.emulator_label == 'forest_mpg_cinn' or self.emulator_label == 'forest_mpg_gp':
             # Figure out the ForestFlow training central simulation
             path_program = get_path_repo("forestflow")
             Archive3D = GadgetArchive3D(

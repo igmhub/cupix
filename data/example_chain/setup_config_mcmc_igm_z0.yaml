@@ -1,0 +1,19 @@
+verbose_all:
+
+data_config:
+  data_file: /pscratch/sd/m/mlokken/desi-lya/specs5_forecasts//fcast_desi_best_fit_igm_from_p1d_hcd_realwin_bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d_noiseless.hdf5
+  kM_min_cut_AA: 0.02
+  kM_max_cut_AA: 0.7
+  km_max_cut_AA: 0.77
+  theta_min_cut_arcmin: 2
+  
+
+theory_config:
+  verbose: false
+  default_lya_model: best_fit_igm_from_p1d
+  include_sky: false
+  include_hcd: true
+  include_metal: false
+  include_continuum: false
+likelihood_config:
+  iz: 0
