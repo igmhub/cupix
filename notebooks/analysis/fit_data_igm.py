@@ -124,6 +124,9 @@ for iz, z in enumerate(zs):
     likes_cont.append(Likelihood(data=data, theory=theories_cont[iz], iz=iz, config={'verbose':False}))
 
 # %%
+likes_cont[0].plot_px()
+
+# %%
 models_lya = []
 models_cont = []
 for iz, z in enumerate(zs):
@@ -144,15 +147,15 @@ free_params.append(FreeParameter(
     gauss_prior_width=0.15,
     delta=0.02
     ))
-free_params.append(FreeParameter(
-    name='gamma',
-    min_value=1.24,
-    max_value=1.82,
-    ini_value=1.5,
-    gauss_prior_mean=1.5,
-    gauss_prior_width=0.3,
-    delta=0.1
-    ))
+# free_params.append(FreeParameter(
+#     name='gamma',
+#     min_value=1.24,
+#     max_value=1.82,
+#     ini_value=1.5,
+#     gauss_prior_mean=1.5,
+#     gauss_prior_width=0.3,
+#     delta=0.1
+#     ))
 free_params.append(FreeParameter(
     name='sigT_Mpc',
     min_value=0.1,

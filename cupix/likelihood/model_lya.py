@@ -5,20 +5,13 @@ import pandas as pd
 # our modules below
 import forestflow
 from forestflow import priors
-from forestflow.P3D_cINN import P3DEmulator
+# from forestflow.emulator.p3d_cinn import P3DEmulator
 from cupix.utils.utils import get_path_repo
 from lace.cosmo import cosmology
 from lace.cosmo.thermal_broadening import thermal_broadening_kms
 from scipy.interpolate import CubicSpline
+from forestflow.emulator import load_emulator
 
-def lya_params_from_forestflow_params(ff_params):
-    lya_params = ff_params.copy()
-    lya_params['kp_Mpc'] = lya_params.pop('kp')
-    kvav = lya_params.pop('kvav')
-    lya_params['kv_Mpc'] = np.exp( np.log(kvav) / lya_params['av'] )
-    if lya_params['bias'] > 0: # some versions of Forestflow might output a positive bias
-        lya_params['bias'] = -1.0 * lya_params['bias'] # change sign to match cupix convention
-    return lya_params
 
 
 
@@ -48,9 +41,12 @@ class LyaModel(object):
             self.default_igm_params = self.get_default_igm_params(config)
             self.default_lya_params = None
             # setup emulator
-            self.emulator_label = config.get('emulator_label', 'forest_mpg')
-            self.Nrealizations = config.get('Nrealizations', 3000)
+            self.emulator_label = config.get('emulator_label', 'forest_mpg_cinn')
+            if self.emulator_label not in ['forest_mpg_cinn', 'forest_mpg_gp']:
+                raise ValueError("unknown emulator_label", self.emulator_label)
+            self.Nrealizations = config.get('Nrealizations', 2048)
             self.delayload_emulator = config.get('delay_load_emu', False)
+            self.compile_emu_model_early = config.get('compile_emu_model_early', False) #set to False unless evaluating many times
             if not self.delayload_emulator:
                 self.emulator = self.get_emulator(self.emulator_label, self.Nrealizations)
                 # self.hull = self.get_convex_hull()
@@ -125,7 +121,7 @@ class LyaModel(object):
             raise ValueError("unknown default_lya_model", self.default_lya_model)
 
         if self.verbose: print('initial values', ff_params)
-        lya_params = lya_params_from_forestflow_params(ff_params)
+        lya_params = self.lya_params_from_forestflow_params(ff_params)
 
         # update parameters if present in config
         for par in lya_params:
@@ -141,11 +137,17 @@ class LyaModel(object):
     def get_emulator(self, emulator_label, Nrealizations):
         """Setup the ForestFlow emulator"""
 
-        if emulator_label == "forest_mpg":
-            path_program = forestflow.__path__[0][:-10]
-            emulator = P3DEmulator(
-                model_path=path_program+"/data/emulator_models/forest_mpg", #new_emu
-                Nrealizations=Nrealizations
+        
+        if emulator_label == "forest_mpg_cinn":
+            emulator = load_emulator(
+                emulator_label=self.emulator_label,
+                Nrealizations=Nrealizations,
+                compile_model=self.compile_emu_model_early # compile the model for speed, but this takes a few minutes the first time
+            )
+        elif emulator_label == "forest_mpg_gp":
+            # no Nrealizations needed; cannot pass None
+            emulator = load_emulator(
+                emulator_label=self.emulator_label
             )
         else:
             raise ValueError("implement emulator_label", emulator_label)
@@ -156,7 +158,6 @@ class LyaModel(object):
     def get_lya_params(self, cosmo, params):
         """Get the complete list of lya parameters (bias, beta, arinyo)
         from defaults and input params, potentially using the emulator"""
-
         # check whether you are working with IGM parameters (and emulator)
         if self.default_igm_params is not None:
             assert self.emulator is not None, "need emulator for IGM params"
@@ -167,6 +168,7 @@ class LyaModel(object):
                     igm_params[key] = params[key]
             # get Lya params from IGM params with emulator
             lya_params = self.emulate_lya_params(cosmo, igm_params)
+            
             # here we could look for Lya params also in input params... not sure
 
         else:
@@ -180,15 +182,14 @@ class LyaModel(object):
     
     def emulate_lya_params(self, cosmo, igm_params):
         """Use emulator to translate IGM params and cosmo to Lya params"""
-
+        print("using emulator")
         # emu params include igm and cosmo params
         emu_params = {}
         emu_params['mF'] = igm_params['mF']
         emu_params['gamma'] = igm_params['gamma']
         emu_params['sigT_Mpc'] = igm_params['sigT_Mpc']
         emu_params['kF_Mpc'] = igm_params['kF_Mpc']
-        # emu_params['Delta2_p'] = igm_params['Delta2_p']
-        # emu_params['n_p'] = igm_params['n_p']
+        
         ### MARTINE: these lines are no longer needed if our defualts are sigT_Mpc already. commenting them in case we want in the future again. ###
         # these igm params are not in the correct units for the emulator
         # dkms_dMpc = cosmo.get_dkms_dMpc(self.z)
@@ -203,15 +204,16 @@ class LyaModel(object):
         linP_params = cosmo.get_linP_Mpc_params(z=self.z, kp_Mpc=kp_Mpc)
         emu_params['Delta2_p'] = linP_params['Delta2_p']
         emu_params['n_p'] = linP_params['n_p']
+        
         # use emulator to estimate Lya params
-        ff_params = self.emulator.predict_Arinyos(emu_params=emu_params)
+        ff_params = self.emulator.evaluate(emu_params=emu_params)
         if self.verbose:
             print('igm params', igm_params)
             print('emu params', emu_params)
             print('ff params', ff_params)
 
         # we use slightly different names in cupix
-        lya_params = lya_params_from_forestflow_params(ff_params)
+        lya_params = self.lya_params_from_forestflow_params(ff_params, cosmo)
         if self.verbose:
             print('lya params', lya_params)
 
@@ -233,7 +235,7 @@ class LyaModel(object):
         from scipy.spatial import ConvexHull        
         from forestflow.archive import GadgetArchive3D
         igm_pars = ['Delta2_p', 'n_p', 'mF', 'gamma', 'sigT_Mpc', 'kF_Mpc', 'T0']
-        if self.emulator_label == 'forest_mpg':
+        if self.emulator_label == 'forest_mpg_cinn' or self.emulator_label == 'forest_mpg_gp':
             # Figure out the ForestFlow training central simulation
             path_program = get_path_repo("forestflow")
             Archive3D = GadgetArchive3D(
@@ -266,7 +268,28 @@ class LyaModel(object):
         """ Ensures that the parameters are within the convex hull the emulator was trained with. """
 
         return
+    
 
+    def lya_params_from_forestflow_params(self, ff_params, cosmo=None, params={}):
+        lya_params = ff_params.copy()
+        lya_params['kp_Mpc'] = lya_params.pop('kp')
+        kvav = lya_params.pop('kvav')
+        lya_params['kv_Mpc'] = np.exp( np.log(kvav) / lya_params['av'] )
+        if lya_params['bias'] > 0: # some versions of Forestflow might output a positive bias
+            lya_params['bias'] = -1.0 * lya_params['bias'] # change sign to match cupix convention
+        if 'beta' not in lya_params:
+            assert 'bias_eta' in lya_params, "beta or bias_eta must be in ff_params"
+            lya_params['beta'] = self.beta_from_b_eta(lya_params['bias_eta'], lya_params['bias'], cosmo=cosmo)
+            # remove bias_eta
+            lya_params.pop('bias_eta')
+        return lya_params
+
+
+    def beta_from_b_eta(self, b_eta, bias, cosmo=None):
+        f = cosmo.compute_growth_rate(self.z)
+        beta = b_eta * f / bias
+        return beta
+    
 
 def get_priors_gadget(z, model, verbose=False, extra_params=[]):
     ''' Get the min/max values for the gadget simulations. If you pass named_param,
@@ -380,7 +403,7 @@ def get_priors_colore(z, as_lyaparams=False):
                     val = 0
             bestfit_params[par] = val
     if as_lyaparams:
-        bestfit_params = lya_params_from_forestflow_params(bestfit_params)
+        bestfit_params = lya_params_from_arinyo_params(bestfit_params)
     for par in bestfit_params:
         val = bestfit_params[par]
         priors_dict[par] = {
@@ -400,7 +423,6 @@ def get_priors_colore(z, as_lyaparams=False):
     
     return priors_dict
         
-    
 
 def no_unrecognized_lya_params(config):
     " Check that the config does not contain any unrecognized parameters "
@@ -426,7 +448,7 @@ def no_conflicting_params(config):
     
     
     if 'default_lya_model' in config:
-        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"
+        assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal', 'best_fit_igm_from_gadget_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"
         # make sure the default lya model does not conflict with input parameters
         if 'igm' in config['default_lya_model']:
             for par in allowed_lya_params():
@@ -443,3 +465,13 @@ def no_conflicting_params(config):
 def no_unrecognized_default_models(config):
     if 'default_lya_model' in config:
         assert config['default_lya_model'] in ['best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'pressure_only_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'], f"default_lya_model {config['default_lya_model']} not recognized. The options are None, 'best_fit_arinyo_from_p1d', 'best_fit_arinyo_from_colore', 'best_fit_igm_from_p1d', 'gadget_igm_central', 'gadget_arinyo_central', 'best_fit_igm_from_p1d_plus_gaikal'"   
+
+def lya_params_from_arinyo_params(ar_params):
+    lya_params = ar_params.copy()
+    lya_params['kp_Mpc'] = lya_params.pop('kp')
+    kvav = lya_params.pop('kvav')
+    lya_params['kv_Mpc'] = np.exp( np.log(kvav) / lya_params['av'] )
+    if lya_params['bias'] > 0: # some versions of Forestflow might output a positive bias
+        lya_params['bias'] = -1.0 * lya_params['bias'] # change sign to match cupix convention
+    assert 'beta' in lya_params, "beta must be in Arinyo params"
+    return lya_params

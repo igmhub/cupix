@@ -14,23 +14,40 @@
 # ---
 
 # %%
-from cupix.inference.sampling_funcs import load_mcmc_results, plot_chain_flattened, plot_contours
+# import cupix.inference.sampling_funcs as sf
+from cupix.inference.mcmc_results import MCMCResults
+from cupix.utils.utils import get_path_repo
+import os
+import numpy as np
+import matplotlib.pyplot as plt
 # %load_ext autoreload
 # %autoreload 2
 
 # %%
-chain_directory = "/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/20260602_dist_cont/"
-chain, free_params, data, cosmo, theory, like, setup_config, inf_config = load_mcmc_results(chain_directory)
+cupixpath = get_path_repo('cupix')
+chain_dir = os.path.join(cupixpath, "data", "example_chain") 
+mcmc_results = MCMCResults(chain_dir, iz = 0)
+
+# %% [markdown]
+# Plot some diagnoses for the chain. First, the autocorrelation time
 
 # %%
-chain.shape
+mcmc_results.plot_tau_estimates(iz=0)
+
+# %% [markdown]
+# Now, examine the chains themselves
 
 # %%
-plot_chain_flattened(chain, free_params, 0, outdir=chain_directory, )
+mcmc_results.plot_chains(param_name='As')
 
 # %%
-plot_contours(chain, free_params, title="Unconverged chain on contaminated forecast", save=False, show=True)
+mcmc_results.plot_prob()
 
 # %%
+mcmc_results.plot_contours(params_to_plot=['As','ns','Delta2_p', 'n_p'], thin=3, show_best_fit=True)
 
 # %%
+mcmc_results.chain_bestfit_dict()
+
+# %%
+mcmc_results.latex_table(nburnin=500)

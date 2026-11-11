@@ -3,7 +3,7 @@ import numpy as np
 
 # our modules below
 from lace.cosmo import cosmology, rescale_cosmology
-from forestflow import integrate_p3d
+from forestflow.statistics import px as px_ff
 from cupix.likelihood.model_lya import LyaModel
 from cupix.likelihood.model_contaminants import ContaminantsModel
 
@@ -149,9 +149,9 @@ class Theory(object):
         z_lya = self.z
         lr_lya = self.lya_model.lr_lya
         z_metal = (1+z_lya) * lr_lya / lr_metal - 1
-        if self.verbose: 
-            print('z_lya =',z_lya)
-            print('z_metal =',z_metal)
+        # if self.verbose: 
+            # print('z_lya =',z_lya)
+            # print('z_metal =',z_metal)
 
         return z_metal
 
@@ -164,10 +164,10 @@ class Theory(object):
         lr_lya = self.lya_model.lr_lya
         z_metal = (1+z_lya) * lr_lya / lr_metal - 1
         z_cross = np.sqrt((1+z_lya)*(1+z_metal)) - 1
-        if self.verbose: 
-            print('z_lya =',z_lya)
-            print('z_metal =',z_metal)
-            print('z_cross =',z_cross)
+        # if self.verbose: 
+        #     print('z_lya =',z_lya)
+        #     print('z_metal =',z_metal)
+        #     print('z_cross =',z_cross)
 
         return z_cross
 
@@ -223,7 +223,7 @@ class Theory(object):
     def _compute_px_from_p3d(self, rt_Mpc, kp_Mpc, p3d_func_kmu, kmax_linP_Mpc):
         """Call function in ForestFlow to compute integrate P3D to Px"""
 
-        px = integrate_p3d.compute_px_from_p3d_kmu_Mpc(
+        px = px_ff.compute_px_from_p3d_kmu_Mpc(
                 kp_Mpc=kp_Mpc, 
                 rt_Mpc=rt_Mpc,
                 p3d_func_kmu_Mpc=p3d_func_kmu,
