@@ -35,6 +35,7 @@ def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
                    multiply_by_k=True, multiply_by_k2=False,
                    theta_inds=None, every_other_theta=False,
                    residuals=True, residual_to_theory=False, connect_residuals=False,
+                   show_unused_residuals=True,
                    shade_unused=True, xshade=None, unused_alpha=0.35,
                    include_chi2=False, include_probability=False,
                    xlim=None, ylim=None, ylim2=None,
@@ -63,6 +64,7 @@ def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
         theta_inds: indices of data theta_A bins to plot (default all).
         every_other_theta: plot every other theta bin (ignored if theta_inds given).
         residuals: add a (data - theory)/sigma panel below each redshift.
+        show_unused_residuals: if False, only data used in the fit get residual points.
         shade_unused: shade k ranges outside the fit range and draw unused points
             (k or theta cuts) with open markers / dashed model.
         xshade: extra k range(s) to shade, [kmin, kmax] or list of them.
@@ -193,7 +195,7 @@ def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
                     res = (px - px_binned[it_A]) / div
                     rls = '-' if connect_residuals else 'none'
                     ax_res[i].plot(k_M[used], res[used], color=col, marker='o', ls=rls, ms=4)
-                    if np.any(~used):
+                    if show_unused_residuals and np.any(~used):
                         ax_res[i].plot(k_M[~used], res[~used], color=col, marker='o', ls='none',
                                        ms=4, mfc='none', alpha=unused_alpha if shade_unused else 1.0)
 
