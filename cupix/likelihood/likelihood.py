@@ -50,10 +50,17 @@ class Likelihood(object):
         return px_theory
     
 
-    def get_convolved_px(self, params={}):
+    def get_convolved_px(self, params={}, k_shift_AA=0.0):
+        """Window-convolved, rebinned theory, shape (N_A, N_M).
+
+        k_shift_AA: if non-zero, the theory is evaluated at |k_m + k_shift_AA|
+            before applying the window. Assuming the window kernel of each k_M
+            bin is translation invariant, this returns the windowed model at
+            k_M + k_shift_AA (used to draw continuous windowed theory curves).
+        """
 
         # evaluate theory for each fine bin (theta_a, k_m), averaging if needed
-        Px_Zam = self._compute_Px_Zam(params=params)
+        Px_Zam = self._compute_Px_Zam(params=params, k_shift_AA=k_shift_AA)
 
         # number of rebinned k_M and theta_A bins
         N_M = len(self.data.k_M_edges[self.iz]) - 1
@@ -88,12 +95,15 @@ class Likelihood(object):
         return np.asarray(Px_ZAM_all)
 
 
-    def _compute_Px_Zam(self, params):
+    def _compute_Px_Zam(self, params, k_shift_AA=0.0):
         """Evaluate theory for each fine bin (theta_a, k_m), 
             averaging if needed"""
 
         # array with discrete k values (inverse Angstroms)
         k_m = self.data.k_m[self.iz]
+        if k_shift_AA != 0.0:
+            # Px is even in k_parallel
+            k_m = np.abs(k_m + k_shift_AA)
 
         # check if we are averaging the theory evaluated for more theta values
         if self.N_theta_average == 1:

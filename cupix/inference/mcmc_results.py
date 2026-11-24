@@ -11,6 +11,7 @@ from cupix.likelihood.config import Config
 from cupix.inference.inference_config import InferenceConfig
 from cupix.likelihood.theory import Theory
 from cupix.likelihood.likelihood import Likelihood
+from cupix.likelihood.plotting import plot_px_multiz
 from cupix.px_data.data_DESI_DR2 import DESI_DR2
 
 
@@ -411,6 +412,34 @@ class MCMCResults:
             if outdir is None:
                 outdir=self.directory
             plt.savefig(os.path.join(outdir, f"best_fit_z{iz}.png"))
+
+    def plot_best_fit_multiz(self, data=None, izs=None, nburnin=300, thin=3, save=False,
+                             outdir=None, theorylabel="Best-fit theory, windowed",
+                             datalabel="Measurements", **kwargs):
+        """Best-fit continuous windowed theory and data, one panel per redshift.
+
+        data: data object to plot (e.g. DESI_DR2 without theta / k cuts). Points
+            outside each likelihood's data cuts are shown as not used in the fit.
+            Defaults to the data of the first likelihood.
+        Other kwargs are passed to cupix.likelihood.plotting.plot_px_multiz.
+        """
+        if izs is None:
+            izs = list(self.iz)
+        if data is None:
+            data = self.likelihoods[str(izs[0])].data
+        params = {}
+        n_free_p = {}
+        for iz in izs:
+            bestfit_dict = self.chain_bestfit_dict(iz=iz, nburnin=nburnin, thin=thin)
+            params[iz] = {p.name: bestfit_dict[p.name] for p in self.freepars[str(iz)]}
+            n_free_p[iz] = len(self.freepars[str(iz)])
+        if save:
+            if outdir is None:
+                outdir = self.directory
+            kwargs.setdefault("plot_fname", os.path.join(outdir, "best_fit_multiz"))
+        return plot_px_multiz(data, params=params, likelihoods=self.likelihoods, izs=izs,
+                              n_free_p=n_free_p, theorylabel=theorylabel,
+                              datalabel=datalabel, **kwargs)
 
 
 
