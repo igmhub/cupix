@@ -1,49 +1,8 @@
-"""Plotting utilities for Px data and window-convolved theory across redshift bins."""
-from warnings import warn
-
+"""Plotting utilities for Px data and binned, window-convolved theory across redshift bins."""
 import numpy as np
 import matplotlib.pyplot as plt
 
 from cupix.likelihood.likelihood import Likelihood
-
-
-def get_continuous_windowed_px(like, params={}, n_sub=7):
-    """Window-convolved theory sampled finely in k, for all theta_A bins of like.data.
-
-    The data only provide window matrices for the coarse k_M bins. To draw a
-    smooth curve we assume the window kernel of each k_M bin is translation
-    invariant, so the windowed model at k_M + dk is obtained by convolving the
-    theory evaluated at |k_m + dk| with the window of bin M. Each sub-bin
-    offset costs one likelihood evaluation (all k_M bins at once).
-
-    Args:
-        like: Likelihood object (its data defines the k_M bins and windows).
-        params: theory parameters.
-        n_sub: number of k samples per k_M bin (forced odd, so the bin centre,
-            i.e. the exact binned prediction, is always included).
-
-    Returns:
-        k_fine: (N_M * n_sub,) wavenumbers [1/AA]
-        px_fine: (N_A, N_M * n_sub) windowed theory
-        px_binned: (N_A, N_M) windowed theory at the k_M bin centres
-            (identical to like.get_convolved_px(params))
-    """
-    if n_sub % 2 == 0:
-        n_sub += 1
-    edges = np.asarray(like.data.k_M_edges[like.iz])
-    k_M = 0.5 * (edges[:-1] + edges[1:])
-    widths = np.diff(edges)
-    dk = np.median(widths)
-    if not np.allclose(widths, dk, rtol=1e-3):
-        warn("k_M bins are not uniform; using the median width to sub-sample the model.")
-
-    fracs = (np.arange(n_sub) - (n_sub - 1) / 2) / n_sub
-    px = np.stack([like.get_convolved_px(params=params, k_shift_AA=f * dk) for f in fracs],
-                  axis=-1)  # (N_A, N_M, n_sub)
-    k_fine = (k_M[:, None] + fracs[None, :] * dk).reshape(-1)
-    px_fine = px.reshape(px.shape[0], -1)
-    px_binned = px[:, :, (n_sub - 1) // 2]
-    return k_fine, px_fine, px_binned
 
 
 def _select(obj, iz, i):
@@ -72,7 +31,7 @@ def _per_z_params(params, izs):
 
 
 def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
-                   like_config={}, n_free_p=0, n_sub=7,
+                   like_config={}, n_free_p=0,
                    multiply_by_k=True, multiply_by_k2=False,
                    theta_inds=None, every_other_theta=False,
                    residuals=True, residual_to_theory=False, connect_residuals=False,
@@ -82,7 +41,10 @@ def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
                    theorylabel='Theory prediction, windowed', datalabel='Data',
                    title=None, ncols=2, ncols_leg=4, figsize=None, fontsize=16,
                    cmap='tab20', plot_fname=None, show=True):
-    """Plot Px data and continuous window-convolved theory, one panel per redshift bin.
+    """Plot Px data and window-convolved, binned theory, one panel per redshift bin.
+
+    The model is evaluated at every k_M bin of the plotted data (also outside the
+    k / theta range used in the fit) and drawn as lines connecting the bin centres.
 
     Args:
         data: data object with all the measurements to plot (e.g. DESI_DR2 without cuts).
@@ -98,7 +60,6 @@ def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
         like_config: likelihood config (e.g. N_theta_average) used when building
             likelihoods from theories.
         n_free_p: number of free parameters (int, or dict keyed by iz) for chi2 / probability.
-        n_sub: number of model samples per data k bin (cost: n_sub likelihood calls per z).
         theta_inds: indices of data theta_A bins to plot (default all).
         every_other_theta: plot every other theta bin (ignored if theta_inds given).
         residuals: add a (data - theory)/sigma panel below each redshift.
@@ -182,7 +143,8 @@ def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
 
             edges = np.asarray(data.k_M_edges[iz])
             k_M = 0.5 * (edges[:-1] + edges[1:])
-            k_fine, px_fine, px_binned = get_continuous_windowed_px(like_plot, pars, n_sub=n_sub)
+            # windowed + rebinned model at all data k_M and theta_A bins
+            px_binned = like_plot.get_convolved_px(params=pars)
 
             def factor(k):
                 if multiply_by_k:
@@ -221,10 +183,10 @@ def plot_px_multiz(data, params=None, likelihoods=None, theories=None, izs=None,
                                    np.max(((px + err) * factor(k_M))[in_x])])
 
                 ls = '-' if (theta_used or not shade_unused) else '--'
-                model = px_fine[it_A] * factor(k_fine)
-                ax.plot(k_fine, model, color=col, lw=2, ls=ls)
-                in_xf = slice(None) if xlim is None else (k_fine >= xlim[0]) & (k_fine <= xlim[1])
-                y_used.append([np.min(model[in_xf]), np.max(model[in_xf])])
+                model = px_binned[it_A] * factor(k_M)
+                ax.plot(k_M, model, color=col, lw=2, ls=ls)
+                in_xm = slice(None) if xlim is None else (k_M >= xlim[0]) & (k_M <= xlim[1])
+                y_used.append([np.min(model[in_xm]), np.max(model[in_xm])])
 
                 if residuals:
                     div = px_binned[it_A] if residual_to_theory else err
