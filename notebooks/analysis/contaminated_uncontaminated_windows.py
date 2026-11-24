@@ -36,9 +36,9 @@ mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stack
 uncont_fname = mockdir + "uncontaminated/uncontaminated_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
 cont_fname = mockdir + "contaminated/contaminated_baseline_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50_ncov.hdf5"
 
-iz = 1
-data_uncont = DESI_DR2(config = {'data_file':uncont_fname, 'theta_min_cut_arcmin':0})
-data_cont = DESI_DR2(config = {'data_file':cont_fname, 'theta_min_cut_arcmin':0})
+iz = 2
+data_uncont = DESI_DR2(config = {'data_file':uncont_fname, 'theta_min_cut_arcmin':5, 'theta_max_cut_arcmin':25})
+data_cont = DESI_DR2(config = {'data_file':cont_fname, 'theta_min_cut_arcmin':5, 'theta_max_cut_arcmin':25})
 z = data_cont.z[iz]
 print('analyze zbin {}, z = {}'.format(iz, z))
 
@@ -80,9 +80,52 @@ model_px_uncont = like_uncont.get_convolved_px()
 k_AA = like_cont.data.k_M_centers_AA
 
 # %%
+
+# plot residuals
+# get a continuous colormap
+cmap = plt.get_cmap('viridis')
+for theta_A in range(len(model_px_cont)):
+    # if theta_A%2==0:
+    plt.plot(k_AA, (model_px_cont[theta_A]  / model_px_uncont[theta_A]), label=rf"$\theta = {like_cont.data.theta_centers_arcmin[theta_A]:.1f}^\prime$", color=cmap(theta_A/len(model_px_cont)))
+
+plt.xlim([0, 0.77])
+# plt.axhspan(-.03,.03, label='3%', color='grey', alpha=.5)
+plt.ylabel(r'$P_\mathrm{\times}^\mathrm{mask}\;/\;P_\mathrm{\times}^\mathrm{nomask}$', fontsize=14)
+plt.title("Windowed theory with vs. without masking", fontsize=16)
+plt.axhline(1, color='k', linestyle='dashed', alpha=.5)
+plt.xlabel(r'$k [\AA^{-1}$]')
+plt.legend(fontsize=12, ncol=2)
+plt.ylim([.5,3])
+
+# %%
+cmap = plt.get_cmap('tab20')
+fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(6, 8), gridspec_kw={'height_ratios': [3, 1]})
+has_label = False
+for theta_A in range(len(model_px_cont)):
+    if not has_label:
+        labelun = 'With uncontaminated window'
+        labelcont = 'With contaminated window'
+        has_label = True
+    else:
+        labelun = None
+        labelcont = None
+    ax[0].plot(k_AA, k_AA*model_px_uncont[theta_A], label=labelun,   linestyle='solid', color=cmap(theta_A/len(model_px_cont)))
+    ax[0].plot(k_AA, k_AA*model_px_cont[theta_A], label=labelcont, linestyle='dotted', color=cmap(theta_A/len(model_px_cont)))
+    ax[1].plot(k_AA, (model_px_cont[theta_A]  / model_px_uncont[theta_A]-1), label=rf"$\theta = {like_cont.data.theta_centers_arcmin[theta_A]:.1f}^\prime$", color=cmap(theta_A/len(model_px_cont)))
+ax[0].set_ylabel(r'$k P_\mathrm{\times}[\AA]$', fontsize=14)
+ax[1].set_xlim([0,0.7])
+ax[1].set_ylabel(r'$P_\mathrm{\times}^\mathrm{cont}\;/\;P_\mathrm{\times}^\mathrm{uncont}$-1', fontsize=14)
+ax[1].set_xlabel(r'$k [\AA^{-1}$]')
+ax[0].legend(fontsize=12)
+ax[1].legend(loc="upper right", ncol=2, fontsize=12)
+# remove vspace
+plt.subplots_adjust(hspace=0.05)
+plt.savefig("../../plots/cont_uncont_windows.pdf", bbox_inches='tight')
+
+# %%
 # colors = ['C{}'.format(i) for i in range(len(model_px_cont))]
 has_label = False
-for theta_A in range(len(model_px_cont))[4:]:
+for theta_A in range(len(model_px_cont)):
     if not has_label:
         labelun = 'uncontaminated'
         labelcont = 'contaminated'
@@ -98,22 +141,10 @@ plt.ylabel(r'$k^2 P_\times(k)$')
 plt.legend()
 
 # %%
+# plot both
 
-# plot residuals
-# get a continuous colormap
-cmap = plt.get_cmap('viridis')
-for theta_A in range(len(model_px_cont)):
-    if theta_A%2==0:
-        plt.plot(k_AA, (model_px_cont[theta_A]  / model_px_uncont[theta_A]), label=rf"$\theta = {like_cont.data.theta_centers_arcmin[theta_A]:.1f}^\prime$", color=cmap(theta_A/len(model_px_cont)))
 
-plt.xlim([0, 0.77])
-# plt.axhspan(-.03,.03, label='3%', color='grey', alpha=.5)
-plt.ylabel(r'$P_\mathrm{\times}^\mathrm{mask}\;/\;P_\mathrm{\times}^\mathrm{nomask}$', fontsize=14)
-plt.title("Windowed theory with vs. without masking", fontsize=16)
-plt.axhline(1, color='k', linestyle='dashed', alpha=.5)
-plt.xlabel(r'$k [\AA^{-1}$]')
-plt.legend(fontsize=12, ncol=2)
-plt.ylim([.5,3])
+# %%
 
 # %%
 for a in range(10):

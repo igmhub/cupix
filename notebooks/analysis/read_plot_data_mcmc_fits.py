@@ -14,11 +14,10 @@
 # ---
 
 # %% [markdown]
-# # Tutorial: Plot saved mock test results from the MCMC
+# # Plot chain results from the MCMC
 
 # %%
-
-from cupix.inference.sampling_funcs import load_mcmc_results, plot_contours, chain_bestfit_dict
+from cupix.inference.mcmc_results import MCMCResults
 # %load_ext autoreload
 # %autoreload 2
 import matplotlib.pyplot as plt
@@ -31,141 +30,96 @@ from lace.cosmo import cosmology
 from cupix.likelihood.likelihood import Likelihood
 import h5py
 
-
-
 # %% [markdown]
 # Set the zs and choice of z
 
 # %%
-zs = [2.2, 2.4, 2.6, 2.8]
+# izs = [0]
+izs = [0,1,2,3]
 
 # %%
-# ls /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261007_arinyo_paperbaseline #2_arinyo_paperbaseline
+mode = 'igm' # 'arinyo'
 
 # %%
-dir = "/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261007_arinyo_paperbaseline"
+if mode=='arinyo':
+    dir = f"/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261030_{mode}_paperbaseline_binfix"
+elif mode == 'igm':
+    dir = f"/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261124_{mode}_binfix_morefree"
+    # 20261015_{mode}_paperbaseline"
+
+# %% [markdown]
+# # Load the chains
+
+# %%
+chains = MCMCResults(dir, izs)
 
 # %% [markdown]
 # ## Check the autocorrelation time
 
 # %%
-for iz, z in enumerate(zs):
-    if os.path.exists(os.path.join(dir, f"tau_estimates_z{iz}.txt")):
-        tau_info = np.loadtxt(os.path.join(dir, f"tau_estimates_z{iz}.txt"))
-        plt.plot(tau_info[:,0], tau_info[:,1], label=f'z={z}')
-        # plot the necessary autocorrelation
-        F = 30
-        plt.plot(tau_info[:,0], tau_info[:,0]/F)
-        plt.ylabel(r"$\langle \tau \rangle$")
-        plt.xlabel(r"Iteration")
-    plt.legend()
+for iz in izs:
+    chains.plot_tau_estimates(iz=iz)
 
 # %% [markdown]
 # ## Inspect the chains
 
 # %%
-nburnin=300
+for iz in izs:# [0,1,2,3]:
+    chains.plot_chains(iz=iz, param_name='mF')
+    chains.plot_chains(iz=iz, param_name='sigT_Mpc')
+    chains.plot_chains(iz=iz, param_name='gamma')
+
+# %% [markdown]
+# Decide on nburnin from the previous plots, thin based on number of walkers
 
 # %%
-results = []
-for iz in range(len(zs)):
-    fn = f"chain_z{iz}.h5"
-    if not os.path.exists(os.path.join(dir, fn)):
-        results.append([])
-        print(f"Chain was not run for z{iz}, skipping...")
-        continue
-    
-    # fn = f"chain_z{iz}.h5"
-    mcmc_results = load_mcmc_results(dir, fn, iz=iz, inf_fname=f'inference_config_mcmc_arinyo_z{iz}.yaml', setup_fname=f'setup_config_mcmc_z{iz}.yaml')
-    results.append(mcmc_results)
-    chain = mcmc_results["chain_data"]["chain"]
-    logprob = mcmc_results["chain_data"]["log_prob"]
-    for i in range(len(mcmc_results["free_params"])):
-        for w in range(chain.shape[1]):
-            plt.plot(np.arange(chain.shape[0]), chain[:, w, i], alpha=0.5)
-        plt.axvline(nburnin, color='k', linestyle='--', label='Burn-in limit')
-        plt.title(f"Chains for {mcmc_results["free_params"][i].name}")
-        plt.ylabel(mcmc_results["free_params"][i].name)
-        plt.show()
-        plt.clf()
-        
-    for w in range(logprob.shape[1]):
-        plt.plot(np.arange(logprob.shape[0]), logprob[:, w], alpha=0.5)
-    
-    plt.title(f"Log probability, z={zs[iz]}")
-    plt.ylabel("Log probability")
-    plt.axvline(nburnin, color='k', linestyle='--', label='Burn-in limit')
-    plt.show()
-    plt.clf()
-    # again, with nburnin removed limit
-    for w in range(logprob.shape[1]):
-        plt.plot(np.arange(logprob.shape[0])[nburnin:], logprob[nburnin:, w], alpha=0.5)
-    
-    plt.title(f"Log probability, z={zs[iz]}")
-    plt.ylabel("Log probability")
-    plt.show()
-    plt.clf()
+nburnin = 50
+thin = 4
 
 # %%
-xlim = [0, 0.7]
+chains.freepars
 
-for iz in range(len(zs)):
-    if len(results[iz])>0:
-        bestfits = chain_bestfit_dict(results[iz]["chain_data"], results[iz]["free_params"], nburnin=nburnin, thin=3)
-        bestfits_only_SiII = bestfits.copy()
-        bestfits_only_SiII['b_SiIII']  = 0
-        bestfits_only_SiIII = bestfits.copy()
-        bestfits_only_SiIII['b_SiII']  = 0
-        bestfits_no_metals = bestfits.copy()
-        bestfits_no_metals['b_SiII']  = 0
-        bestfits_no_metals['b_SiIII']  = 0
-        params = {par.name: bestfits[par.name] for par in results[iz]["free_params"]}
+# %%
+for iz in izs:  #[0,1,2,3]:
+    chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin, include_probability=False, include_chi2=True, every_other_theta=True, ncols_leg=2)
 
-        
-        # mcmc_results["like"].plot_px(params=bestfits_no_metals, include_chi2=True, every_other_theta=True, multiply_by_k=True, xlim=xlim, theorylabel="Best-fit without metals", title=f"z={mcmc_results['theory'].z}", datalabel="DR2", include_probability=False, ylim2=[-5,15])
-        # mcmc_results["like"].plot_px(params=bestfits_only_SiII, include_chi2=True, every_other_theta=True, multiply_by_k=True, xlim=xlim, theorylabel="Best-fit without SiIII", title=f"z={mcmc_results['theory'].z}", datalabel="DR2", include_probability=False, ylim2=[-5,15])
-        # mcmc_results["like"].plot_px(params=bestfits_only_SiIII, include_chi2=True, every_other_theta=True, multiply_by_k=True, xlim=xlim, theorylabel="Best-fit without SiII", title=f"z={mcmc_results['theory'].z}", datalabel="DR2", include_probability=False, ylim2=[-5,15])
-        results[iz]["like"].plot_px(params=params, include_chi2=False, every_other_theta=False, multiply_by_k=True, xlim=xlim, theorylabel="Best-fit theory", title=f"z={results[iz]['theory'].z}", datalabel="DR2 measurements", include_probability=False, ylim2=[-5,5], n_free_p=len(results[iz]["free_params"]))
-        
-        
+# %%
+chains.setup_configs['0'].data_config.keys()
+
+# %%
+data.k_M_edges
+
+# %%
+
+# load the original data and plot it underneath
+data_config = {'data_file':chains.setup_configs['0'].data_config['data_file'], 'theta_min_cut_arcmin':5} # get all data
+data = DESI_DR2(data_config)
+for iz in izs:
+    chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin, include_probability=False, include_chi2=False, every_other_theta=False, extra_data=data,
+                         xlim=[0,.65], ncols_leg=2, ylim=[-.0005, 0.009], multiply_by_k=True, xshade=[0, 0.03451457], ylim2=[-3.5, 3.5])
 
 
 # %%
-def results_to_latex(res, names=None, fmt="{:.3f}", caption=None, label=None):
-    """
-    res   : dict with 'par', 'par_err_up', 'par_err_low'
-    names : optional dict mapping par -> LaTeX string (without $), e.g. {'H0': r'H_0'}
-    """
-    names = names or {}
-    pars = [k for k in res if not k.endswith(('_err_up', '_err_low', '_err', '_mean'))]
-    print(pars)
-    lines = [r"\begin{table}", r"\centering"]
-    if caption:
-        lines.append(rf"\caption{{{caption}}}")
-    if label:
-        lines.append(rf"\label{{{label}}}")
-    lines += [r"\begin{tabular}{lc}", r"\hline", r"Parameter & Value \\", r"\hline"]
-
-    for p in pars:
-        name = names.get(p, p.replace('_', r'\_') if False else p)
-        val = fmt.format(res[p])
-        up = fmt.format(abs(res[f"{p}_err_up"]))
-        lo = fmt.format(abs(res[f"{p}_err_low"]))
-        lines.append(rf"${name}$ & ${val}^{{+{up}}}_{{-{lo}}}$ \\")
-
-    lines += [r"\hline", r"\end{tabular}", r"\end{table}"]
-    return "\n".join(lines)
-
-
-
+for iz in izs:
+    chains.plot_contours(iz=iz, nburnin=nburnin, thin=thin, params_to_plot=['mF', 'T0', 'gamma', 'kF_Mpc', 'b_H','b_SiII','b_SiIII'])
 
 # %%
+chains.chain_files
+
+# %%
+include_eff=False
+include_T0=True
 for iz, z in enumerate(zs):
     if len(results[iz])>0:
-        # plot_contours(results[iz]["chain_data"], results[iz]["free_params"], nburnin=nburnin, thin=4, title=f"z={z}", include_eff=True, show_priors=True)
         print(f"Best-fit parameters for z={z}:")
-        res = results_to_latex(chain_bestfit_dict(results[iz]["chain_data"], results[iz]["free_params"], nburnin=nburnin, thin=3, include_eff=True),  caption="Best-fit parameters", label="tab:results")
-        print(res)
+        if mode=='arinyo':
+            derived_params=['beta_eff', 'b_eff']
+        elif mode=='igm':
+            derived_params=['T0']
+
+        latex_table(results[iz]["chain_data"], nburnin=nburnin, thin=3, derived_pars=derived_params)
+        plot_contours(results[iz]["chain_data"], results[iz]["free_params"], nburnin=nburnin, thin=4, theory=results[iz]['theory'],derived_pars=derived_params, show_priors=True, params_to_plot=["bias", "beta", "b_SiII", "b_SiIII", "b_H", "b_eff", "beta_eff"], show_bounds=True, title=f"z={z}")
+        
 
 # %%
 z_hiram = [2.13, 2.41, 2.81]
@@ -201,7 +155,7 @@ for iz in range(len(zs)):
     else:
         our_label = ""
     if len(results[iz])>0:
-        bestfit_dict = chain_bestfit_dict(results[iz]["chain_data"], results[iz]["free_params"], nburnin=nburnin, thin=3, include_eff=True)
+        bestfit_dict = chain_bestfit_dict(results[iz]["chain_data"], results[iz]["free_params"], nburnin=nburnin, thin=3, derived_pars=['b_eff', 'beta_eff'])
         plt.errorbar(zs[iz], bestfit_dict["b_eff"], yerr=[[abs(bestfit_dict["b_eff"]-bestfit_dict["b_eff_err_low"])], [abs(bestfit_dict["b_eff"]-bestfit_dict["b_eff_err_up"])]], fmt='o', color='black', label=our_label)
                      
 plt.xlabel(r"$z$")
@@ -224,7 +178,7 @@ for iz in range(len(zs)):
     else:
         our_label = ""
     if len(results[iz])>0:
-        bestfit_dict = chain_bestfit_dict(results[iz]["chain_data"], results[iz]["free_params"], nburnin=150, thin=3, include_eff=True)
+        bestfit_dict = chain_bestfit_dict(results[iz]["chain_data"], results[iz]["free_params"], nburnin=150, thin=3, derived_pars=['b_eff', 'beta_eff'])
         plt.errorbar(zs[iz], bestfit_dict["beta_eff"], yerr=[[abs(bestfit_dict["beta_eff"]-bestfit_dict["beta_eff_err_low"])], [abs(bestfit_dict["beta_eff"]-bestfit_dict["beta_eff_err_up"])]], fmt='o', color='black', label=our_label)
 
 plt.axhline(y=beta_eff_bao_singlez, label=r'$\beta$ used for BAO single-z')
@@ -233,5 +187,80 @@ plt.xlabel(r"$z$")
 plt.legend(loc='upper right', fontsize=13)
 plt.ylabel(r"$\beta_\alpha^\prime$")
 plt.savefig("../../plots/beta_eff_vs_z.pdf", bbox_inches='tight')
+
+# %%
+z = np.array([2.2, 2.4, 2.6, 2.8])
+mF_gaikwad = np.array([.826, .79, .767, .74])
+gaikwad_err = np.array([0.0206, 0.0210, 0.0216, 0.0212])
+z_turner = np.array([2.15, 2.25, 2.35, 2.45, 2.55, 2.65, 2.75, 2.85])
+tau_turner = np.array([0.158, 0.179, 0.200, 0.226, 0.235, 0.268, 0.292, 0.316])
+tau_err_turner = np.array([.012, .015, .016, .016, .018, .019, .020, .021])
+mF_turner = np.exp(-1*tau_turner)
+mF_err_turner = mF_turner * tau_err_turner
+# mF_cm = np.array([priors.get_IGM_priors(zi)["mean"]["mF"] for zi in z])
+# mF_cm_err = np.array([priors.get_IGM_priors(zi)["std"]["mF"] for zi in z])
+mF_cm =  np.array([0.8151, 0.7906,  0.7637, 0.7303])
+mF_cm_err = np.array([0.0047,0.0044, 0.0049, .0056])
+
+# %%
+from lace.cosmo.thermal_broadening import T0_from_broadening_kms
+T0_gaikwad = np.array([11000, 12750, 13500, 14750])/1e4
+T0_gaikwad_err = np.array([1028, 1132, 1390, 1341])/1e4
+sigT_cm = np.array([0.1611, 0.1467, 0.1311, 0.1205])
+sigT_cm_err = np.array([0.0043, 0.0037, 0.0057, 0.0068])
+T0_cm = []
+T0_cm_err = []
+for iz in range(len(z)):
+    dkms_dMpc = chains.theories[str(iz)].fid_cosmo.get_dkms_dMpc(z[iz])
+    sigT_kms = sigT_cm[iz] * dkms_dMpc
+    T0_cm.append(T0_from_broadening_kms(sigT_kms) / 1e4)
+
+    T0_cm_err_iz = 2 * sigT_cm_err[iz] / sigT_cm[iz] * T0_cm[iz]
+    T0_cm_err.append(T0_cm_err_iz)
+    if iz==2:
+        break
+T0_cm = np.asarray(T0_cm)
+T0_cm_err = np.asarray(T0_cm_err)
+
+# %%
+T0_cm_err.shape
+
+# %%
+plt.fill_between(z[:3], T0_cm - T0_cm_err, T0_cm + T0_cm_err, alpha=.5, label='Chaves-Montero+25', color='orange')
+plt.fill_between(z, T0_gaikwad - T0_gaikwad_err, T0_gaikwad + T0_gaikwad_err, alpha=.5, label='Gaikwad+25', color='red')
+for iz in izs:
+    
+    if iz==0:
+        label=r"$P_\times$, this work"
+    else:
+        label=None
+    
+    bestfits = chains.chain_bestfit_dict(iz=iz,nburnin=nburnin, thin=thin)
+    plt.errorbar(chains.theories[str(iz)].z, bestfits['T0'], yerr=bestfits['T0_err'], marker='o', color='green', label=label)
+
+plt.legend()
+
+
+
+# %%
+
+plt.fill_between(z, mF_gaikwad-gaikwad_err, mF_gaikwad+gaikwad_err, alpha=.2, label='Gaikwad+21')
+plt.fill_between(z, mF_cm - mF_cm_err, mF_cm + mF_cm_err, alpha=.5, label='Chaves-Montero+25', color='orange')
+plt.fill_between(z_turner, mF_turner - mF_err_turner, mF_turner + mF_err_turner, alpha=.5, label='Turner+24', color='red')
+for iz in izs:
+    
+    if iz==0:
+        label=r"$P_\times$, this work"
+    else:
+        label=None
+    
+    bestfits = chains.chain_bestfit_dict(iz=iz,nburnin=nburnin, thin=thin)
+    plt.errorbar(chains.theories[str(iz)].z, bestfits['mF'], yerr=bestfits['mF_err'], marker='o', color='green', label=label)
+
+
+plt.legend(fontsize=15)
+plt.ylabel(r"$\overline{F}$", fontsize=15)
+plt.xlabel('z', fontsize=15)
+# plt.savefig("../../plots/mF_estimates_preliminary.pdf", bbox_inches="tight")
 
 # %%

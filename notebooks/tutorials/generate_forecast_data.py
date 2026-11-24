@@ -41,11 +41,12 @@ print(cupixpath)
 
 # %%
 # --------- user settings --------
-lya_model  = "best_fit_arinyo_from_p1d" # options: "central_igm_from_gadget", "random_igm_from_gadget", "best_fit_arinyo_from_p1d", "best_fit_igm_from_p1d", "best_fit_arinyo_from_colore"
+lya_model  = "best_fit_arinyo_from_p1d" # options: "gadget_igm_central", "gadget_arinyo_central", "gadget_igm_random", "best_fit_arinyo_from_p1d", "best_fit_igm_from_p1d", "best_fit_arinyo_from_colore"
 add_noise  = False
-distort    = True # adds distortion
-contaminate = True # adds contamination
+distort    = False # adds distortion
+contaminate = False # adds contamination
 params = {} # input a dictionary of specific params and values if you want to modify the default theory for the forecast
+emulator_label = "forest_mpg_cinn" # options: forest_mpg_gp, forest_mpg_cinn, none if not emulating from IGM parameters
 # --------------------------
 
 assert 'igm' in lya_model or 'arinyo' in lya_model, "lya_model must contain either 'igm' or 'arinyo'"
@@ -57,6 +58,7 @@ if 'gadget' in lya_model:
         floc = "central" # "central" or "random"
     elif "random" in lya_model:
         floc = "random"
+        lya_model = "gadget_igm_central" # use central model and replace with random par values after
 else:
     floc = ""
 
@@ -82,7 +84,7 @@ if distort:
     include_continuum = True
     
 theory_config={'verbose': True, 'default_lya_model':lya_model, 'include_hcd': include_hcd, 'include_metal': include_metal,
-        'include_sky': include_sky, 'include_continuum': include_continuum}
+        'include_sky': include_sky, 'include_continuum': include_continuum, 'emulator_label':emulator_label}
 # set the default theory values
 for z in data.z:
     print(z)
@@ -148,9 +150,6 @@ for iz, z in enumerate(data.z):
 
 
 # %%
-dir(theories[0].cont_model)
-
-# %%
 # make a copy of the data file at the forecast location
 with h5.File(data_file, 'r') as f:
     with h5.File(savestr, 'w') as f_out:
@@ -160,6 +159,8 @@ with h5.File(data_file, 'r') as f:
                 f.copy(group_name, f_out)
         f_out['metadata'].attrs['z_centers'] = data.z # do this manually in case data.z was overwritten by the user earlier in the notebook
         f_out['metadata'].attrs['z_centers_orig'] = f['metadata'].attrs['z_centers'] # save the original z_centers as well for reference. In some cases this will be the same as the new z_centers.
+        if "igm" in lya_model:
+            f_out['metadata'].attrs['emulator_used'] = theories[0].lya_model.emulator_label
         if contaminate or distort:
             contam_group = f_out.create_group("contamination")
             # save the iz=0 contaminant info since it doesn't change with z

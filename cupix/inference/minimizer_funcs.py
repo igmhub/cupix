@@ -276,10 +276,9 @@ def plot_ellipse(
     # 2x2 covariance extraction
     # -------------------------
     C = cov[np.ix_([ix, iy], [ix, iy])]
-
     # eigen decomposition
-    w, v = LA.eig(C)
-
+    w, v = LA.eigh(C)
+    
     # sort eigenvalues (important fix)
     idx = np.argsort(w)[::-1]
     w = w[idx]

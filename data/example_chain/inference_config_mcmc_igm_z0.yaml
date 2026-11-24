@@ -1,0 +1,36 @@
+posterior_config:
+  verbose: false
+
+sampler_config:
+  # set these only if you want to change the defaults
+  verbose: True
+  outputs_dir: /pscratch/sd/m/mlokken/specs5/
+  max_nsteps: 2000
+  nburnin: 100
+  F_tau: 30
+
+params_config:
+  ns:
+    min_value: 0.8
+    max_value: 1.2
+    ini_value: 0.96630
+  
+  As:
+    min_value: 0.000000001
+    max_value: 0.000000004
+    ini_value: 0.0000000021052
+
+  b_H:
+    min_value: -0.03
+    max_value: 0.0
+    ini_value: -0.015
+
+  L_H_Mpc:
+    min_value: 0.0
+    max_value: 30.0
+    ini_value: 10.0
+
+  beta_H:
+    min_value: 0.0
+    max_value: 2.0
+    ini_value: 1.0

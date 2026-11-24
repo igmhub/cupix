@@ -1,0 +1,3 @@
+max_nsteps: 2000
+nburnin: 100
+nwalkers: 16

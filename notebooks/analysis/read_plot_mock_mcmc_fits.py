@@ -36,53 +36,41 @@ from cupix.likelihood.likelihood import Likelihood
 # Set the zs and choice of z
 
 # %%
-# ls /global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/
-
-# %%
+# check Hirams mock results
+# # ls /global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/
 # check multi-z results
-from astropy.io import fits
-hiram = fits.open("/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/lyaxlya-0.0_2.25_metalmatrix.fits")
-for cols in hiram[1].header:
-    print(cols)
-hiram[1].header['bias_SiIII(1207)']
+# from astropy.io import fits
+# hiram = fits.open("/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/lyaxlya-0.0_2.25_metalmatrix.fits")
+# for cols in hiram[1].header:
+#     print(cols)
+# hiram[1].header['bias_SiIII(1207)']
 
+# # check multi-z results
+# from astropy.io import fits
+# hiram = fits.open("/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/lyaxlya-2.25_2.6_metalmatrix.fits")
+# for cols in hiram[1].header:
+#     print(cols)
+# hiram[1].header['bias_SiIII(1207)']
 
-# %%
 # check multi-z results
-from astropy.io import fits
-hiram = fits.open("/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/lyaxlya-2.25_2.6_metalmatrix.fits")
-for cols in hiram[1].header:
-    print(cols)
-hiram[1].header['bias_SiIII(1207)']
-
-
-# %%
-# check multi-z results
-from astropy.io import fits
-hiram = fits.open("/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/lyaxlya-2.25_2.6_metalmatrix.fits")
-for cols in hiram[1].header:
-    print(cols)
-hiram[1].header['bias_SiIII(1207)']
-
-
-# %%
-# check multi-z results
-from astropy.io import fits
-hiram = fits.open("/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/lyaxlya-2.6_10.0_metalmatrix.fits")
-for cols in hiram[1].header:
-    print(cols)
-hiram[1].header['bias_SiIII(1207)']
-
+# from astropy.io import fits
+# hiram = fits.open("/global/cfs/cdirs/desicollab/science/lya/mock_analysis/develop/ifae-ql/qq_desi_y3/v1.0.5/analysis-stack/jura-124/redshift_bins/fits/output_fitter/lyaxlya-2.6_10.0_metalmatrix.fits")
+# for cols in hiram[1].header:
+#     print(cols)
+# hiram[1].header['bias_SiIII(1207)']
 
 # %%
 zs = [2.2, 2.4, 2.6, 2.8]
 
 # %%
-# ls /pscratch/sd/m/mlokken/desi-lya/px/mocks/mcmc_fits/20260924*
+# ls /pscratch/sd/m/mlokken/desi-lya/px/mocks/mcmc_fits/20261015*
 
 # %%
-dir = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/mcmc_fits/20260924_cont_free5/"
-fn = "chain_partial_it1650.h5"
+dir = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/mcmc_fits/20261015_cont_free5/"
+fn = "chain_z2_partial_it400.h5"
+
+# %%
+dir(mcmc_results)
 
 # %%
 results_cont = []
@@ -93,18 +81,20 @@ bestfits_cont = []
 for iz in [2]:
     print('h')
     mcmc_results = load_mcmc_results(dir, fn, iz=iz)
-    bestfits = chain_bestfit_dict(mcmc_results["chain_data"], mcmc_results["free_params"], nburnin=300, thin=5)
-    print(bestfits)
+    bestfits = chain_bestfit_dict(mcmc_results["chain_data"], mcmc_results["free_params"], nburnin=100, thin=5)
+    freepars = [par.name for par in mcmc_results["free_params"]]
+    bestfits_parsonly = {k: bestfits[k] for k in freepars}
     bestfits_cont.append(bestfits)
-    mcmc_results["like"].plot_px(params={'b_X':0, 'b_H':-0}, include_chi2=False, every_other_theta=True, multiply_by_k2=True, xlim=[0,.3], theorylabel="Best-fit without metals + HCDs.", title=f"z={mcmc_results['theory'].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15])
+    mcmc_results["like"].plot_px(params={'b_SiIII':0, 'b_SiII':0, 'b_H':-0}, include_chi2=False, every_other_theta=True, multiply_by_k=True, xlim=[0,.3], theorylabel="Best-fit without metals + HCDs.", title=f"z={mcmc_results['theory'].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15])
 
-    mcmc_results["like"].plot_px(params=bestfits, include_chi2=True, every_other_theta=False, multiply_by_k2=True, xlim=[0,.3], theorylabel="Best fit", title=f"z={mcmc_results['theory'].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15])
+
+    mcmc_results["like"].plot_px(params=bestfits_parsonly, include_chi2=True, every_other_theta=False, multiply_by_k=True, xlim=[0,.3], theorylabel="Best fit", title=f"z={mcmc_results['theory'].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15])
 
     
     # # plot without metals
-    bestfits_no_metals = bestfits.copy()
-    bestfits_no_metals['b_X'] = 0.0
-
+    bestfits_no_metals = bestfits_parsonly.copy()
+    bestfits_no_metals['b_SiIII'] = 0.0
+    bestfits_no_metals['b_SiII'] = 0.0
     mcmc_results["like"].plot_px(params=bestfits_no_metals, include_chi2=True, every_other_theta=False, multiply_by_k2=True, xlim=[0,.3], theorylabel="Best fit (no metals)", title=f"z={mcmc_results['theory'].z}", datalabel="Contaminated mocks", include_probability=False, ylim2=[-5,15])
     
     # bestfits_no_hcds = bestfits.copy()
@@ -139,7 +129,7 @@ for iz in [2]:
 bestfits
 
 # %%
-plot_contours(mcmc_results["chain_data"], mcmc_results["free_params"], nburnin=500, thin=1)
+plot_contours(mcmc_results["chain_data"], mcmc_results["free_params"], nburnin=100, thin=1)
 
 # %% [markdown]
 # ## Following part is done very by-hand to get good plots for the paper

@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.5
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %%
@@ -101,7 +101,10 @@ print(theories[0].get_param('bias'))
 
 
 # %%
-print(theories[1].get_param('mF'))
+try:
+    print(theories[1].get_param('mF'))
+except KeyError as e:
+    print(e)
 
 # %% [markdown]
 # As you can see, an error will be raised if the parameter doesn't exist.
@@ -144,7 +147,7 @@ plt.title(f'Theory prediction for z={z}')
 
 # %%
 # this can be a list of likelihood parameters or a dictionary
-params = {'bias': 0.1, 'beta': 1.6, 'q1': .3}
+params = {'bias': -0.1, 'beta': 1.6, 'q1': .3}
 # params = {'mF': 1., 'n_p': .3}
 # this will only modify the input parameters, and leave others unchanged
 Px_model_newparams = theory.get_px_obs(theta_arc=theta_arc, k_AA=kp_AA, params=params)
@@ -167,7 +170,10 @@ plt.legend()
 
 mF = 0.7
 # these would use the initial values for other params
-Px_model = theory.get_px_obs(theta_arc=theta_arc, k_AA=kp_AA, params={'mF':mF})
+try:
+    Px_model = theory.get_px_obs(theta_arc=theta_arc, k_AA=kp_AA, params={'mF':mF})
+except KeyError as e:
+    print(e)
 
 
 # %% [markdown]

@@ -198,7 +198,8 @@ class Likelihood(object):
                 theorylabel=None, datalabel=None, plot_fname=None,
                 ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False,
                 extra_params=None, extra_label=None, include_probability=True, include_chi2=False,
-                multiply_by_k2=False, connect_residuals=False, n_free_p=0):
+                multiply_by_k2=False, connect_residuals=False, n_free_p=0, ax=None, legend=True,
+                y_labels=True, ncols_leg = 1, fig=None, extra_data=None, xshade=None,yshade=None):
         """Plot the Px data and theory."""
         import matplotlib.pyplot as plt
 
@@ -207,61 +208,81 @@ class Likelihood(object):
         Nt_A, Nk_M = model_px.shape
         if extra_params is not None:
             extra_model_px = self.get_convolved_px(params=extra_params)
+
         # plot all theta on one, easily distinguishable colors
         plt.rcParams.update({'font.size': 20})
         colors = plt.cm.tab20(np.linspace(0, 1, Nt_A))
-        fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
+        if ax is None:
+            fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
         skip = 1
         if every_other_theta:
             skip = 2
 
         # central value of k bins
         k_M = (self.data.k_M_edges[self.iz][:-1] + self.data.k_M_edges[self.iz][1:])/2.
-        print(k_M.shape)
+        if extra_data is not None:
+                k_M_extra = (extra_data.k_M_edges[self.iz][:-1] + extra_data.k_M_edges[self.iz][1:])/2.
+        
 
         if multiply_by_k:
             factor = k_M
+            if extra_data is not None:
+                extra_factor = k_M_extra
             ylabel = r'$k P_\times$'
-        if multiply_by_k2:
+            
+        elif multiply_by_k2:
             factor = k_M**2
+            if extra_data is not None:
+                extra_factor = k_M_extra**2
             ylabel = r'$k^2 P_\times$'
         else:
             factor = 1.0
             ylabel = r'$P_\times$ [$\AA$]'
 
         # loop over theta bins (skipping some if needed)
+        
         for it_A in range(0, Nt_A, skip):
             label = r'$\theta_A={:.2f}^\prime$'.format(self.data.theta_centers_arcmin[it_A])
             errors = np.diag(np.squeeze(self.data.cov_ZAM[self.iz, it_A, :, :]))**0.5
             div = errors
             divname = r'$\sigma$'
+            if extra_data is not None:
+                print("extra")
+                extra_errors = np.diag(np.squeeze(extra_data.cov_ZAM[self.iz, it_A, :, :]))**0.5
+                ax[0].errorbar(k_M_extra, extra_data.Px_ZAM[self.iz, it_A, :]*extra_factor,
+                           extra_errors*extra_factor, label=None, color=colors[it_A],
+                           linestyle='none', marker='^', markersize=5)
+                print("done extra")
             ax[0].errorbar(k_M, self.data.Px_ZAM[self.iz, it_A, :]*factor,
                            errors*factor, label=label, color=colors[it_A],
                            linestyle='none', marker='^', markersize=5)
+            
             theory_iA = model_px[it_A]
             if residual_to_theory:
                 div = theory_iA
                 divname = 'Theory'
 
             ax[0].plot(k_M, theory_iA*factor, color=colors[it_A], linewidth=2)
+            
             ax[1].set_xlabel(r'$k [\AA^{-1}]$')
             if connect_residuals:
                 residual_linestyle = '-'
             else:
                 residual_linestyle = 'none'
             ax[1].plot(k_M, (self.data.Px_ZAM[self.iz, it_A, :] - theory_iA)/div, color=colors[it_A], marker='o', linestyle=residual_linestyle)
+            
             if extra_params is not None:
                 extra_theory_iA = extra_model_px[it_A]
                 ax[0].plot(k_M, extra_theory_iA*factor, color=colors[it_A], ls=':', linewidth=2)
                 ax[1].plot(k_M, (extra_theory_iA - theory_iA)/div, color=colors[it_A], ls=':', linewidth=2)
 
-        # if more than 1 z plotted, add custom legend for the redshifts: "--, square: z=.., -., diamond: z=.." etc
-        ax[0].legend()
+
         handles, labels = ax[0].get_legend_handles_labels()
         ax[1].axhline(0, color='black', linestyle='dashed', linewidth=1)
         ax[1].set_xlabel(r'$k [\AA^{-1}]$')
-        ax[0].set_ylabel(ylabel)
-        ax[1].set_ylabel(f'(Data-Theory)/{divname}')
+        if y_labels:
+            ax[0].set_ylabel(ylabel)
+            ax[1].set_ylabel(f'(Data-Theory)/{divname}')
         # ax[1].legend()
 
         # set range limits
@@ -284,7 +305,7 @@ class Likelihood(object):
         if datalabel is None:
             datalabel='Data'
         if title is not None:
-            plt.suptitle(title)
+            ax[0].set_title(title)
 
         handles.append(plt.Line2D([], [], color='black', marker='^', linestyle='none', label=datalabel))
         handles.append(plt.Line2D([], [], color='black', linestyle='solid', label=theorylabel))
@@ -297,9 +318,16 @@ class Likelihood(object):
             ax[0].text(0.35, 0.95, f'Fit prob = {prob:.2f}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
         if include_chi2:
             chi2 = self.get_chi2(params=params)
-            ndata = self.get_ndata(n_free_p=n_free_p)
-            ax[0].text(0.45, 0.9, rf'$\chi^2/n_\mathrm{{dof}}$ = {chi2:.1f}/{ndata}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
-        ax[0].legend(handles=handles, loc='upper right', fontsize=12, ncol=1)
+            ndof = self.get_ndata() - n_free_p
+            ax[0].text(0.6, 0.9, rf'$\chi^2/n_\mathrm{{dof}}$ = {chi2:.1f}/{ndof}', transform=ax[0].transAxes, ha='right', va='top', fontsize='small')
+        if xshade:
+            for i in [0,1]:
+                ax[i].axvspan(xshade[0], xshade[1], color='k', alpha=.1)
+        if yshade:
+            for i in [0,1]:
+                ax[i].axhspan(yshade[0], yshade[1], color='k', alpha=.1)
+        if legend:
+            fig.legend(handles=handles, loc="upper right", fontsize=12, ncol=ncols_leg) #[.3,.65]
         plt.tight_layout()
         if plot_fname is not None:
             plt.savefig(plot_fname + ".pdf")
@@ -314,7 +342,8 @@ class Likelihood(object):
     def plot_px_windowed_theory(self, params={}, multiply_by_k=True, every_other_theta=False, show=True,
                     theorylabel=None, datalabel=None, plot_fname=None,
                     ylim=None, ylim2=None, xlim=None, title=None, residual_to_theory=False,
-                    extra_params=None, extra_label=None, include_probability=False, include_chi2=False):
+                    extra_params=None, extra_label=None, include_probability=False, include_chi2=False,
+                    ax=None):
             """Plot the Px theory only."""
             import matplotlib.pyplot as plt
 
@@ -327,7 +356,8 @@ class Likelihood(object):
             # plot all theta on one, easily distinguishable colors
             plt.rcParams.update({'font.size': 20})
             colors = plt.cm.tab10(np.linspace(0, 1, Nt_A))
-            fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
+            if ax is None:
+                fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(8,10), gridspec_kw={'height_ratios': [3, 1]}, sharex=True)
             skip = 1
             if every_other_theta:
                 skip = 2

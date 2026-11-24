@@ -41,15 +41,15 @@ cupixpath = get_path_repo('cupix')
 # ### Step 1: Import a noiseless forecast
 
 # %%
-config = Config(cupixpath+"/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_config.yaml")
+config = Config(cupixpath+"/example_configs/fcast_best_fit_arinyo_from_p1d_theory_config.yaml")
 
 # %%
 config.print_all()
 
 # %%
 # we should eventually update data class to accept a config dictinoary
-forecast = DESI_DR2(config.data_config['data_file'], kM_max_cut_AA=config.data_config['kM_max_cut_AA'])
-iz = config.theory_config['iz']
+forecast = DESI_DR2(config=config.data_config)
+iz = config.like_config['iz']
 z = forecast.z[iz]
 
 # %%
@@ -57,11 +57,11 @@ print(z)
 
 # %%
 # If you want to check the true values from the forecast file
-# with h5.File(config.data_config['data_file'], 'r') as f:
-#     print(f['P_Z_AM']['z_0']['lya_params'])
-#     print(f.keys())
-#     for attr in f['cosmo_params'].attrs:
-#         print(attr, f['cosmo_params'].attrs[attr])
+with h5.File(config.data_config['data_file'], 'r') as f:
+    print(f['P_Z_AM']['z_0']['lya_params'])
+    print(f.keys())
+    for attr in f['cosmo_params'].attrs:
+        print(attr, f['cosmo_params'].attrs[attr])
 
 # %%
 cosmo = cosmology.Cosmology(cosmo_params_dict=config.cosmo_config)
@@ -70,7 +70,6 @@ cosmo = cosmology.Cosmology(cosmo_params_dict=config.cosmo_config)
 theory = Theory(z=z, fid_cosmo=cosmo, config=config.theory_config)
 
 # %%
-# old forecasts did not average over theta
 like = Likelihood(data=forecast, theory=theory, iz=iz, 
                   config=config.like_config)
 
