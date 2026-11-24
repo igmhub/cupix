@@ -17,7 +17,6 @@
 # # Plot chain results from the MCMC
 
 # %%
-
 from cupix.inference.mcmc_results import MCMCResults
 # %load_ext autoreload
 # %autoreload 2
@@ -31,60 +30,78 @@ from lace.cosmo import cosmology
 from cupix.likelihood.likelihood import Likelihood
 import h5py
 
-
-
 # %% [markdown]
 # Set the zs and choice of z
+
+# %%
+# izs = [0]
+izs = [0,1,2,3]
 
 # %%
 mode = 'igm' # 'arinyo'
 
 # %%
-# ls /pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261030_arinyo_paperbaseline_binfix/  #2_arinyo_paperbaseline
-
-
-# %%
 if mode=='arinyo':
     dir = f"/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261030_{mode}_paperbaseline_binfix"
 elif mode == 'igm':
-    dir = f"/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261102_{mode}_paperbaseline_binfix"
+    dir = f"/pscratch/sd/m/mlokken/desi-lya/px/dr2_analysis/loa/20261124_{mode}_binfix_morefree"
     # 20261015_{mode}_paperbaseline"
 
 # %% [markdown]
 # # Load the chains
 
 # %%
-chains = MCMCResults(dir, iz=[0,1,2,3])
+chains = MCMCResults(dir, izs)
 
 # %% [markdown]
 # ## Check the autocorrelation time
 
 # %%
-for iz in [0,1,2,3]:
+for iz in izs:
     chains.plot_tau_estimates(iz=iz)
 
 # %% [markdown]
 # ## Inspect the chains
 
 # %%
-for iz in [0,1,2,3]:
+for iz in izs:# [0,1,2,3]:
     chains.plot_chains(iz=iz, param_name='mF')
     chains.plot_chains(iz=iz, param_name='sigT_Mpc')
+    chains.plot_chains(iz=iz, param_name='gamma')
 
 # %% [markdown]
 # Decide on nburnin from the previous plots, thin based on number of walkers
 
 # %%
-nburnin = 200
+nburnin = 50
 thin = 4
 
 # %%
-for iz in [0,1,2,3]:
-    chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin)
+chains.freepars
 
 # %%
-for iz in [0,1,2,3]:
-    chains.plot_contours(iz=iz, nburnin=nburnin, thin=thin, params_to_plot=['mF', 'T0', 'b_H','b_SiII','b_SiIII'])
+for iz in izs:  #[0,1,2,3]:
+    chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin, include_probability=False, include_chi2=True, every_other_theta=True, ncols_leg=2)
+
+# %%
+chains.setup_configs['0'].data_config.keys()
+
+# %%
+data.k_M_edges
+
+# %%
+
+# load the original data and plot it underneath
+data_config = {'data_file':chains.setup_configs['0'].data_config['data_file'], 'theta_min_cut_arcmin':5} # get all data
+data = DESI_DR2(data_config)
+for iz in izs:
+    chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin, include_probability=False, include_chi2=False, every_other_theta=False, extra_data=data,
+                         xlim=[0,.65], ncols_leg=2, ylim=[-.0005, 0.009], multiply_by_k=True, xshade=[0, 0.03451457], ylim2=[-3.5, 3.5])
+
+
+# %%
+for iz in izs:
+    chains.plot_contours(iz=iz, nburnin=nburnin, thin=thin, params_to_plot=['mF', 'T0', 'gamma', 'kF_Mpc', 'b_H','b_SiII','b_SiIII'])
 
 # %%
 chains.chain_files
@@ -175,14 +192,62 @@ plt.savefig("../../plots/beta_eff_vs_z.pdf", bbox_inches='tight')
 z = np.array([2.2, 2.4, 2.6, 2.8])
 mF_gaikwad = np.array([.826, .79, .767, .74])
 gaikwad_err = np.array([0.0206, 0.0210, 0.0216, 0.0212])
-mF_cm = np.array([priors.get_IGM_priors(zi)["mean"]["mF"] for zi in z])
-mF_cm_err = np.array([priors.get_IGM_priors(zi)["std"]["mF"] for zi in z])
+z_turner = np.array([2.15, 2.25, 2.35, 2.45, 2.55, 2.65, 2.75, 2.85])
+tau_turner = np.array([0.158, 0.179, 0.200, 0.226, 0.235, 0.268, 0.292, 0.316])
+tau_err_turner = np.array([.012, .015, .016, .016, .018, .019, .020, .021])
+mF_turner = np.exp(-1*tau_turner)
+mF_err_turner = mF_turner * tau_err_turner
+# mF_cm = np.array([priors.get_IGM_priors(zi)["mean"]["mF"] for zi in z])
+# mF_cm_err = np.array([priors.get_IGM_priors(zi)["std"]["mF"] for zi in z])
+mF_cm =  np.array([0.8151, 0.7906,  0.7637, 0.7303])
+mF_cm_err = np.array([0.0047,0.0044, 0.0049, .0056])
+
+# %%
+from lace.cosmo.thermal_broadening import T0_from_broadening_kms
+T0_gaikwad = np.array([11000, 12750, 13500, 14750])/1e4
+T0_gaikwad_err = np.array([1028, 1132, 1390, 1341])/1e4
+sigT_cm = np.array([0.1611, 0.1467, 0.1311, 0.1205])
+sigT_cm_err = np.array([0.0043, 0.0037, 0.0057, 0.0068])
+T0_cm = []
+T0_cm_err = []
+for iz in range(len(z)):
+    dkms_dMpc = chains.theories[str(iz)].fid_cosmo.get_dkms_dMpc(z[iz])
+    sigT_kms = sigT_cm[iz] * dkms_dMpc
+    T0_cm.append(T0_from_broadening_kms(sigT_kms) / 1e4)
+
+    T0_cm_err_iz = 2 * sigT_cm_err[iz] / sigT_cm[iz] * T0_cm[iz]
+    T0_cm_err.append(T0_cm_err_iz)
+    if iz==2:
+        break
+T0_cm = np.asarray(T0_cm)
+T0_cm_err = np.asarray(T0_cm_err)
+
+# %%
+T0_cm_err.shape
+
+# %%
+plt.fill_between(z[:3], T0_cm - T0_cm_err, T0_cm + T0_cm_err, alpha=.5, label='Chaves-Montero+25', color='orange')
+plt.fill_between(z, T0_gaikwad - T0_gaikwad_err, T0_gaikwad + T0_gaikwad_err, alpha=.5, label='Gaikwad+25', color='red')
+for iz in izs:
+    
+    if iz==0:
+        label=r"$P_\times$, this work"
+    else:
+        label=None
+    
+    bestfits = chains.chain_bestfit_dict(iz=iz,nburnin=nburnin, thin=thin)
+    plt.errorbar(chains.theories[str(iz)].z, bestfits['T0'], yerr=bestfits['T0_err'], marker='o', color='green', label=label)
+
+plt.legend()
+
+
 
 # %%
 
 plt.fill_between(z, mF_gaikwad-gaikwad_err, mF_gaikwad+gaikwad_err, alpha=.2, label='Gaikwad+21')
 plt.fill_between(z, mF_cm - mF_cm_err, mF_cm + mF_cm_err, alpha=.5, label='Chaves-Montero+25', color='orange')
-for iz in range(4):
+plt.fill_between(z_turner, mF_turner - mF_err_turner, mF_turner + mF_err_turner, alpha=.5, label='Turner+24', color='red')
+for iz in izs:
     
     if iz==0:
         label=r"$P_\times$, this work"

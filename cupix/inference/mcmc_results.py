@@ -70,7 +70,9 @@ class MCMCResults:
                     chain_files.sort(key=lambda x: int(x.split("_it")[-1].split(".")[0]))
                     self.chain_files[str(iz)] = os.path.join(directory, chain_files[-1])
                     print(f"Found partial chain file for z{iz}: {chain_files[-1]}")
-        
+                    found_chain=True
+                else:
+                    raise ValueError(f"Cannot find chain for {iz}, check that input iz is correct")
             self.setup_configs[str(iz)] = Config(self.setup_files[str(iz)])
         self.load_inf_config()
         self.load_theories_likelihoods()
@@ -396,13 +398,15 @@ class MCMCResults:
                       include_chi2=False, include_probability=False,
                       multiply_by_k=True, xlim=None,
                       ylim=None, theorylabel="Best-fit theory", datalabel="Measurements",
-                      title=None, ylim2=None, every_other_theta=False):
+                      title=None, ylim2=None, every_other_theta=False, connect_residuals=True,
+                      extra_data = None, ncols_leg=None, xshade=None, yshade=None):
         """Plot the best fit theory and data."""
         bestfit_dict = self.chain_bestfit_dict(iz=iz, nburnin=nburnin, thin=thin)
         likelihood = self.likelihoods[str(iz)]
         bf_params = {p.name: bestfit_dict[p.name] for p in self.freepars[str(iz)]}
         likelihood.plot_px(params=bf_params, include_chi2=include_chi2, every_other_theta=every_other_theta, include_probability=include_probability, multiply_by_k=multiply_by_k, xlim=xlim, ylim=ylim, ylim2=ylim2, theorylabel=theorylabel, datalabel=datalabel, title=title,
-                           n_free_p=len(self.freepars[str(iz)]))
+                           n_free_p=len(self.freepars[str(iz)]), connect_residuals=connect_residuals, extra_data=extra_data,
+                           ncols_leg=ncols_leg, xshade=xshade, yshade=yshade)
         if save:
             if outdir is None:
                 outdir=self.directory

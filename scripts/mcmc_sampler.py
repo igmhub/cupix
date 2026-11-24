@@ -18,7 +18,7 @@ from cupix.likelihood.likelihood import Likelihood
 from cupix.inference.sampling_funcs import prepare_free_parameters, get_initial_walkers
 from cupix.likelihood.config import Config
 from cupix.inference.inference_config import InferenceConfig
-from cupix.inference.sampling_funcs import plot_tau_estimates, plot_chains, record_mcmc_settings, create_output_directory, save_chain
+from cupix.inference.sampling_funcs import record_mcmc_settings, create_output_directory, save_chain
 
 _POST = None
 
@@ -27,7 +27,7 @@ def init_worker(post):
     _POST = post
     if 'igm' in _POST.like.theory.lya_model.default_lya_model and _POST.like.theory.lya_model.delayload_emulator:
         # load the emulator now. This is necessary to avoid pickling problems earlier (frEIA package contains a lambda function)
-        _POST.like.theory.lya_model.emulator = _POST.like.theory.lya_model.get_emulator(_POST.like.theory.lya_model.emulator_label, _POST.like.theory.lya_model.Nrealizations, _POST.like.theory.lya_model.compile_emu_model_early)
+        _POST.like.theory.lya_model.emulator = _POST.like.theory.lya_model.get_emulator(_POST.like.theory.lya_model.emulator_label, _POST.like.theory.lya_model.Nrealizations)
     _POST.like.get_chi2() # will run camb and store the results in post.like.theory, which will be shared across workers
 
 def log_prob_wrapper(values):

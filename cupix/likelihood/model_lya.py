@@ -42,6 +42,7 @@ class LyaModel(object):
             self.default_lya_params = None
             # setup emulator
             self.emulator_label = config.get('emulator_label', 'forest_mpg_cinn')
+            print("Setting up emulator as", self.emulator_label)
             if self.emulator_label not in ['forest_mpg_cinn', 'forest_mpg_gp']:
                 raise ValueError("unknown emulator_label", self.emulator_label)
             self.Nrealizations = config.get('Nrealizations', 2048)

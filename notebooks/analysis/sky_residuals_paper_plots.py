@@ -31,7 +31,8 @@ from cupix.inference.minimize_posterior import Minimizer
 
 # %%
 basedir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/DR2_Px/baseline/"
-fname = basedir + "/wp1d/BALs_weighted_to_zero/bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
+
+fname = basedir + "/wp1d/BALs_weighted_to_zero/rescor_bin_bf3_binned_out_px-zbins_4-thetabins_20_w_res_wp1d.hdf5"
 data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.5, 'kM_max_cut_AA':1.5, 'km_max_cut_AA':1.7, 'theta_min_cut_arcmin':13.0})
 
 # %%
@@ -45,8 +46,6 @@ theta_A_max = data.theta_max_A_arcmin
 
 # %%
 print(theta_A_max)
-
-# %%
 
 # %%
 cosmo = cosmology.Cosmology()
@@ -72,10 +71,17 @@ for iz, z in enumerate(data.z):
 likes_withsky[0].get_convolved_px()
 
 # %%
+ylim = [-.002,.012]
+ylim2 = [-5,8]
+xlim=[.55, 1.45]
 for iz, z in enumerate(data.z): 
-    
-    likes_withsky[iz].plot_px(multiply_by_k=False, theorylabel="model with sky residuals", datalabel='DESI DR2 (z={})'.format(z), include_probability=False, include_chi2=True)
-    likes_nosky[iz].plot_px(multiply_by_k=False, theorylabel="model without sky residuals", datalabel='DESI DR2 (z={})'.format(z), include_probability=False, include_chi2=True)
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=[11,7], gridspec_kw={'height_ratios': [3, 1]}, sharex=True, sharey='row')
+    likes_withsky[iz].plot_px(multiply_by_k=False, ax=ax[:,1],theorylabel=None, datalabel=None, include_probability=False, include_chi2=True, show=False, ylim=ylim, ylim2=ylim2, legend=False, every_other_theta=True, y_labels=False, fig=fig, xlim=xlim, title="Modeling sky residuals")
+    likes_nosky[iz].plot_px(multiply_by_k=False, ax=ax[:,0],theorylabel="model", datalabel='DESI DR2 (z={})'.format(z), include_probability=False, include_chi2=True, ylim=ylim, ylim2=ylim2, every_other_theta=True, plot_fname="../../plots/skyfit_effect_highk", ncols_leg=2, fig=fig, xlim=xlim, title="Not modeling sky residuals")
+    fig.subplots_adjust(wspace=0.1)
+    break
+
+# %%
 
 # %%
 

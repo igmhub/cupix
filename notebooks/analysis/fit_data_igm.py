@@ -48,6 +48,21 @@ print(km_max_cut_AA)
 data = DESI_DR2(config={'data_file':fname, 'kM_min_cut_AA':0.03, 'kM_max_cut_AA':kM_max_cut_AA, 'km_max_cut_AA':km_max_cut_AA, 'theta_min_cut_arcmin':1})
 
 # %%
+data.theta_centers_arcmin
+
+# %%
+data.cov_ZAM.shape
+
+# %%
+first_bin = data.cov_ZAM[1,0,:,:]
+last_bin = data.cov_ZAM[1,-1,:,:]
+tenth_bin = data.cov_ZAM[1,9,:,:]
+sectolast_bin = data.cov_ZAM[1,-2,:,:]
+plt.imshow(last_bin / tenth_bin  * (2392707/366577)**2 - 1, vmin=-2, vmax=2)
+# plt.imshow(last_bin / sectolast_bin, vmin=-5, vmax=5)
+plt.colorbar()
+
+# %%
 # get the central value of each redshift bin, of length Nz
 zs = data.z
 # get a 1D array of central values of the measured k bins, of length Nk_M

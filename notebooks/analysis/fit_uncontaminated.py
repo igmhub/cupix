@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.5
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -226,10 +226,19 @@ plt.legend(handles=[solid_line, dashed_line] + handles, labels=labels_lines + la
 plt.title("$z={:.1f}$".format(z))
 
 # %%
-ax
+theta_colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple']
 
 # %%
-fig, ax = plt.subplots(2, 2, figsize=(10, 8), sharex=True, sharey=True)
+from matplotlib.lines import Line2D
+import matplotlib as mpl
+
+# %%
+data_uncont.theta_centers_arcmin[0:8]
+
+# %%
+mpl.rcParams.update({'font.size': 15})
+z_colors = ['b', 'r', 'k', 'magenta']
+fig, ax = plt.subplots(1, 1, figsize=(6, 5), sharex=True, sharey=True)
 for iz in range(4):
     mockdir = "/global/cfs/cdirs/desi/users/sindhu_s/Lya_Px_measurements/mocks/stacked_outputs/"
     fname_tru = mockdir + "tru_cont/tru_cont_binned_out_bf3_px-zbins_4-thetabins_20_w_res_avg50.hdf5"
@@ -251,18 +260,25 @@ for iz in range(4):
         pC = 0.51
         kC_Mpc = .011
     # plot the ratio and the model
-    
-    ax[iz//2, iz%2].set_title("$z={:.1f}$".format(z))
-    for itheta in np.arange(9):
-        ax[iz//2, iz%2].plot(data_uncont.k_M_centers_AA, data_uncont.Px_ZAM[iz, itheta, :]/data_tru.Px_ZAM[iz,itheta,:],  color=theta_colors[int(itheta)], alpha=.3)
+    dist_avg = np.average(data_uncont.Px_ZAM[iz, 0:8, :]/data_tru.Px_ZAM[iz,0:8,:], axis=0)
+    ax.plot(data_uncont.k_M_centers_AA, dist_avg,  label="$z={:.1f}$".format(z), color=z_colors[iz])
     cont_dist = np.tanh((data_uncont.k_M_centers_AA/kC_Mpc)**pC)
-    ax[iz//2, iz%2].plot(data_uncont.k_M_centers_AA, cont_dist, label='model', linestyle='--', color='k')
+    ax.plot(data_uncont.k_M_centers_AA, cont_dist, linestyle='--', color=z_colors[iz])
+    print('model is', ((cont_dist-dist_avg)/dist_avg)[0:4] * 100, 'percent off')
     
-plt.xlim([0,.3])
-plt.ylim([0.8, 1.03])
-plt.legend()
-ax[0,0].set_ylabel(r'$P_\times^{\rm cont-fitted} / P_\times^{\rm true-cont} $')
-ax[1,0].set_xlabel(r'$k_\parallel$ [1/Mpc]')
+plt.xlim([0.01,.2])
+plt.ylim([0.75, 1.01])
+handles, labels = ax.get_legend_handles_labels()
+lines = [Line2D([0], [0], color='k', ls='solid'), Line2D([0], [0], color='k', ls='dashed')]
+labels_new = ['measurement on mocks', 'model']
+plt.legend(handles+lines, labels+labels_new)
+ax.set_ylabel(r'$P_\times^{\rm cont-fitted} / P_\times^{\rm true-cont} $', fontsize=18)
+ax.set_xlabel(r'$k_\parallel$ [1/Mpc]')
+ax.axvspan(0,0.046, color='grey', alpha=.2)
+plt.savefig("../../plots/distortion_fits.pdf", bbox_inches='tight')
 
+
+# %%
+data_uncont.k_M_centers_AA
 
 # %%

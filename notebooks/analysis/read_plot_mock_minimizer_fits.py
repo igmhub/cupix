@@ -8,9 +8,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.5
 #   kernelspec:
-#     display_name: cupix
+#     display_name: Python 3
 #     language: python
-#     name: cupix
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -58,7 +58,7 @@ likes_trucont = []
 
 for iz in [0,1,2,3]:
     # input the results from minimizer_pipeline.py here.
-    results_directory = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/minimizer_fits/20260918_unont_fix_cont/"
+    results_directory = "/pscratch/sd/m/mlokken/desi-lya/px/mocks/minimizer_fits/20260918_uncont_fix_cont/"
     results_dict, free_params, data, cosmo, theory, like, setup_config, inf_config = load_mini_results(results_directory, filename=f"iminuit_results_{iz}.npz", setup_config_fname=f"setup_config_mini_z{iz}.yaml", inf_config_fname=f"inference_config_mini_z{iz}.yaml")
     results_uncont.append(results_dict)
     freepars_uncont.append(free_params)
@@ -74,6 +74,63 @@ for iz in [0,1,2,3]:
 
 # %%
 plot_corner(results_trucont[1], freepars_trucont[1], show_truth=False)
+
+# %%
+results_trucont[iz]
+
+
+# %%
+# replace results_single_mock with the center values from Laura's fits to draw DR2-like contours around the 'truth'
+for iz in range(4):
+    
+
+# %%
+import copy
+
+# %%
+fig, ax = plt.subplots(nrows=2, ncols=2, sharex=False, sharey=False, figsize=[8,8])
+
+
+for iz in [0,1,2,3]:
+    true_val_label = None
+    trucont_label = None
+    fitted_label = None
+    data_like = None
+    n = iz % 2
+    m = iz // 2
+    true_vals = {'bias':theories_trucont[iz].get_param('bias'), 'beta':theories_trucont[iz].get_param('beta'), 'kp':theories_trucont[iz].get_param('kp_Mpc')}
+    results_single_mock_shifted = copy.deepcopy(results_single_mock[iz])
+    results_single_mock_shifted['bias'] = true_vals['bias']
+    results_single_mock_shifted['beta'] = true_vals['beta']
+    
+    if iz == 0:
+        true_val_label = r"`Truth', $\xi_{{3D}}$ fits"
+        trucont_label = "True-cont. stack"
+        fitted_label = "Fitted-cont. stack"
+        data_like = r'DR2-like 1$\sigma$'
+        xlabel=""
+    if iz == 1:
+        xrange = [-.17,-0.09]
+        yrange = [1.2,2.0]
+        xlabel=""
+    elif iz == 0:
+        xrange = [-.15,-.09]
+        yrange = [1.2,2.0]
+    else:
+        xrange = [-.3,-.07]
+        yrange = [0,3]
+        xlabel="$b$"
+    if iz == 0 or iz == 2:
+        ylabel = r'$\beta$'
+    else:
+        ylabel = ""
+    plot_ellipse(results_single_mock_shifted, 'bias','beta',  color="blue", ylabel=ylabel, xlabel=xlabel, linestyle='dashed', fill=False, nsig=2, include_point=False, label=data_like, ax=ax[m,n], xlim=xrange, ylim=yrange)
+    plot_ellipse(results_trucont[iz], 'bias','beta', color="green", label=trucont_label, title=f"z={zs[iz]}", ylabel=ylabel, xlabel=xlabel,  ax=ax[m,n], xlim=xrange, ylim=yrange)
+    plot_ellipse(results_uncont[iz], 'bias','beta',  true_vals=true_vals, true_val_label=true_val_label, color="orange", label=fitted_label, ylabel=ylabel, xlabel=xlabel, ax=ax[m,n], xlim=xrange, ylim=yrange, outdir='../../plots', outfile='4z_biasbeta_mock_trucont_fitted_toxi3d.pdf')
+    # plot a contour of the single mock results
+    
+
+# %%
 
 # %%
 xranges = []
