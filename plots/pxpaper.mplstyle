@@ -1,11 +1,11 @@
 axes.titlesize: 14
 axes.labelsize: 12
-xtick.labelsize: 8
-ytick.labelsize: 8
+xtick.labelsize: 10
+ytick.labelsize: 10
 
-axes.labelweight: bold
+axes.labelweight: normal
 font.family: Sans-serif
-font.size: 12
+font.size: 14
 figure.figsize: 4, 3
 figure.dpi: 300
 lines.linewidth: 1.5

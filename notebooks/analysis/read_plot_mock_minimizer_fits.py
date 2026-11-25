@@ -82,7 +82,7 @@ results_trucont[iz]
 # %%
 # replace results_single_mock with the center values from Laura's fits to draw DR2-like contours around the 'truth'
 for iz in range(4):
-    
+
 
 # %%
 import copy
@@ -128,7 +128,7 @@ for iz in [0,1,2,3]:
     plot_ellipse(results_trucont[iz], 'bias','beta', color="green", label=trucont_label, title=f"z={zs[iz]}", ylabel=ylabel, xlabel=xlabel,  ax=ax[m,n], xlim=xrange, ylim=yrange)
     plot_ellipse(results_uncont[iz], 'bias','beta',  true_vals=true_vals, true_val_label=true_val_label, color="orange", label=fitted_label, ylabel=ylabel, xlabel=xlabel, ax=ax[m,n], xlim=xrange, ylim=yrange, outdir='../../plots', outfile='4z_biasbeta_mock_trucont_fitted_toxi3d.pdf')
     # plot a contour of the single mock results
-    
+
 
 # %%
 

@@ -1,7 +1,7 @@
 verbose_all: False
 
 data_config:
-  data_file: /global/common/software/desi/users/mlokken/cupix/data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_real_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5
+  data_file: ../data/px_measurements/forecast/fcast_best_fit_arinyo_from_p1d_realwin_bf3_binned_out_px-zbins_4-thetabins_10_w_res_noiseless.hdf5
   verbose:
   kM_max_cut_AA: 1
   km_max_cut_AA: 1.2
@@ -28,6 +28,8 @@ theory_config:
 
   # fill parameters for EITHER igm_config OR lya_config
   # which params are filled should be consistent with default_lya_model.
+  # these sections are optional, if you leave them blank or delete them they will default to 
+  # default parameters
   igm_config:
     Delta2_p: 
     n_p:
@@ -64,5 +66,4 @@ theory_config:
 
 likelihood_config:
   verbose:
-  N_theta_average: 1
   iz: 0

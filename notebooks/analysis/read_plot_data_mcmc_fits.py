@@ -73,35 +73,41 @@ for iz in izs:# [0,1,2,3]:
 # Decide on nburnin from the previous plots, thin based on number of walkers
 
 # %%
-nburnin = 50
+nburnin = 200
 thin = 4
-
-# %%
-chains.freepars
 
 # %%
 for iz in izs:  #[0,1,2,3]:
     chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin, include_probability=False, include_chi2=True, every_other_theta=True, ncols_leg=2)
 
 # %%
-chains.setup_configs['0'].data_config.keys()
-
-# %%
-data.k_M_edges
-
-# %%
-
 # load the original data and plot it underneath
-data_config = {'data_file':chains.setup_configs['0'].data_config['data_file'], 'theta_min_cut_arcmin':5} # get all data
+data_config = {'data_file':chains.setup_configs['0'].data_config['data_file'], 'theta_min_cut_arcmin':1} # get all data
 data = DESI_DR2(data_config)
-for iz in izs:
-    chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin, include_probability=False, include_chi2=False, every_other_theta=False, extra_data=data,
-                         xlim=[0,.65], ncols_leg=2, ylim=[-.0005, 0.009], multiply_by_k=True, xshade=[0, 0.03451457], ylim2=[-3.5, 3.5])
+# for iz in izs:
+    # chains.plot_best_fit(iz=iz, nburnin=nburnin, thin=thin, include_probability=False, include_chi2=False, every_other_theta=False, extra_data=data,
+    #                      xlim=[0,.65], ncols_leg=2, ylim=[-.0005, 0.009], multiply_by_k=True, xshade=[0, 0.03451457], ylim2=[-3.5, 3.5])
 
+# # settings for lower theta bins
+# chains.plot_best_fit_multiz(data=data, izs=izs, nburnin=nburnin, thin=thin,
+#                             include_chi2=False, xlim=[0, .8], ylim=[-.0005, .07], ylim2=[-6, 6], ncols_leg=4,
+#                             connect_residuals=True,
+#                             title='DR2 data and best-fit IGM model', theorylabel="Best-fit theory", save=True, plot_fname='../../plots/multiz_bestfit.pdf',
+#                             show_unused_residuals=False)
+
+# settings for higher theta bins
+chains.plot_best_fit_multiz(data=data, izs=izs, nburnin=nburnin, thin=thin,
+                            include_chi2=False, xlim=[0, .8], ylim=[-.0005, .02], ylim2=[-4, 4], ncols_leg=4,
+                            connect_residuals=True,
+                            title='DR2 data and best-fit IGM model', theorylabel="Best-fit theory", save=True, plot_fname='../../plots/multiz_bestfit.pdf',
+                            show_unused_residuals=False)
+
+# %%
+thin = 6
 
 # %%
 for iz in izs:
-    chains.plot_contours(iz=iz, nburnin=nburnin, thin=thin, params_to_plot=['mF', 'T0', 'gamma', 'kF_Mpc', 'b_H','b_SiII','b_SiIII'])
+    chains.plot_contours(iz=iz, nburnin=nburnin, thin=thin, params_to_plot=['mF', 'T0', 'gamma', 'kF_Mpc', 'b_H','b_SiII','b_SiIII'], title=f"z={z[iz]}")
 
 # %%
 chains.chain_files
@@ -189,6 +195,9 @@ plt.ylabel(r"$\beta_\alpha^\prime$")
 plt.savefig("../../plots/beta_eff_vs_z.pdf", bbox_inches='tight')
 
 # %%
+plt.style.use("../../plots/pxpaper.mplstyle")
+
+# %%
 z = np.array([2.2, 2.4, 2.6, 2.8])
 mF_gaikwad = np.array([.826, .79, .767, .74])
 gaikwad_err = np.array([0.0206, 0.0210, 0.0216, 0.0212])
@@ -217,17 +226,14 @@ for iz in range(len(z)):
 
     T0_cm_err_iz = 2 * sigT_cm_err[iz] / sigT_cm[iz] * T0_cm[iz]
     T0_cm_err.append(T0_cm_err_iz)
-    if iz==2:
-        break
+    
 T0_cm = np.asarray(T0_cm)
 T0_cm_err = np.asarray(T0_cm_err)
 
 # %%
-T0_cm_err.shape
 
-# %%
-plt.fill_between(z[:3], T0_cm - T0_cm_err, T0_cm + T0_cm_err, alpha=.5, label='Chaves-Montero+25', color='orange')
-plt.fill_between(z, T0_gaikwad - T0_gaikwad_err, T0_gaikwad + T0_gaikwad_err, alpha=.5, label='Gaikwad+25', color='red')
+plt.fill_between(z, T0_cm - T0_cm_err, T0_cm + T0_cm_err, alpha=.5, label='Chaves-Montero+26', color='orange')
+plt.fill_between(z, T0_gaikwad - T0_gaikwad_err, T0_gaikwad + T0_gaikwad_err, alpha=.5, label='Gaikwad+21', color='lightblue')
 for iz in izs:
     
     if iz==0:
@@ -237,16 +243,18 @@ for iz in izs:
     
     bestfits = chains.chain_bestfit_dict(iz=iz,nburnin=nburnin, thin=thin)
     plt.errorbar(chains.theories[str(iz)].z, bestfits['T0'], yerr=bestfits['T0_err'], marker='o', color='green', label=label)
+plt.ylim([.25, 2])
+plt.ylabel(r"$T_0$ [K] $ /~10^4$ ")
+plt.xlabel(r"$z$ ")
+# plt.legend(loc='upper center')
 
-plt.legend()
-
-
+plt.savefig("../../plots/T0_results.pdf", bbox_inches='tight')
 
 # %%
 
-plt.fill_between(z, mF_gaikwad-gaikwad_err, mF_gaikwad+gaikwad_err, alpha=.2, label='Gaikwad+21')
+plt.fill_between(z, mF_gaikwad-gaikwad_err, mF_gaikwad+gaikwad_err, alpha=.5, label='Gaikwad+21', color='lightblue')
 plt.fill_between(z, mF_cm - mF_cm_err, mF_cm + mF_cm_err, alpha=.5, label='Chaves-Montero+25', color='orange')
-plt.fill_between(z_turner, mF_turner - mF_err_turner, mF_turner + mF_err_turner, alpha=.5, label='Turner+24', color='red')
+plt.fill_between(z_turner, mF_turner - mF_err_turner, mF_turner + mF_err_turner, alpha=.4, label='Turner+24', color='red')
 for iz in izs:
     
     if iz==0:
@@ -258,9 +266,9 @@ for iz in izs:
     plt.errorbar(chains.theories[str(iz)].z, bestfits['mF'], yerr=bestfits['mF_err'], marker='o', color='green', label=label)
 
 
-plt.legend(fontsize=15)
-plt.ylabel(r"$\overline{F}$", fontsize=15)
-plt.xlabel('z', fontsize=15)
-# plt.savefig("../../plots/mF_estimates_preliminary.pdf", bbox_inches="tight")
+plt.legend(loc=[.45,.65],  framealpha=1)
+plt.ylabel(r"$\overline{F}$")
+plt.xlabel('z')
+plt.savefig("../../plots/mF_estimates.pdf", bbox_inches="tight")
 
 # %%

@@ -173,11 +173,11 @@ def prepare_free_parameters(
             par.max_value = params_config[par.name].get("max_value", par.max_value)
             par.ini_value = params_config[par.name].get("ini_value", par.ini_value)
             par.true_value = params_config[par.name].get("true_value", par.true_value)
-            if params_config[par.name].get("par.add_gauss") in [False, None]:
+            if params_config[par.name].get("add_gauss") in [False, None]:
                 # remove the gauss_prior_mean and gauss_prior_width
                 par.gauss_prior_mean = None
                 par.gauss_prior_width = None
-            elif params_config[par.name].get("par.add_gauss"):
+            elif params_config[par.name].get("add_gauss"):
                 par.gauss_prior_mean = params_config[par.name].get(
                     "gauss_prior_mean", par.gauss_prior_mean
                 )

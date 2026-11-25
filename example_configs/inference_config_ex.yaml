@@ -19,13 +19,14 @@ sampler_config:
 # any parameters listed here will be used as free parameters.
 # It is not necessary to add the attributes unless you want to replace the defaults.
 # Not all values get used depending on what analysis you are doing. For example,
-# min_value is only used for the minimizer, while gauss_prior_mean is only used for MCMC
+# min_value is only used for the minimizer, while gauss_prior_mean is only used for MCMC, and only iff add_gauss is true
 params_config:
   bias:
     min_value:
     max_value:
     ini_value:
     true_value:
+    add_gauss:
     gauss_prior_mean:
     gauss_prior_width:
     delta:
@@ -34,6 +35,7 @@ params_config:
     max_value:
     ini_value:
     true_value:
+    add_gauss:
     gauss_prior_mean:
     gauss_prior_width:
     delta:
@@ -42,6 +44,7 @@ params_config:
     max_value:
     ini_value:
     true_value:
+    add_gauss:
     gauss_prior_mean:
     gauss_prior_width:
     delta:
@@ -50,6 +53,7 @@ params_config:
     max_value:
     ini_value:
     true_value:
+    add_gauss:
     gauss_prior_mean:
     gauss_prior_width:
     delta:
@@ -58,6 +62,7 @@ params_config:
     max_value:
     ini_value:
     true_value:
+    add_gauss:
     gauss_prior_mean:
     gauss_prior_width:
     delta:
